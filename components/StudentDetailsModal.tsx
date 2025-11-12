@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType } from '../types';
 import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon } from './icons';
@@ -26,7 +27,11 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
   };
   
   const handleSave = async () => {
-    await onUpdate(editableStudent);
+    const studentToUpdate = {
+        ...editableStudent,
+        email: editableStudent.email.trim().toLowerCase(),
+    };
+    await onUpdate(studentToUpdate);
     setIsEditing(false);
   }
 

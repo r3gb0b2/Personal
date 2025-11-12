@@ -45,7 +45,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
 
     const studentToAdd: Omit<Student, 'id'> = {
       name: newStudent.name.trim(),
-      email: newStudent.email.trim(),
+      email: newStudent.email.trim().toLowerCase(),
       phone: newStudent.phone.trim(),
       startDate: new Date().toISOString(),
       planId: newStudent.planId || null,
