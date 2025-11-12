@@ -4,7 +4,7 @@ import { getStorage } from "firebase/storage";
 
 // TODO: Replace with your app's Firebase project configuration
 // You can get this from the Firebase Console of your project.
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyDsi6VpfhLQW8UWgAp5c4TRV7vqOkDyauU",
   authDomain: "stingressos-e0a5f.firebaseapp.com",
   projectId: "stingressos-e0a5f",

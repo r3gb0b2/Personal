@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { db } from '../firebase';
+import { db, firebaseConfig } from '../firebase';
 import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy } from 'firebase/firestore';
 import { Student, Plan, Payment } from '../types';
 import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon } from './icons';
@@ -29,6 +29,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const [isPlanModalOpen, setPlanModalOpen] = useState(false);
   const [isAddStudentModalOpen, setAddStudentModalOpen] = useState(false);
   const [isFinancialReportModalOpen, setFinancialReportModalOpen] = useState(false);
+
+  // Check if the Firebase config is still using the placeholder project ID
+  const isConfigPlaceholder = firebaseConfig.projectId === 'stingressos-e0a5f';
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -221,6 +224,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       </div>
 
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+        {/* CRITICAL CONFIGURATION WARNING */}
+        {isConfigPlaceholder && (
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded-md shadow-lg" role="alert">
+            <p className="font-bold">AÇÃO NECESSÁRIA: Configuração Incompleta</p>
+            <p>A função de upload de fotos não funcionará até que você configure suas credenciais do Firebase. Por favor, edite o arquivo <strong>firebase.ts</strong> e substitua os dados de exemplo pelos do seu projeto.</p>
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="bg-white p-6 rounded-lg shadow-md flex items-center gap-4">
