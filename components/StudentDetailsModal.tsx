@@ -93,7 +93,9 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
         newDueDate.setDate(newDueDate.getDate() + plan.durationInDays);
         updatedStudent.paymentDueDate = newDueDate.toISOString();
     } else if (plan.type === 'session' && plan.numberOfSessions) {
-        updatedStudent.remainingSessions = (updatedStudent.remainingSessions || 0) + plan.numberOfSessions;
+        // If the student owes classes (negative remainingSessions), deduct them from the new plan.
+        const currentBalance = updatedStudent.remainingSessions ?? 0;
+        updatedStudent.remainingSessions = currentBalance + plan.numberOfSessions;
         updatedStudent.paymentDueDate = null; // Clear due date for session plans
     }
     
@@ -110,7 +112,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
 
   const studentPlan = plans.find(p => p.id === student.planId);
   const isPaymentDue = studentPlan?.type === 'duration' && student.paymentDueDate && new Date(student.paymentDueDate) < new Date();
-  const areSessionsLow = studentPlan?.type === 'session' && (student.remainingSessions == null || student.remainingSessions <= 0);
+  const areSessionsLow = studentPlan?.type === 'session' && (student.remainingSessions != null && student.remainingSessions <= 0);
 
   const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
@@ -151,8 +153,8 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
          </div>
       ) : (
         <div className="space-y-6">
-            <div className="flex gap-6 items-start">
-                <div className="relative group">
+            <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
+                <div className="relative group flex-shrink-0">
                     {student.profilePictureUrl ? (
                         <img src={student.profilePictureUrl} alt={student.name} className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md"/>
                     ) : (
@@ -165,9 +167,9 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
                     </button>
                 </div>
 
-                <div className="flex-1">
-                    <div className="flex justify-between items-start">
-                        <div>
+                <div className="flex-1 w-full">
+                    <div className="flex flex-col-reverse items-center sm:flex-row sm:justify-between sm:items-start w-full gap-4 sm:gap-0">
+                        <div className="text-center sm:text-left">
                             <p><strong>Email:</strong> {student.email || 'N/A'}</p>
                             <p><strong>Telefone:</strong> {student.phone || 'N/A'}</p>
                             <p><strong>Início:</strong> {formatDate(student.startDate)}</p>

@@ -93,7 +93,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         return s.paymentDueDate && new Date(s.paymentDueDate) <= nextWeek;
       }
       if (plan.type === 'session') {
-        return s.remainingSessions != null && s.remainingSessions <= lowSessionThreshold;
+        return s.remainingSessions != null && s.remainingSessions > 0 && s.remainingSessions <= lowSessionThreshold;
       }
       return false;
     });
