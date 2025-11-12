@@ -27,6 +27,7 @@ export interface Student {
   paymentDueDate: string | null; // ISO string format
   sessions: ClassSession[];
   remainingSessions?: number;
+  profilePictureUrl?: string | null;
 }
 
 export type PaymentMethod = 'Pix' | 'Dinheiro' | 'Cartão de Crédito' | 'Transferência';

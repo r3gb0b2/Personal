@@ -286,7 +286,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                               }
                               return (
                                   <tr key={student.id} onClick={() => setSelectedStudent(student)} className="border-t hover:bg-gray-50 cursor-pointer">
-                                      <td className="p-4 font-medium">{student.name}</td>
+                                      <td className="p-4 font-medium">
+                                          <div className="flex items-center gap-3">
+                                              {student.profilePictureUrl ? (
+                                                  <img src={student.profilePictureUrl} alt={student.name} className="w-10 h-10 rounded-full object-cover"/>
+                                              ) : (
+                                                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                                      <UserIcon className="w-6 h-6 text-gray-500"/>
+                                                  </div>
+                                              )}
+                                              <span>{student.name}</span>
+                                          </div>
+                                      </td>
                                       <td className="p-4 text-gray-600">{getPlan(student.planId)?.name || 'N/A'}</td>
                                       <td className="p-4 text-gray-600">{status.situation}</td>
                                       <td className="p-4">

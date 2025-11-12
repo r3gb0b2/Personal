@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType } from '../types';
-import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon } from './icons';
+import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon } from './icons';
 import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
+import ProfilePictureModal from './modals/ProfilePictureModal';
 
 interface StudentDetailsModalProps {
   student: Student;
@@ -17,6 +18,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
   const [editableStudent, setEditableStudent] = useState<Student>(student);
   const [isEditing, setIsEditing] = useState(false);
   const [isPaymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [isPictureModalOpen, setPictureModalOpen] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -149,15 +151,32 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
          </div>
       ) : (
         <div className="space-y-6">
-            <div className="flex justify-between items-start">
-                <div>
-                    <p><strong>Email:</strong> {student.email || 'N/A'}</p>
-                    <p><strong>Telefone:</strong> {student.phone || 'N/A'}</p>
-                    <p><strong>Início:</strong> {formatDate(student.startDate)}</p>
+            <div className="flex gap-6 items-start">
+                <div className="relative group">
+                    {student.profilePictureUrl ? (
+                        <img src={student.profilePictureUrl} alt={student.name} className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md"/>
+                    ) : (
+                        <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-4 border-white shadow-md">
+                            <UserIcon className="w-12 h-12 text-gray-500"/>
+                        </div>
+                    )}
+                    <button onClick={() => setPictureModalOpen(true)} className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center rounded-full transition-opacity opacity-0 group-hover:opacity-100">
+                        <CameraIcon className="w-8 h-8 text-white"/>
+                    </button>
                 </div>
-                <div className="flex gap-2">
-                    <button onClick={() => setIsEditing(true)} className="px-3 py-1 text-sm font-medium text-white bg-brand-secondary rounded-md hover:bg-gray-700">Editar</button>
-                    <button onClick={handleDelete} className="px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Excluir</button>
+
+                <div className="flex-1">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p><strong>Email:</strong> {student.email || 'N/A'}</p>
+                            <p><strong>Telefone:</strong> {student.phone || 'N/A'}</p>
+                            <p><strong>Início:</strong> {formatDate(student.startDate)}</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={() => setIsEditing(true)} className="px-3 py-1 text-sm font-medium text-white bg-brand-secondary rounded-md hover:bg-gray-700">Editar</button>
+                            <button onClick={handleDelete} className="px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Excluir</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -225,6 +244,14 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
             studentName={student.name}
             planName={studentPlan.name}
             planPrice={studentPlan.price}
+        />
+    )}
+    {isPictureModalOpen && (
+        <ProfilePictureModal
+            student={student}
+            isOpen={isPictureModalOpen}
+            onClose={() => setPictureModalOpen(false)}
+            onUpdateStudent={onUpdate}
         />
     )}
     </>

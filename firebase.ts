@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 // TODO: Replace with your app's Firebase project configuration
 // You can get this from the Firebase Console of your project.
@@ -7,7 +8,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyDsi6VpfhLQW8UWgAp5c4TRV7vqOkDyauU",
   authDomain: "stingressos-e0a5f.firebaseapp.com",
   projectId: "stingressos-e0a5f",
-  storageBucket: "stingressos-e0a5f.firebasestorage.app",
+  storageBucket: "stingressos-e0a5f.appspot.com",
   messagingSenderId: "424186734009",
   appId: "1:424186734009:web:f9420fca3d94ddd0784268",
   measurementId: "G-YZRJ4FP574"
@@ -18,6 +19,9 @@ const app = initializeApp(firebaseConfig);
 
 // Get a Firestore instance and export it for use in other files
 export const db = getFirestore(app);
+
+// Get a Firebase Storage instance and export it
+export const storage = getStorage(app);
 
 /*
 IMPORTANT: Firestore Security Rules
@@ -39,4 +43,20 @@ service cloud.firestore {
 
 For production, you should implement Firebase Authentication and write rules
 that restrict data access to authenticated users only.
+*/
+
+/*
+IMPORTANT: Firebase Storage Security Rules
+
+You must also configure security rules for Firebase Storage. For this feature,
+a basic rule would be to allow authenticated users to read and write to their
+own folder. A simple (but insecure) starting point for development is:
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}
 */

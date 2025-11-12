@@ -52,6 +52,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
       paymentDueDate: paymentDueDate,
       remainingSessions: remainingSessions,
       sessions: [],
+      profilePictureUrl: null,
     };
 
     onAdd(studentToAdd);
