@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 
 interface LoginScreenProps {
   onLogin: (password: string) => boolean;
+  onShowStudentLogin: () => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onShowStudentLogin }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
@@ -57,6 +58,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             </button>
           </div>
         </form>
+         <div className="text-center">
+            <button onClick={onShowStudentLogin} className="font-medium text-sm text-brand-primary hover:text-brand-accent">
+                Acessar portal do aluno
+            </button>
+        </div>
       </div>
     </div>
   );
