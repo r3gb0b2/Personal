@@ -87,12 +87,13 @@ const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({ student, isOp
 
   const handleSave = async () => {
     if (!imageFile) return;
+
     setIsUploading(true);
     setError(null);
-    
+    let success = false; // Flag to ensure we only close if the entire process works
+
     try {
-      // Add timestamp to filename to prevent caching issues/overwrites
-      const fileName = `${Date.now()}-${imageFile.name}`;
+      const fileName = `${student.id}-${Date.now()}-${imageFile.name}`;
       const storageRef = ref(storage, `profile_pictures/${student.id}/${fileName}`);
       
       const snapshot = await uploadBytes(storageRef, imageFile);
@@ -101,15 +102,18 @@ const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({ student, isOp
       const updatedStudent = { ...student, profilePictureUrl: downloadURL };
       await onUpdateStudent(updatedStudent);
       
-      // Only close on success
-      handleClose();
+      success = true; // Mark the operation as successful
 
     } catch (err) {
       console.error("Error uploading image:", err);
       setError("Falha ao enviar a imagem. Verifique as regras de segurança do Firebase Storage e sua conexão.");
     } finally {
-      // This will run whether the upload succeeds or fails, preventing the stuck state.
+      // This block runs regardless of success or failure.
       setIsUploading(false);
+      // Only close the modal if the operation was a success.
+      if (success) {
+        handleClose();
+      }
     }
   };
   
@@ -118,6 +122,7 @@ const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({ student, isOp
       setImageFile(null);
       setPreviewUrl(student.profilePictureUrl || null);
       setError(null);
+      setIsUploading(false); // Ensure uploading state is reset
   }
 
   const handleClose = () => {
