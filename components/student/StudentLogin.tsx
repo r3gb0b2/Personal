@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 
 interface StudentLoginProps {
-  onLogin: (email: string) => Promise<boolean>;
+  onLogin: (email: string) => Promise<{ success: boolean; message?: string }>;
   onBackToTrainerLogin: () => void;
   isLoading: boolean;
 }
@@ -18,9 +18,9 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBackToTrainerLog
         setError('Por favor, insira seu email.');
         return;
     }
-    const success = await onLogin(email);
-    if (!success) {
-      setError('Nenhum aluno encontrado com este email. Verifique o email digitado.');
+    const result = await onLogin(email);
+    if (!result.success) {
+      setError(result.message || 'Ocorreu um erro desconhecido. Tente novamente.');
     }
   };
 
@@ -53,7 +53,7 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBackToTrainerLog
             </div>
           </div>
           
-          {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+          {error && <p className="text-red-500 text-sm text-center font-semibold">{error}</p>}
 
           <div>
             <button

@@ -55,11 +55,10 @@ const App: React.FC = () => {
     setView('trainerLogin');
   };
 
-  const handleStudentLogin = async (email: string): Promise<boolean> => {
+  const handleStudentLogin = async (email: string): Promise<{ success: boolean; message?: string }> => {
     setIsLoading(true);
     try {
       // Fetch all students to perform a case-insensitive email check on the client-side.
-      // This is less efficient for large databases but is robust against inconsistent data casing.
       const studentsCollection = collection(db, 'students');
       const studentsSnapshot = await getDocs(studentsCollection);
       
@@ -72,7 +71,7 @@ const App: React.FC = () => {
 
       if (!studentDoc) {
         console.log("No student found with that email after client-side check.");
-        return false;
+        return { success: false, message: 'Nenhum aluno encontrado com este email. Verifique o email digitado.' };
       }
       
       const toISO = (ts: any) => ts && ts.toDate ? ts.toDate().toISOString() : null;
@@ -98,11 +97,14 @@ const App: React.FC = () => {
       
       setCurrentStudentData({ student, payments });
       setView('studentPortal');
-      return true;
+      return { success: true };
 
     } catch (error) {
       console.error("Error during student login:", error);
-      return false;
+      return { 
+          success: false, 
+          message: 'ERRO DE CONEXÃO: Não foi possível conectar ao banco de dados. Verifique se as credenciais no arquivo firebase.ts estão corretas e se as regras de segurança do Firestore permitem leitura.' 
+      };
     } finally {
         setIsLoading(false);
     }
