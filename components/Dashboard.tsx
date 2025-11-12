@@ -175,6 +175,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       setPayments(prev => [newPayment, ...prev]);
   };
 
+  const handleDeletePayment = async (paymentId: string) => {
+    if (window.confirm("Tem certeza que deseja excluir este lançamento financeiro? Esta ação não pode ser desfeita.")) {
+      try {
+        await deleteDoc(doc(db, 'payments', paymentId));
+        setPayments(prev => prev.filter(p => p.id !== paymentId));
+      } catch (err) {
+        console.error("Error deleting payment:", err);
+        alert("Não foi possível excluir o lançamento. Tente novamente.");
+      }
+    }
+  };
+
   const getPlan = (planId: string | null) => plans.find(p => p.id === planId);
 
   const getStudentStatus = (student: Student) => {
@@ -352,6 +364,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             onClose={() => setFinancialReportModalOpen(false)}
             payments={payments}
             students={students}
+            onDeletePayment={handleDeletePayment}
           />
       )}
     </>
