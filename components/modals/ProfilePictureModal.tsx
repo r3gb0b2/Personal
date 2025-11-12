@@ -91,18 +91,24 @@ const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({ student, isOp
     setError(null);
     
     try {
-      const storageRef = ref(storage, `profile_pictures/${student.id}/${imageFile.name}`);
+      // Add timestamp to filename to prevent caching issues/overwrites
+      const fileName = `${Date.now()}-${imageFile.name}`;
+      const storageRef = ref(storage, `profile_pictures/${student.id}/${fileName}`);
+      
       const snapshot = await uploadBytes(storageRef, imageFile);
       const downloadURL = await getDownloadURL(snapshot.ref);
       
       const updatedStudent = { ...student, profilePictureUrl: downloadURL };
       await onUpdateStudent(updatedStudent);
       
-      onClose();
+      // Only close on success
+      handleClose();
+
     } catch (err) {
       console.error("Error uploading image:", err);
-      setError("Falha ao enviar a imagem. Tente novamente.");
+      setError("Falha ao enviar a imagem. Verifique as regras de segurança do Firebase Storage e sua conexão.");
     } finally {
+      // This will run whether the upload succeeds or fails, preventing the stuck state.
       setIsUploading(false);
     }
   };
