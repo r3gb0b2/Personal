@@ -41,7 +41,7 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
     setEditingPlan(null);
   }
 
-  const handleSavePlan = (e: React.FormEvent) => {
+  const handleSavePlan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formState.name.trim() || !formState.price) {
       alert('Por favor, preencha o nome e o preço do plano.');
@@ -69,7 +69,7 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
                 durationInDays: undefined,
             };
         }
-        onUpdatePlan(planToUpdate);
+        await onUpdatePlan(planToUpdate);
     } else {
         let planToAdd: Omit<Plan, 'id'>;
         if (planType === 'duration') {
@@ -87,7 +87,7 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
                 numberOfSessions: parseInt(formState.numberOfSessions, 10),
             };
         }
-        onAddPlan(planToAdd);
+        await onAddPlan(planToAdd);
     }
     
     setEditingPlan(null);
