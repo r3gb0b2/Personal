@@ -36,22 +36,41 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBackToTrainerLog
             Consulte suas aulas e pagamentos
           </p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-              <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-md">
-                  <div className="flex">
+        
+        {error && (
+              <div className="bg-red-50 border border-red-200 p-4 rounded-lg shadow-sm">
+                  <div className="flex items-start">
                       <div className="flex-shrink-0">
-                          <ExclamationCircleIcon className="h-5 w-5 text-red-400" aria-hidden="true" />
+                          <ExclamationCircleIcon className="h-6 w-6 text-red-500" />
                       </div>
-                      <div className="ml-3">
-                          <h3 className="text-sm font-bold text-red-800">Erro de Acesso</h3>
-                          <div className="mt-2 text-sm text-red-700">
-                              <p>{error}</p>
-                          </div>
+                      <div className="ml-3 w-full">
+                          <h3 className="text-base font-bold text-red-800">Erro de Acesso</h3>
+                           {error === "CONNECTION_ERROR" ? (
+                                <div className="mt-2 text-sm text-red-700 space-y-2">
+                                    <p className="font-semibold">Não foi possível conectar ao banco de dados. Por favor, verifique os seguintes pontos:</p>
+                                    <ol className="list-decimal list-inside space-y-1 pl-2">
+                                        <li>
+                                            <strong>Arquivo `firebase.ts`:</strong> Confirme se as credenciais estão corretas.
+                                        </li>
+                                        <li>
+                                            <strong>Regras de Segurança:</strong> No Firebase Console, vá para <strong>Firestore Database &gt; Rules</strong> e certifique-se de que as regras permitem leitura (ex: `allow read, write: if true;`).
+                                        </li>
+                                        <li>
+                                            <strong>Banco de Dados Ativado:</strong> Confirme se o serviço Firestore foi criado no seu projeto.
+                                        </li>
+                                    </ol>
+                                </div>
+                            ) : (
+                                <div className="mt-2 text-sm text-red-700">
+                                   <p>{error}</p>
+                                </div>
+                            )}
                       </div>
                   </div>
               </div>
           )}
+          
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="email-address" className="sr-only">Email</label>

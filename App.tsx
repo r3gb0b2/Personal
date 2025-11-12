@@ -101,10 +101,11 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error("Error during student login:", error);
-      // CRITICAL: This error almost always means the firebase.ts file has incorrect placeholder credentials.
+      // CRITICAL: This error almost always means the firebase.ts file has incorrect placeholder credentials,
+      // the Firestore rules are too restrictive, or the database hasn't been created.
       return { 
           success: false, 
-          message: "ERRO DE CONEXÃO: Não foi possível carregar os dados. A causa mais comum é a configuração do Firebase estar incorreta. Abra o arquivo 'firebase.ts' e substitua as credenciais de exemplo pelas credenciais do SEU projeto no Firebase Console."
+          message: "CONNECTION_ERROR"
       };
     } finally {
         setIsLoading(false);

@@ -71,7 +71,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       setPayments(paymentsList);
     } catch (err) {
       console.error("Error fetching data:", err);
-      setError("ERRO DE CONEXÃO: Não foi possível carregar os dados. A causa mais comum é a configuração do Firebase estar incorreta. Abra o arquivo 'firebase.ts' e substitua as credenciais de exemplo pelas credenciais do SEU projeto no Firebase Console.");
+      setError("CONNECTION_ERROR");
     } finally {
       setLoading(false);
     }
@@ -295,10 +295,30 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                             <ExclamationCircleIcon className="h-8 w-8 text-red-500" />
                         </div>
                         <div className="ml-4">
-                            <h3 className="text-lg font-bold text-red-800">Ação Necessária: Verifique a Configuração</h3>
-                            <div className="mt-2 text-sm text-red-700">
-                                <p>{error}</p>
-                            </div>
+                            <h3 className="text-lg font-bold text-red-800">Ação Necessária: Erro de Conexão</h3>
+                             {error === "CONNECTION_ERROR" ? (
+                                <div className="mt-2 text-sm text-red-700 space-y-3">
+                                    <p>A aplicação não conseguiu se conectar ao seu banco de dados Firebase. Isso geralmente acontece por um dos três motivos abaixo. Por favor, verifique-os em ordem:</p>
+                                    <ol className="list-decimal list-inside space-y-2 pl-2">
+                                        <li>
+                                            <strong>Configuração Incorreta:</strong> Abra o arquivo <strong>`firebase.ts`</strong> e confirme se você substituiu as credenciais de exemplo pelas credenciais <strong>exatas</strong> do seu projeto no Firebase Console.
+                                        </li>
+                                        <li>
+                                            <strong>Regras de Segurança:</strong> Este aplicativo precisa de permissão para ler os dados. Vá para a seção <strong>Firestore Database &gt; Rules</strong> no seu Firebase Console e cole as seguintes regras (ideal para desenvolvimento):
+                                            <pre className="mt-1 p-2 bg-red-100 text-red-900 rounded text-xs whitespace-pre-wrap font-mono">
+                                                {`rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`}
+                                            </pre>
+                                        </li>
+                                        <li>
+                                            <strong>Banco de Dados Não Criado:</strong> Verifique se você clicou em "Create database" na seção <strong>Firestore Database</strong> do seu projeto Firebase para ativar o serviço.
+                                        </li>
+                                    </ol>
+                                </div>
+                            ) : (
+                                <div className="mt-2 text-sm text-red-700">
+                                   <p>{error}</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
