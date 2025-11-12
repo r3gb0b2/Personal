@@ -1,0 +1,5 @@
+{
+  "name": "Personal Trainer Dashboard",
+  "description": "A comprehensive system for personal trainers to manage students, track class attendance, and handle financial controls like plans and payment due dates. The application is secured by a simple password and uses local storage to persist data.",
+  "requestFramePermissions": []
+}
