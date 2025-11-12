@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
-import { Student, Plan, ClassSession, Payment, PaymentMethod } from '../types';
-import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon } from './icons';
+import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType } from '../types';
+import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon } from './icons';
 import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
 
@@ -29,23 +28,44 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
     setIsEditing(false);
   }
 
-  const handleAddSession = async () => {
+  const handleAddSession = async (type: ClassSessionType) => {
     const studentPlan = plans.find(p => p.id === editableStudent.planId);
     let updatedStudent = { ...editableStudent };
     
     const newSession: ClassSession = {
       id: new Date().toISOString() + Math.random(),
       date: new Date().toISOString(),
+      type: type,
     };
     updatedStudent.sessions = [...updatedStudent.sessions, newSession];
 
-    if (studentPlan?.type === 'session' && updatedStudent.remainingSessions != null && updatedStudent.remainingSessions > 0) {
+    if (type === 'regular' && studentPlan?.type === 'session' && updatedStudent.remainingSessions != null && updatedStudent.remainingSessions > 0) {
         updatedStudent.remainingSessions -= 1;
     }
     
     setEditableStudent(updatedStudent);
     await onUpdate(updatedStudent);
   };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!window.confirm("Tem certeza que deseja excluir esta aula do histórico?")) return;
+
+    const sessionToDelete = editableStudent.sessions.find(s => s.id === sessionId);
+    if (!sessionToDelete) return;
+
+    const studentPlan = plans.find(p => p.id === editableStudent.planId);
+    let updatedStudent = { ...editableStudent };
+
+    updatedStudent.sessions = updatedStudent.sessions.filter(s => s.id !== sessionId);
+
+    // If it was a regular session for a session-based plan, give the session back
+    if (sessionToDelete.type === 'regular' && studentPlan?.type === 'session' && updatedStudent.remainingSessions != null) {
+        updatedStudent.remainingSessions += 1;
+    }
+
+    setEditableStudent(updatedStudent);
+    await onUpdate(updatedStudent);
+  }
   
   const handleConfirmPayment = async (method: PaymentMethod) => {
     const plan = plans.find(p => p.id === editableStudent.planId);
@@ -70,7 +90,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
         newDueDate.setDate(newDueDate.getDate() + plan.durationInDays);
         updatedStudent.paymentDueDate = newDueDate.toISOString();
     } else if (plan.type === 'session' && plan.numberOfSessions) {
-        updatedStudent.remainingSessions = plan.numberOfSessions;
+        updatedStudent.remainingSessions = (updatedStudent.remainingSessions || 0) + plan.numberOfSessions;
         updatedStudent.paymentDueDate = null; // Clear due date for session plans
     }
     
@@ -90,6 +110,12 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
   const areSessionsLow = studentPlan?.type === 'session' && (student.remainingSessions == null || student.remainingSessions <= 0);
 
   const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  const sessionTypeInfo = {
+    regular: { label: 'Aula Normal', color: 'text-gray-500', bg: 'bg-gray-100' },
+    extra: { label: 'Aula Extra (Bônus)', color: 'text-blue-500', bg: 'bg-blue-100' },
+    absent: { label: 'Falta', color: 'text-red-500', bg: 'bg-red-100' },
+  };
 
   return (
     <>
@@ -154,17 +180,29 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
             <div>
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="font-bold text-lg">Histórico de Aulas</h3>
-                    <button onClick={handleAddSession} className="flex items-center gap-2 px-3 py-1 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">
-                        <PlusIcon className="w-4 h-4" /> Adicionar Aula de Hoje
-                    </button>
+                    <div className="flex gap-2">
+                        <button onClick={() => handleAddSession('regular')} className="flex items-center gap-2 px-3 py-1 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">
+                            <PlusIcon className="w-4 h-4" /> Aula de Hoje
+                        </button>
+                         <button onClick={() => handleAddSession('extra')} title="Adicionar aula extra gratuita" className="px-3 py-1 text-sm font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600">Extra</button>
+                         <button onClick={() => handleAddSession('absent')} title="Marcar falta" className="px-3 py-1 text-sm font-medium text-white bg-red-500 rounded-md hover:bg-red-600">Falta</button>
+                    </div>
                 </div>
                 <div className="border rounded-lg max-h-48 overflow-y-auto">
                     {student.sessions.length > 0 ? (
                         <ul className="divide-y">
                             {student.sessions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(session => (
-                                <li key={session.id} className="p-3 flex items-center gap-3">
-                                    <CalendarIcon className="w-5 h-5 text-gray-500" />
-                                    <span>{new Date(session.date).toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'})}</span>
+                                <li key={session.id} className={`p-3 flex justify-between items-center ${sessionTypeInfo[session.type].bg}`}>
+                                    <div className="flex items-center gap-3">
+                                        <CalendarIcon className={`w-5 h-5 ${sessionTypeInfo[session.type].color}`} />
+                                        <div>
+                                            <span className="font-medium">{new Date(session.date).toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'})}</span>
+                                            <span className={`ml-2 text-xs font-semibold ${sessionTypeInfo[session.type].color}`}>({sessionTypeInfo[session.type].label})</span>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => handleDeleteSession(session.id)} className="text-gray-400 hover:text-red-600">
+                                        <TrashIcon className="w-5 h-5" />
+                                    </button>
                                 </li>
                             ))}
                         </ul>

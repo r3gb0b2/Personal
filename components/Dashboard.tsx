@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy } from 'firebase/firestore';
@@ -148,6 +147,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     const docRef = await addDoc(collection(db, 'plans'), planData);
     setPlans(prev => [...prev, { ...planData, id: docRef.id }]);
   };
+
+  const handleUpdatePlan = async (updatedPlan: Plan) => {
+      const planRef = doc(db, 'plans', updatedPlan.id);
+      const dataToUpdate = { ...updatedPlan };
+      delete (dataToUpdate as any).id;
+      await setDoc(planRef, dataToUpdate, { merge: true });
+      setPlans(prev => prev.map(p => p.id === updatedPlan.id ? updatedPlan : p));
+  }
 
   const handleDeletePlan = async (planId: string) => {
       if(window.confirm("Tem certeza que deseja excluir este plano? Alunos associados a ele não serão afetados, mas você não poderá adicioná-lo a novos alunos.")) {
@@ -312,6 +319,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         <PlanManagementModal
             plans={plans}
             onAddPlan={handleAddPlan}
+            onUpdatePlan={handleUpdatePlan}
             onDeletePlan={handleDeletePlan}
             onClose={() => setPlanModalOpen(false)}
         />
@@ -330,6 +338,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             isOpen={isFinancialReportModalOpen}
             onClose={() => setFinancialReportModalOpen(false)}
             payments={payments}
+            students={students}
           />
       )}
     </>

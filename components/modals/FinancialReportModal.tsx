@@ -1,18 +1,21 @@
-
 import React, { useState, useMemo } from 'react';
-import { Payment } from '../../types';
+import { Payment, Student } from '../../types';
 import Modal from './Modal';
+import { PrintIcon } from '../icons';
+import ReceiptModal from './ReceiptModal';
 
 interface FinancialReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   payments: Payment[];
+  students: Student[];
 }
 
 type FilterPeriod = 'all' | 'this_month' | 'last_month' | 'this_year';
 
-const FinancialReportModal: React.FC<FinancialReportModalProps> = ({ isOpen, onClose, payments }) => {
+const FinancialReportModal: React.FC<FinancialReportModalProps> = ({ isOpen, onClose, payments, students }) => {
   const [filter, setFilter] = useState<FilterPeriod>('this_month');
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
   const filteredPayments = useMemo(() => {
     const now = new Date();
@@ -43,54 +46,78 @@ const FinancialReportModal: React.FC<FinancialReportModalProps> = ({ isOpen, onC
 
   const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('pt-BR');
 
+  const handlePrintReceipt = (payment: Payment) => {
+    setSelectedPayment(payment);
+  }
+
+  const studentMap = useMemo(() => {
+    return new Map(students.map(s => [s.id, s]));
+  }, [students]);
+
   return (
-    <Modal title="Relatório Financeiro" isOpen={isOpen} onClose={onClose} size="xl">
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg">
-            <div>
-                <label htmlFor="period-filter" className="text-sm font-medium text-gray-700 mr-2">Filtrar período:</label>
-                <select id="period-filter" value={filter} onChange={e => setFilter(e.target.value as FilterPeriod)} className="border-gray-300 rounded-md shadow-sm">
-                    <option value="this_month">Este Mês</option>
-                    <option value="last_month">Mês Passado</option>
-                    <option value="this_year">Este Ano</option>
-                    <option value="all">Tudo</option>
-                </select>
+    <>
+        <Modal title="Relatório Financeiro" isOpen={isOpen} onClose={onClose} size="xl">
+        <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg">
+                <div>
+                    <label htmlFor="period-filter" className="text-sm font-medium text-gray-700 mr-2">Filtrar período:</label>
+                    <select id="period-filter" value={filter} onChange={e => setFilter(e.target.value as FilterPeriod)} className="border-gray-300 rounded-md shadow-sm">
+                        <option value="this_month">Este Mês</option>
+                        <option value="last_month">Mês Passado</option>
+                        <option value="this_year">Este Ano</option>
+                        <option value="all">Tudo</option>
+                    </select>
+                </div>
+                <div className="text-right">
+                    <p className="text-gray-600">Total Arrecadado no Período</p>
+                    <p className="text-2xl font-bold text-green-600">R$ {totalRevenue.toFixed(2)}</p>
+                </div>
             </div>
-            <div className="text-right">
-                <p className="text-gray-600">Total Arrecadado no Período</p>
-                <p className="text-2xl font-bold text-green-600">R$ {totalRevenue.toFixed(2)}</p>
-            </div>
-        </div>
-        <div className="border rounded-lg max-h-[60vh] overflow-y-auto">
-          <table className="w-full text-left">
-            <thead className="bg-brand-light sticky top-0">
-              <tr>
-                <th className="p-3 font-semibold">Data</th>
-                <th className="p-3 font-semibold">Aluno</th>
-                <th className="p-3 font-semibold">Plano</th>
-                <th className="p-3 font-semibold">Método</th>
-                <th className="p-3 font-semibold text-right">Valor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPayments.length > 0 ? filteredPayments.map(payment => (
-                <tr key={payment.id} className="border-t">
-                  <td className="p-3">{formatDate(payment.paymentDate)}</td>
-                  <td className="p-3">{payment.studentName}</td>
-                  <td className="p-3 text-gray-600">{payment.planName}</td>
-                  <td className="p-3 text-gray-600">{payment.paymentMethod}</td>
-                  <td className="p-3 text-right font-medium">R$ {payment.amount.toFixed(2)}</td>
-                </tr>
-              )) : (
+            <div className="border rounded-lg max-h-[60vh] overflow-y-auto">
+            <table className="w-full text-left">
+                <thead className="bg-brand-light sticky top-0">
                 <tr>
-                    <td colSpan={5} className="text-center p-8 text-gray-500">Nenhum pagamento registrado neste período.</td>
+                    <th className="p-3 font-semibold">Data</th>
+                    <th className="p-3 font-semibold">Aluno</th>
+                    <th className="p-3 font-semibold">Plano</th>
+                    <th className="p-3 font-semibold">Método</th>
+                    <th className="p-3 font-semibold text-right">Valor</th>
+                    <th className="p-3 font-semibold text-center">Ações</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                {filteredPayments.length > 0 ? filteredPayments.map(payment => (
+                    <tr key={payment.id} className="border-t">
+                    <td className="p-3">{formatDate(payment.paymentDate)}</td>
+                    <td className="p-3">{payment.studentName}</td>
+                    <td className="p-3 text-gray-600">{payment.planName}</td>
+                    <td className="p-3 text-gray-600">{payment.paymentMethod}</td>
+                    <td className="p-3 text-right font-medium">R$ {payment.amount.toFixed(2)}</td>
+                    <td className="p-3 text-center">
+                        <button onClick={() => handlePrintReceipt(payment)} className="text-gray-500 hover:text-brand-primary" title="Imprimir Comprovante">
+                            <PrintIcon className="w-5 h-5"/>
+                        </button>
+                    </td>
+                    </tr>
+                )) : (
+                    <tr>
+                        <td colSpan={6} className="text-center p-8 text-gray-500">Nenhum pagamento registrado neste período.</td>
+                    </tr>
+                )}
+                </tbody>
+            </table>
+            </div>
         </div>
-      </div>
-    </Modal>
+        </Modal>
+        {selectedPayment && (
+            <ReceiptModal 
+                isOpen={!!selectedPayment}
+                onClose={() => setSelectedPayment(null)}
+                payment={selectedPayment}
+                student={studentMap.get(selectedPayment.studentId) ?? null}
+            />
+        )}
+    </>
   );
 };
 

@@ -1,4 +1,3 @@
-
 export type PlanType = 'duration' | 'session';
 
 export interface Plan {
@@ -10,9 +9,12 @@ export interface Plan {
   numberOfSessions?: number; // e.g., 10 sessions
 }
 
+export type ClassSessionType = 'regular' | 'extra' | 'absent';
+
 export interface ClassSession {
   id: string;
   date: string; // ISO string format
+  type: ClassSessionType;
 }
 
 export interface Student {

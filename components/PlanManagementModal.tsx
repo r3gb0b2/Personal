@@ -1,62 +1,107 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plan, PlanType } from '../types';
 import Modal from './modals/Modal';
+import { PencilIcon, TrashIcon } from './icons';
 
 interface PlanManagementModalProps {
   plans: Plan[];
   onAddPlan: (plan: Omit<Plan, 'id'>) => Promise<void>;
+  onUpdatePlan: (plan: Plan) => Promise<void>;
   onDeletePlan: (planId: string) => Promise<void>;
   onClose: () => void;
 }
 
-const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddPlan, onDeletePlan, onClose }) => {
+const initialFormState = { name: '', price: '0', durationInDays: '30', numberOfSessions: '10' };
+
+const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddPlan, onUpdatePlan, onDeletePlan, onClose }) => {
+  const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [planType, setPlanType] = useState<PlanType>('duration');
-  const [newPlan, setNewPlan] = useState({ name: '', price: '0', durationInDays: '30', numberOfSessions: '10' });
+  const [formState, setFormState] = useState(initialFormState);
+
+  useEffect(() => {
+    if (editingPlan) {
+      setPlanType(editingPlan.type);
+      setFormState({
+        name: editingPlan.name,
+        price: String(editingPlan.price),
+        durationInDays: String(editingPlan.durationInDays || 30),
+        numberOfSessions: String(editingPlan.numberOfSessions || 10),
+      });
+    } else {
+        setFormState(initialFormState);
+    }
+  }, [editingPlan]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setNewPlan(prev => ({ ...prev, [name]: value }));
+    setFormState(prev => ({ ...prev, [name]: value }));
   };
+  
+  const handleCancelEdit = () => {
+    setEditingPlan(null);
+  }
 
-  const handleAddPlan = (e: React.FormEvent) => {
+  const handleSavePlan = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPlan.name.trim() || !newPlan.price) {
+    if (!formState.name.trim() || !formState.price) {
       alert('Por favor, preencha o nome e o preço do plano.');
       return;
     }
-    
-    let planToAdd: Omit<Plan, 'id'>;
 
-    if (planType === 'duration') {
-        planToAdd = {
-            name: newPlan.name.trim(),
-            price: parseFloat(newPlan.price),
-            type: 'duration',
-            durationInDays: parseInt(newPlan.durationInDays, 10),
-        };
+    if (editingPlan) {
+        let planToUpdate: Plan;
+        if (planType === 'duration') {
+            planToUpdate = {
+                ...editingPlan,
+                name: formState.name.trim(),
+                price: parseFloat(formState.price),
+                type: 'duration',
+                durationInDays: parseInt(formState.durationInDays, 10),
+                numberOfSessions: undefined,
+            };
+        } else {
+             planToUpdate = {
+                ...editingPlan,
+                name: formState.name.trim(),
+                price: parseFloat(formState.price),
+                type: 'session',
+                numberOfSessions: parseInt(formState.numberOfSessions, 10),
+                durationInDays: undefined,
+            };
+        }
+        onUpdatePlan(planToUpdate);
     } else {
-        planToAdd = {
-            name: newPlan.name.trim(),
-            price: parseFloat(newPlan.price),
-            type: 'session',
-            numberOfSessions: parseInt(newPlan.numberOfSessions, 10),
-        };
+        let planToAdd: Omit<Plan, 'id'>;
+        if (planType === 'duration') {
+            planToAdd = {
+                name: formState.name.trim(),
+                price: parseFloat(formState.price),
+                type: 'duration',
+                durationInDays: parseInt(formState.durationInDays, 10),
+            };
+        } else {
+            planToAdd = {
+                name: formState.name.trim(),
+                price: parseFloat(formState.price),
+                type: 'session',
+                numberOfSessions: parseInt(formState.numberOfSessions, 10),
+            };
+        }
+        onAddPlan(planToAdd);
     }
     
-    onAddPlan(planToAdd);
-    setNewPlan({ name: '', price: '0', durationInDays: '30', numberOfSessions: '10' });
+    setEditingPlan(null);
   };
 
   return (
     <Modal title="Gerenciar Planos" isOpen={true} onClose={onClose} size="lg">
       <div className="space-y-6">
         <div>
-          <h3 className="font-bold text-lg mb-2">Adicionar Novo Plano</h3>
-          <form onSubmit={handleAddPlan} className="space-y-4">
+          <h3 className="font-bold text-lg mb-2">{editingPlan ? `Editando Plano: ${editingPlan.name}`: 'Adicionar Novo Plano'}</h3>
+          <form onSubmit={handleSavePlan} className="space-y-4 p-4 border rounded-md bg-gray-50">
             <div>
               <label className="block text-sm font-medium text-gray-700">Nome do Plano</label>
-              <input type="text" name="name" value={newPlan.name} onChange={handleInputChange} className="mt-1 w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required />
+              <input type="text" name="name" value={formState.name} onChange={handleInputChange} className="mt-1 w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required />
             </div>
              <div>
               <label className="block text-sm font-medium text-gray-700">Tipo de Plano</label>
@@ -68,21 +113,26 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Preço (R$)</label>
-                <input type="number" name="price" value={newPlan.price} onChange={handleInputChange} className="mt-1 w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required step="0.01"/>
+                <input type="number" name="price" value={formState.price} onChange={handleInputChange} className="mt-1 w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required step="0.01"/>
               </div>
               {planType === 'duration' ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Duração (dias)</label>
-                  <input type="number" name="durationInDays" value={newPlan.durationInDays} onChange={handleInputChange} className="mt-1 w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required />
+                  <input type="number" name="durationInDays" value={formState.durationInDays} onChange={handleInputChange} className="mt-1 w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required />
                 </div>
               ) : (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Número de Aulas</label>
-                  <input type="number" name="numberOfSessions" value={newPlan.numberOfSessions} onChange={handleInputChange} className="mt-1 w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required />
+                  <input type="number" name="numberOfSessions" value={formState.numberOfSessions} onChange={handleInputChange} className="mt-1 w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required />
                 </div>
               )}
             </div>
-            <button type="submit" className="w-full px-4 py-2 font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Adicionar Plano</button>
+            <div className="flex justify-end gap-2">
+                {editingPlan && (
+                    <button type="button" onClick={handleCancelEdit} className="px-4 py-2 font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">Cancelar</button>
+                )}
+                <button type="submit" className="px-4 py-2 font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">{editingPlan ? 'Salvar Alterações' : 'Adicionar Plano'}</button>
+            </div>
           </form>
         </div>
         <div>
@@ -99,7 +149,14 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
                         {plan.type === 'duration' ? ` ${plan.durationInDays} dias` : ` ${plan.numberOfSessions} aulas`}
                       </p>
                     </div>
-                    <button onClick={() => onDeletePlan(plan.id)} className="text-red-500 hover:text-red-700 text-sm font-medium">Excluir</button>
+                    <div className="flex gap-4">
+                        <button onClick={() => setEditingPlan(plan)} className="text-gray-500 hover:text-brand-primary">
+                            <PencilIcon className="w-5 h-5"/>
+                        </button>
+                        <button onClick={() => onDeletePlan(plan.id)} className="text-gray-500 hover:text-red-600">
+                            <TrashIcon className="w-5 h-5"/>
+                        </button>
+                    </div>
                   </li>
                 ))}
               </ul>
