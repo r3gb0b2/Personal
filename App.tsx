@@ -58,16 +58,24 @@ const App: React.FC = () => {
   const handleStudentLogin = async (email: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      const studentQuery = query(collection(db, 'students'), where("email", "==", email.trim().toLowerCase()));
-      const studentSnapshot = await getDocs(studentQuery);
+      // Fetch all students to perform a case-insensitive email check on the client-side.
+      // This is less efficient for large databases but is robust against inconsistent data casing.
+      const studentsCollection = collection(db, 'students');
+      const studentsSnapshot = await getDocs(studentsCollection);
+      
+      const normalizedEmail = email.trim().toLowerCase();
+      const studentDoc = studentsSnapshot.docs.find(doc => {
+          const studentData = doc.data();
+          // Ensure studentData.email exists and is a string before calling toLowerCase
+          return typeof studentData.email === 'string' && studentData.email.toLowerCase() === normalizedEmail;
+      });
 
-      if (studentSnapshot.empty) {
-        console.log("No student found with that email.");
+      if (!studentDoc) {
+        console.log("No student found with that email after client-side check.");
         return false;
       }
       
       const toISO = (ts: any) => ts && ts.toDate ? ts.toDate().toISOString() : null;
-      const studentDoc = studentSnapshot.docs[0];
       const studentData = studentDoc.data();
       const student: Student = {
           id: studentDoc.id,
