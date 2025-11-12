@@ -211,10 +211,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
 
       if (plan.type === 'session') {
           const remaining = student.remainingSessions;
-          const situationText = `${remaining ?? 0} aulas restantes`;
-          if (remaining == null || remaining <= 0) return { text: 'Sem Aulas', color: 'red', situation: situationText };
-          if (remaining <= 3) return { text: 'Aulas Acabando', color: 'yellow', situation: situationText };
-          return { text: 'Ativo', color: 'green', situation: situationText };
+          if (remaining == null) {
+              return { text: 'Ativo', color: 'green', situation: 'Sessões não monitoradas' };
+          }
+          if (remaining < 0) {
+              const plural = Math.abs(remaining) > 1;
+              return { text: 'Devendo', color: 'red', situation: `${Math.abs(remaining)} aula${plural ? 's' : ''} a deduzir` };
+          }
+          if (remaining === 0) {
+              return { text: 'Sem Aulas', color: 'red', situation: 'Nenhuma aula restante' };
+          }
+          if (remaining <= 3) {
+              const plural = remaining > 1;
+              return { text: 'Aulas Acabando', color: 'yellow', situation: `${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}` };
+          }
+          return { text: 'Ativo', color: 'green', situation: `${remaining} aulas restantes` };
       }
       
       return { text: 'N/A', color: 'gray', situation: 'N/A' };

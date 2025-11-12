@@ -42,7 +42,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
     updatedStudent.sessions = [...updatedStudent.sessions, newSession];
 
     // Deduct session for regular classes and absences on session-based plans
-    if ((type === 'regular' || type === 'absent') && studentPlan?.type === 'session' && updatedStudent.remainingSessions != null && updatedStudent.remainingSessions > 0) {
+    if ((type === 'regular' || type === 'absent') && studentPlan?.type === 'session' && updatedStudent.remainingSessions != null) {
         updatedStudent.remainingSessions -= 1;
     }
     
@@ -188,7 +188,17 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
                             {(isPaymentDue || areSessionsLow) ? <ExclamationCircleIcon className="w-5 h-5 text-red-500" /> : <CheckCircleIcon className="w-5 h-5 text-green-500" />}
                              <span className={(isPaymentDue || areSessionsLow) ? 'text-red-600' : 'text-green-600'}>
                                 {studentPlan?.type === 'duration' && (student.paymentDueDate ? `Vencimento em ${formatDate(student.paymentDueDate)}` : 'Sem data de vencimento')}
-                                {studentPlan?.type === 'session' && `${student.remainingSessions ?? 0} aulas restantes`}
+                                {studentPlan?.type === 'session' && (() => {
+                                    const remaining = student.remainingSessions;
+                                    if (remaining == null) return "Contagem de aulas não iniciada";
+                                    if (remaining < 0) {
+                                        const plural = Math.abs(remaining) > 1;
+                                        return `${Math.abs(remaining)} aula${plural ? 's' : ''} devendo (a deduzir na renovação)`;
+                                    }
+                                    if (remaining === 0) return 'Nenhuma aula restante';
+                                    const plural = remaining > 1;
+                                    return `${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}`;
+                                })()}
                                 {!studentPlan && 'Aluno sem plano ativo'}
                             </span>
                         </div>
