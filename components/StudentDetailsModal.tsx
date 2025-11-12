@@ -191,20 +191,22 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
                 <div className="border rounded-lg max-h-48 overflow-y-auto">
                     {student.sessions.length > 0 ? (
                         <ul className="divide-y">
-                            {student.sessions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(session => (
-                                <li key={session.id} className={`p-3 flex justify-between items-center ${sessionTypeInfo[session.type].bg}`}>
+                            {student.sessions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(session => {
+                                const sessionInfo = sessionTypeInfo[session.type] || { label: 'Desconhecido', color: 'text-gray-500', bg: 'bg-gray-100' };
+                                return (
+                                <li key={session.id} className={`p-3 flex justify-between items-center ${sessionInfo.bg}`}>
                                     <div className="flex items-center gap-3">
-                                        <CalendarIcon className={`w-5 h-5 ${sessionTypeInfo[session.type].color}`} />
+                                        <CalendarIcon className={`w-5 h-5 ${sessionInfo.color}`} />
                                         <div>
                                             <span className="font-medium">{new Date(session.date).toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'})}</span>
-                                            <span className={`ml-2 text-xs font-semibold ${sessionTypeInfo[session.type].color}`}>({sessionTypeInfo[session.type].label})</span>
+                                            <span className={`ml-2 text-xs font-semibold ${sessionInfo.color}`}>({sessionInfo.label})</span>
                                         </div>
                                     </div>
                                     <button onClick={() => handleDeleteSession(session.id)} className="text-gray-400 hover:text-red-600">
                                         <TrashIcon className="w-5 h-5" />
                                     </button>
                                 </li>
-                            ))}
+                            )})}
                         </ul>
                     ) : (
                         <p className="text-center text-gray-500 p-4">Nenhuma aula registrada.</p>

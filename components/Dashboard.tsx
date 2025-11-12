@@ -45,7 +45,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           ...data,
           startDate: toISO(data.startDate) || new Date().toISOString(),
           paymentDueDate: toISO(data.paymentDueDate),
-          sessions: (data.sessions || []).map((s: any) => ({ ...s, date: toISO(s.date) })),
+          sessions: (data.sessions || []).filter(Boolean).map((s: any) => ({ ...s, date: toISO(s.date) })),
         } as Student;
       });
 
