@@ -2,16 +2,17 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// TODO: Replace with your app's Firebase project configuration
-// You can get this from the Firebase Console of your project.
+// ATENÇÃO: Substitua TODOS os valores abaixo pelos do seu projeto Firebase.
+// Vá no Console do Firebase > Configurações do Projeto para obter seus dados.
+// Estes são apenas exemplos e NÃO funcionarão para o upload de fotos.
 export const firebaseConfig = {
-  apiKey: "AIzaSyDsi6VpfhLQW8UWgAp5c4TRV7vqOkDyauU",
-  authDomain: "stingressos-e0a5f.firebaseapp.com",
-  projectId: "stingressos-e0a5f",
-  storageBucket: "stingressos-e0a5f.appspot.com",
-  messagingSenderId: "424186734009",
-  appId: "1:424186734009:web:f9420fca3d94ddd0784268",
-  measurementId: "G-YZRJ4FP574"
+  apiKey: "AIzaSyDsi6VpfhLQW8UWgAp5c4TRV7vqOkDyauU", // O SEU apiKey
+  authDomain: "brunopersonal.firebaseapp.com",
+  projectId: "brunopersonal",
+  storageBucket: "brunopersonal.appspot.com",
+  messagingSenderId: "424186734009", // O SEU messagingSenderId
+  appId: "1:424186734009:web:f9420fca3d94ddd0784268", // O SEU appId
+  measurementId: "G-YZRJ4FP574" // Opcional
 };
 
 // Initialize Firebase
@@ -24,14 +25,14 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 
 /*
-IMPORTANT: Firestore Security Rules
+IMPORTANTE: Regras de Segurança do Firestore
 
-For this application to function correctly and securely, you must set up 
-Firestore Security Rules in your Firebase project console. For development, 
-you can start with rules that allow all reads and writes, but this is NOT 
-secure for a production application.
+Para que a aplicação funcione de forma segura, você deve configurar as Regras
+de Segurança do Firestore no console do seu projeto Firebase. Para desenvolvimento,
+você pode começar com regras que permitem leitura e escrita, mas isso NÃO É
+SEGURO para uma aplicação em produção.
 
-Example for initial development (insecure):
+Exemplo para desenvolvimento inicial (inseguro):
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -40,22 +41,20 @@ service cloud.firestore {
     }
   }
 }
-
-For production, you should implement Firebase Authentication and write rules
-that restrict data access to authenticated users only.
 */
 
 /*
-IMPORTANT: Firebase Storage Security Rules
+IMPORTANTE: Regras de Segurança do Firebase Storage
 
-You must also configure security rules for Firebase Storage. For this feature,
-a basic rule would be to allow authenticated users to read and write to their
-own folder. A simple (but insecure) starting point for development is:
+Você também deve configurar as regras de segurança para o Firebase Storage.
+Para a funcionalidade de upload de fotos funcionar, uma regra básica seria
+permitir que usuários autenticados leiam e escrevam arquivos. Um ponto de
+partida simples (mas inseguro) para desenvolvimento é:
 
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
-      allow read, write: if true;
+      allow read, write: if true; // Em produção, restrinja para "if request.auth != null"
     }
   }
 }
