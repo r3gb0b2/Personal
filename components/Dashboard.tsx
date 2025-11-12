@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { db, firebaseConfig } from '../firebase';
+import { db } from '../firebase';
 import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy } from 'firebase/firestore';
 import { Student, Plan, Payment } from '../types';
 import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon } from './icons';
@@ -29,9 +29,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const [isPlanModalOpen, setPlanModalOpen] = useState(false);
   const [isAddStudentModalOpen, setAddStudentModalOpen] = useState(false);
   const [isFinancialReportModalOpen, setFinancialReportModalOpen] = useState(false);
-
-  // Check if the Firebase config is still using the placeholder project ID
-  const isConfigPlaceholder = firebaseConfig.projectId === 'stingressos-e0a5f';
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -73,7 +70,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       setPayments(paymentsList);
     } catch (err) {
       console.error("Error fetching data:", err);
-      setError("Não foi possível carregar os dados. Verifique a configuração do Firebase e sua conexão com a internet.");
+      setError("ERRO AO CARREGAR DADOS: A lista de alunos não foi carregada. Isso geralmente ocorre por uma configuração incorreta do Firebase. Por favor, verifique se TODOS os dados no arquivo firebase.ts estão corretos e correspondem ao seu projeto no Firebase Console.");
     } finally {
       setLoading(false);
     }
@@ -224,14 +221,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       </div>
 
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-        {/* CRITICAL CONFIGURATION WARNING */}
-        {isConfigPlaceholder && (
-          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded-md shadow-lg" role="alert">
-            <p className="font-bold">AÇÃO NECESSÁRIA: Configuração Incompleta</p>
-            <p>A função de upload de fotos não funcionará até que você configure suas credenciais do Firebase. Por favor, edite o arquivo <strong>firebase.ts</strong> e substitua os dados de exemplo pelos do seu projeto.</p>
-          </div>
-        )}
-
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="bg-white p-6 rounded-lg shadow-md flex items-center gap-4">
@@ -275,7 +264,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             <div className="p-6 border-b">
                 <h2 className="text-xl font-bold">Lista de Alunos</h2>
             </div>
-            {loading ? <Loader /> : error ? <div className="p-8 text-center text-red-500">{error}</div> : (
+            {loading ? <Loader /> : error ? <div className="p-8 text-center text-red-500 font-semibold bg-red-50">{error}</div> : (
               <div className="overflow-x-auto">
                   <table className="w-full text-left">
                       <thead className="bg-brand-light">

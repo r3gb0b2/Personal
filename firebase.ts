@@ -2,18 +2,32 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// ATENÇÃO: Substitua TODOS os valores abaixo pelos do seu projeto Firebase.
-// Vá no Console do Firebase > Configurações do Projeto para obter seus dados.
-// Estes são apenas exemplos e NÃO funcionarão para o upload de fotos.
+// =================================================================================
+// AÇÃO CRÍTICA NECESSÁRIA - LEIA COM ATENÇÃO
+// =================================================================================
+// A lista de alunos não carrega porque esta configuração está INCORRETA.
+// Você precisa substituir TODOS os valores abaixo pelos dados do SEU projeto.
+//
+// COMO FAZER:
+// 1. Abra o Console do Firebase: https://console.firebase.google.com/
+// 2. Selecione o seu projeto (ex: "brunopersonal").
+// 3. Clique no ícone de engrenagem (Configurações do projeto) ao lado de "Visão geral do projeto".
+// 4. Na aba "Geral", role para baixo até a seção "Seus apps".
+// 5. Encontre seu aplicativo da web e clique no ícone </> para ver a configuração.
+// 6. Copie o objeto `firebaseConfig` completo e cole-o aqui, substituindo TUDO.
+//
+// Se você não fizer isso, NENHUMA função do Firebase (banco de dados, fotos) funcionará.
+// =================================================================================
 export const firebaseConfig = {
-  apiKey: "AIzaSyDsi6VpfhLQW8UWgAp5c4TRV7vqOkDyauU", // O SEU apiKey
-  authDomain: "brunopersonal.firebaseapp.com",
-  projectId: "brunopersonal",
-  storageBucket: "brunopersonal.appspot.com",
-  messagingSenderId: "424186734009", // O SEU messagingSenderId
-  appId: "1:424186734009:web:f9420fca3d94ddd0784268", // O SEU appId
-  measurementId: "G-YZRJ4FP574" // Opcional
+  apiKey: "COLE_SUA_API_KEY_AQUI",
+  authDomain: "SEU_PROJETO.firebaseapp.com",
+  projectId: "SEU_PROJECT_ID_AQUI",
+  storageBucket: "SEU_PROJETO.appspot.com", // Você mencionou "brunopersonal", verifique se o nome completo está correto. Ex: brunopersonal.appspot.com
+  messagingSenderId: "SEU_SENDER_ID_AQUI",
+  appId: "SEU_APP_ID_AQUI",
+  measurementId: "SEU_MEASUREMENT_ID_AQUI" // Opcional
 };
+
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
