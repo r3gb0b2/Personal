@@ -39,7 +39,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
     };
     updatedStudent.sessions = [...updatedStudent.sessions, newSession];
 
-    if (type === 'regular' && studentPlan?.type === 'session' && updatedStudent.remainingSessions != null && updatedStudent.remainingSessions > 0) {
+    if ((type === 'regular' || type === 'absent') && studentPlan?.type === 'session' && updatedStudent.remainingSessions != null && updatedStudent.remainingSessions > 0) {
         updatedStudent.remainingSessions -= 1;
     }
     
@@ -58,8 +58,8 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
 
     updatedStudent.sessions = updatedStudent.sessions.filter(s => s.id !== sessionId);
 
-    // If it was a regular session for a session-based plan, give the session back
-    if (sessionToDelete.type === 'regular' && studentPlan?.type === 'session' && updatedStudent.remainingSessions != null) {
+    // If it was a regular session or an absence for a session-based plan, give the session back
+    if ((sessionToDelete.type === 'regular' || sessionToDelete.type === 'absent') && studentPlan?.type === 'session' && updatedStudent.remainingSessions != null) {
         updatedStudent.remainingSessions += 1;
     }
 

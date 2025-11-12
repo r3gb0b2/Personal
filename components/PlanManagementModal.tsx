@@ -48,49 +48,54 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
       return;
     }
 
-    if (editingPlan) {
-        let planToUpdate: Plan;
-        if (planType === 'duration') {
-            planToUpdate = {
-                ...editingPlan,
-                name: formState.name.trim(),
-                price: parseFloat(formState.price),
-                type: 'duration',
-                durationInDays: parseInt(formState.durationInDays, 10),
-                numberOfSessions: undefined,
-            };
+    try {
+        if (editingPlan) {
+            let planToUpdate: Plan;
+            if (planType === 'duration') {
+                planToUpdate = {
+                    ...editingPlan,
+                    name: formState.name.trim(),
+                    price: parseFloat(formState.price),
+                    type: 'duration',
+                    durationInDays: parseInt(formState.durationInDays, 10),
+                    numberOfSessions: undefined,
+                };
+            } else {
+                 planToUpdate = {
+                    ...editingPlan,
+                    name: formState.name.trim(),
+                    price: parseFloat(formState.price),
+                    type: 'session',
+                    numberOfSessions: parseInt(formState.numberOfSessions, 10),
+                    durationInDays: undefined,
+                };
+            }
+            await onUpdatePlan(planToUpdate);
+            setEditingPlan(null);
         } else {
-             planToUpdate = {
-                ...editingPlan,
-                name: formState.name.trim(),
-                price: parseFloat(formState.price),
-                type: 'session',
-                numberOfSessions: parseInt(formState.numberOfSessions, 10),
-                durationInDays: undefined,
-            };
+            let planToAdd: Omit<Plan, 'id'>;
+            if (planType === 'duration') {
+                planToAdd = {
+                    name: formState.name.trim(),
+                    price: parseFloat(formState.price),
+                    type: 'duration',
+                    durationInDays: parseInt(formState.durationInDays, 10),
+                };
+            } else {
+                planToAdd = {
+                    name: formState.name.trim(),
+                    price: parseFloat(formState.price),
+                    type: 'session',
+                    numberOfSessions: parseInt(formState.numberOfSessions, 10),
+                };
+            }
+            await onAddPlan(planToAdd);
+            setFormState(initialFormState);
         }
-        await onUpdatePlan(planToUpdate);
-    } else {
-        let planToAdd: Omit<Plan, 'id'>;
-        if (planType === 'duration') {
-            planToAdd = {
-                name: formState.name.trim(),
-                price: parseFloat(formState.price),
-                type: 'duration',
-                durationInDays: parseInt(formState.durationInDays, 10),
-            };
-        } else {
-            planToAdd = {
-                name: formState.name.trim(),
-                price: parseFloat(formState.price),
-                type: 'session',
-                numberOfSessions: parseInt(formState.numberOfSessions, 10),
-            };
-        }
-        await onAddPlan(planToAdd);
+    } catch (error) {
+        console.error("Erro ao salvar o plano:", error);
+        alert("Ocorreu um erro ao salvar o plano. Verifique o console para mais detalhes.");
     }
-    
-    setEditingPlan(null);
   };
 
   return (
