@@ -18,16 +18,15 @@ import { getStorage } from "firebase/storage";
 //
 // Se você não fizer isso, NENHUMA função do Firebase (banco de dados, fotos) funcionará.
 // =================================================================================
-export const firebaseConfig = {
-  apiKey: "COLE_SUA_API_KEY_AQUI",
-  authDomain: "SEU_PROJETO.firebaseapp.com",
-  projectId: "SEU_PROJECT_ID_AQUI",
-  storageBucket: "SEU_PROJETO.appspot.com", // Você mencionou "brunopersonal", verifique se o nome completo está correto. Ex: brunopersonal.appspot.com
-  messagingSenderId: "SEU_SENDER_ID_AQUI",
-  appId: "SEU_APP_ID_AQUI",
-  measurementId: "SEU_MEASUREMENT_ID_AQUI" // Opcional
+const firebaseConfig = {
+  apiKey: "AIzaSyDsi6VpfhLQW8UWgAp5c4TRV7vqOkDyauU",
+  authDomain: "stingressos-e0a5f.firebaseapp.com",
+  projectId: "stingressos-e0a5f",
+  storageBucket: "stingressos-e0a5f.firebasestorage.app",
+  messagingSenderId: "424186734009",
+  appId: "1:424186734009:web:f9420fca3d94ddd0784268",
+  measurementId: "G-YZRJ4FP574"
 };
-
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
