@@ -28,6 +28,7 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
         numberOfSessions: String(editingPlan.numberOfSessions || 10),
       });
     } else {
+        setPlanType('duration');
         setFormState(initialFormState);
     }
   }, [editingPlan]);
@@ -51,23 +52,22 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
     try {
         if (editingPlan) {
             let planToUpdate: Plan;
+            // Re-construct the object to avoid sending old/conflicting fields to Firestore
             if (planType === 'duration') {
                 planToUpdate = {
-                    ...editingPlan,
+                    id: editingPlan.id,
                     name: formState.name.trim(),
                     price: parseFloat(formState.price),
                     type: 'duration',
                     durationInDays: parseInt(formState.durationInDays, 10),
-                    numberOfSessions: undefined,
                 };
             } else {
                  planToUpdate = {
-                    ...editingPlan,
+                    id: editingPlan.id,
                     name: formState.name.trim(),
                     price: parseFloat(formState.price),
                     type: 'session',
                     numberOfSessions: parseInt(formState.numberOfSessions, 10),
-                    durationInDays: undefined,
                 };
             }
             await onUpdatePlan(planToUpdate);
@@ -90,8 +90,11 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
                 };
             }
             await onAddPlan(planToAdd);
-            setFormState(initialFormState);
         }
+        // Reset form state for the next entry
+        setFormState(initialFormState);
+        setPlanType('duration');
+
     } catch (error) {
         console.error("Erro ao salvar o plano:", error);
         alert("Ocorreu um erro ao salvar o plano. Verifique o console para mais detalhes.");

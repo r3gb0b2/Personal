@@ -39,6 +39,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
     };
     updatedStudent.sessions = [...updatedStudent.sessions, newSession];
 
+    // Deduct session for regular classes and absences on session-based plans
     if ((type === 'regular' || type === 'absent') && studentPlan?.type === 'session' && updatedStudent.remainingSessions != null && updatedStudent.remainingSessions > 0) {
         updatedStudent.remainingSessions -= 1;
     }

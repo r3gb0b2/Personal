@@ -152,7 +152,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       const planRef = doc(db, 'plans', updatedPlan.id);
       const dataToUpdate = { ...updatedPlan };
       delete (dataToUpdate as any).id;
-      await setDoc(planRef, dataToUpdate, { merge: true });
+      // Using setDoc without merge performs a full overwrite, which is
+      // necessary to remove old fields when a plan's type changes.
+      await setDoc(planRef, dataToUpdate);
       setPlans(prev => prev.map(p => p.id === updatedPlan.id ? updatedPlan : p));
   }
 
