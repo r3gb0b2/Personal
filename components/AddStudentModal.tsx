@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Plan, Student } from '../types';
 import Modal from './modals/Modal';
@@ -30,10 +31,16 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
     
     const selectedPlan = plans.find(p => p.id === newStudent.planId);
     let paymentDueDate = null;
+    let remainingSessions = undefined;
+
     if (selectedPlan) {
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + selectedPlan.durationInDays);
-        paymentDueDate = dueDate.toISOString();
+        if (selectedPlan.type === 'duration' && selectedPlan.durationInDays) {
+            const dueDate = new Date();
+            dueDate.setDate(dueDate.getDate() + selectedPlan.durationInDays);
+            paymentDueDate = dueDate.toISOString();
+        } else if (selectedPlan.type === 'session' && selectedPlan.numberOfSessions) {
+            remainingSessions = selectedPlan.numberOfSessions;
+        }
     }
 
     const studentToAdd: Omit<Student, 'id'> = {
@@ -43,6 +50,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
       startDate: new Date().toISOString(),
       planId: newStudent.planId || null,
       paymentDueDate: paymentDueDate,
+      remainingSessions: remainingSessions,
       sessions: [],
     };
 
@@ -73,7 +81,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
               <option key={plan.id} value={plan.id}>{plan.name} - R$ {plan.price.toFixed(2)}</option>
             ))}
           </select>
-          <p className="mt-1 text-xs text-gray-500">A data de vencimento será calculada a partir de hoje se um plano for selecionado.</p>
+          <p className="mt-1 text-xs text-gray-500">O status inicial do aluno será definido com base no plano selecionado.</p>
         </div>
         <div className="flex justify-end gap-4 pt-4">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Cancelar</button>

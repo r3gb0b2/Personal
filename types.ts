@@ -1,9 +1,13 @@
 
+export type PlanType = 'duration' | 'session';
+
 export interface Plan {
   id: string;
   name: string;
   price: number;
-  durationInDays: number; // e.g., 30 for monthly, 90 for quarterly
+  type: PlanType;
+  durationInDays?: number; // e.g., 30 for monthly
+  numberOfSessions?: number; // e.g., 10 sessions
 }
 
 export interface ClassSession {
@@ -20,4 +24,18 @@ export interface Student {
   planId: string | null;
   paymentDueDate: string | null; // ISO string format
   sessions: ClassSession[];
+  remainingSessions?: number;
+}
+
+export type PaymentMethod = 'Pix' | 'Dinheiro' | 'Cartão de Crédito' | 'Transferência';
+
+export interface Payment {
+    id: string;
+    studentId: string;
+    studentName: string; // Denormalized for easier display
+    planId: string;
+    planName: string; // Denormalized for easier display
+    amount: number;
+    paymentDate: string; // ISO string format
+    paymentMethod: PaymentMethod;
 }

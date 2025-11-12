@@ -1,7 +1,9 @@
+
 import React, { useState } from 'react';
-import { Student, Plan, ClassSession } from '../types';
+import { Student, Plan, ClassSession, Payment, PaymentMethod } from '../types';
 import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon } from './icons';
 import Modal from './modals/Modal';
+import PaymentModal from './modals/PaymentModal';
 
 interface StudentDetailsModalProps {
   student: Student;
@@ -9,11 +11,13 @@ interface StudentDetailsModalProps {
   onClose: () => void;
   onUpdate: (student: Student) => Promise<void>;
   onDelete: (studentId: string) => Promise<void>;
+  onAddPayment: (payment: Omit<Payment, 'id'>) => Promise<void>;
 }
 
-const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plans, onClose, onUpdate, onDelete }) => {
+const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plans, onClose, onUpdate, onDelete, onAddPayment }) => {
   const [editableStudent, setEditableStudent] = useState<Student>(student);
   const [isEditing, setIsEditing] = useState(false);
+  const [isPaymentModalOpen, setPaymentModalOpen] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -26,25 +30,53 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
   }
 
   const handleAddSession = async () => {
+    const studentPlan = plans.find(p => p.id === editableStudent.planId);
+    let updatedStudent = { ...editableStudent };
+    
     const newSession: ClassSession = {
       id: new Date().toISOString() + Math.random(),
       date: new Date().toISOString(),
     };
-    const updatedStudent = { ...editableStudent, sessions: [...editableStudent.sessions, newSession] };
+    updatedStudent.sessions = [...updatedStudent.sessions, newSession];
+
+    if (studentPlan?.type === 'session' && updatedStudent.remainingSessions != null && updatedStudent.remainingSessions > 0) {
+        updatedStudent.remainingSessions -= 1;
+    }
+    
     setEditableStudent(updatedStudent);
     await onUpdate(updatedStudent);
   };
   
-  const handleRenewPlan = async () => {
+  const handleConfirmPayment = async (method: PaymentMethod) => {
     const plan = plans.find(p => p.id === editableStudent.planId);
     if (!plan) return;
+
+    // Create payment record
+    const paymentRecord: Omit<Payment, 'id'> = {
+        studentId: student.id,
+        studentName: student.name,
+        planId: plan.id,
+        planName: plan.name,
+        amount: plan.price,
+        paymentDate: new Date().toISOString(),
+        paymentMethod: method,
+    };
+    await onAddPayment(paymentRecord);
+
+    // Update student
+    let updatedStudent = { ...editableStudent };
+    if (plan.type === 'duration' && plan.durationInDays) {
+        const newDueDate = new Date();
+        newDueDate.setDate(newDueDate.getDate() + plan.durationInDays);
+        updatedStudent.paymentDueDate = newDueDate.toISOString();
+    } else if (plan.type === 'session' && plan.numberOfSessions) {
+        updatedStudent.remainingSessions = plan.numberOfSessions;
+        updatedStudent.paymentDueDate = null; // Clear due date for session plans
+    }
     
-    const newDueDate = new Date();
-    newDueDate.setDate(newDueDate.getDate() + plan.durationInDays);
-    
-    const updatedStudent = {...editableStudent, paymentDueDate: newDueDate.toISOString()};
     setEditableStudent(updatedStudent);
     await onUpdate(updatedStudent);
+    setPaymentModalOpen(false);
   }
 
   const handleDelete = async () => {
@@ -54,11 +86,13 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
   }
 
   const studentPlan = plans.find(p => p.id === student.planId);
-  const isPaymentDue = student.paymentDueDate && new Date(student.paymentDueDate) < new Date();
-  
+  const isPaymentDue = studentPlan?.type === 'duration' && student.paymentDueDate && new Date(student.paymentDueDate) < new Date();
+  const areSessionsLow = studentPlan?.type === 'session' && (student.remainingSessions == null || student.remainingSessions <= 0);
+
   const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   return (
+    <>
     <Modal title={isEditing ? `Editando ${student.name}` : student.name} isOpen={true} onClose={onClose} size="lg">
       {isEditing ? (
          <div className="space-y-4">
@@ -100,18 +134,20 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
                 </div>
             </div>
 
-            <div className={`p-4 rounded-lg ${isPaymentDue ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border`}>
+            <div className={`p-4 rounded-lg ${(isPaymentDue || areSessionsLow) ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border`}>
                 <div className="flex justify-between items-center">
                     <div>
                         <h3 className="font-bold text-lg">{studentPlan?.name || 'Sem plano'}</h3>
                         <div className="flex items-center gap-2 mt-1">
-                            {isPaymentDue ? <ExclamationCircleIcon className="w-5 h-5 text-red-500" /> : <CheckCircleIcon className="w-5 h-5 text-green-500" />}
-                            <span className={isPaymentDue ? 'text-red-600' : 'text-green-600'}>
-                                {student.paymentDueDate ? `Vencimento em ${formatDate(student.paymentDueDate)}` : 'Sem data de vencimento'}
+                            {(isPaymentDue || areSessionsLow) ? <ExclamationCircleIcon className="w-5 h-5 text-red-500" /> : <CheckCircleIcon className="w-5 h-5 text-green-500" />}
+                             <span className={(isPaymentDue || areSessionsLow) ? 'text-red-600' : 'text-green-600'}>
+                                {studentPlan?.type === 'duration' && (student.paymentDueDate ? `Vencimento em ${formatDate(student.paymentDueDate)}` : 'Sem data de vencimento')}
+                                {studentPlan?.type === 'session' && `${student.remainingSessions ?? 0} aulas restantes`}
+                                {!studentPlan && 'Aluno sem plano ativo'}
                             </span>
                         </div>
                     </div>
-                    {student.planId && <button onClick={handleRenewPlan} className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Marcar como Pago/Renovar</button>}
+                    {student.planId && <button onClick={() => setPaymentModalOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Marcar como Pago/Renovar</button>}
                 </div>
             </div>
 
@@ -119,7 +155,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="font-bold text-lg">Histórico de Aulas</h3>
                     <button onClick={handleAddSession} className="flex items-center gap-2 px-3 py-1 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">
-                        <PlusIcon className="w-4 h-4" /> Adicionar Aula
+                        <PlusIcon className="w-4 h-4" /> Adicionar Aula de Hoje
                     </button>
                 </div>
                 <div className="border rounded-lg max-h-48 overflow-y-auto">
@@ -128,7 +164,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
                             {student.sessions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(session => (
                                 <li key={session.id} className="p-3 flex items-center gap-3">
                                     <CalendarIcon className="w-5 h-5 text-gray-500" />
-                                    <span>{new Date(session.date).toLocaleString('pt-BR')}</span>
+                                    <span>{new Date(session.date).toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'})}</span>
                                 </li>
                             ))}
                         </ul>
@@ -140,6 +176,17 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
         </div>
       )}
     </Modal>
+    {isPaymentModalOpen && studentPlan && (
+        <PaymentModal 
+            isOpen={isPaymentModalOpen}
+            onClose={() => setPaymentModalOpen(false)}
+            onConfirm={handleConfirmPayment}
+            studentName={student.name}
+            planName={studentPlan.name}
+            planPrice={studentPlan.price}
+        />
+    )}
+    </>
   );
 };
 
