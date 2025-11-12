@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Student } from '../../types';
 import Modal from './Modal';
@@ -90,7 +91,7 @@ const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({ student, isOp
 
     setIsUploading(true);
     setError(null);
-    let success = false; // Flag to ensure we only close if the entire process works
+    let success = false;
 
     try {
       const fileName = `${student.id}-${Date.now()}-${imageFile.name}`;
@@ -102,15 +103,13 @@ const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({ student, isOp
       const updatedStudent = { ...student, profilePictureUrl: downloadURL };
       await onUpdateStudent(updatedStudent);
       
-      success = true; // Mark the operation as successful
+      success = true;
 
     } catch (err) {
       console.error("Error uploading image:", err);
       setError("Falha ao enviar a imagem. Verifique as regras de segurança do Firebase Storage e sua conexão.");
     } finally {
-      // This block runs regardless of success or failure.
       setIsUploading(false);
-      // Only close the modal if the operation was a success.
       if (success) {
         handleClose();
       }
@@ -122,10 +121,11 @@ const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({ student, isOp
       setImageFile(null);
       setPreviewUrl(student.profilePictureUrl || null);
       setError(null);
-      setIsUploading(false); // Ensure uploading state is reset
+      setIsUploading(false);
   }
 
   const handleClose = () => {
+      if (isUploading) return;
       stopCamera();
       onClose();
   }
@@ -172,7 +172,7 @@ const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({ student, isOp
   };
 
   return (
-    <Modal title="Alterar Foto de Perfil" isOpen={isOpen} onClose={handleClose}>
+    <Modal title="Alterar Foto de Perfil" isOpen={isOpen} onClose={handleClose} isClosable={!isUploading}>
       <div className="space-y-4">
         {error && <p className="text-red-500 text-center">{error}</p>}
         {renderContent()}
