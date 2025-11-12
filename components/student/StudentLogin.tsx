@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { ExclamationCircleIcon } from '../icons';
 
 interface StudentLoginProps {
   onLogin: (email: string) => Promise<{ success: boolean; message?: string }>;
@@ -36,6 +37,21 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBackToTrainerLog
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {error && (
+              <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-md">
+                  <div className="flex">
+                      <div className="flex-shrink-0">
+                          <ExclamationCircleIcon className="h-5 w-5 text-red-400" aria-hidden="true" />
+                      </div>
+                      <div className="ml-3">
+                          <h3 className="text-sm font-bold text-red-800">Erro de Acesso</h3>
+                          <div className="mt-2 text-sm text-red-700">
+                              <p>{error}</p>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          )}
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="email-address" className="sr-only">Email</label>
@@ -53,8 +69,6 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBackToTrainerLog
             </div>
           </div>
           
-          {error && <p className="text-red-500 text-sm text-center font-semibold">{error}</p>}
-
           <div>
             <button
               type="submit"

@@ -1,8 +1,9 @@
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy } from 'firebase/firestore';
 import { Student, Plan, Payment } from '../types';
-import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon } from './icons';
+import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon } from './icons';
 import StudentDetailsModal from './StudentDetailsModal';
 import PlanManagementModal from './PlanManagementModal';
 import AddStudentModal from './AddStudentModal';
@@ -70,7 +71,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       setPayments(paymentsList);
     } catch (err) {
       console.error("Error fetching data:", err);
-      setError("ERRO AO CARREGAR DADOS: A lista de alunos não foi carregada. Isso geralmente ocorre por uma configuração incorreta do Firebase. Por favor, verifique se TODOS os dados no arquivo firebase.ts estão corretos e correspondem ao seu projeto no Firebase Console.");
+      setError("ERRO DE CONEXÃO: Não foi possível carregar os dados. A causa mais comum é a configuração do Firebase estar incorreta. Abra o arquivo 'firebase.ts' e substitua as credenciais de exemplo pelas credenciais do SEU projeto no Firebase Console.");
     } finally {
       setLoading(false);
     }
@@ -287,7 +288,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             <div className="p-6 border-b">
                 <h2 className="text-xl font-bold">Lista de Alunos</h2>
             </div>
-            {loading ? <Loader /> : error ? <div className="p-8 text-center text-red-500 font-semibold bg-red-50">{error}</div> : (
+            {loading ? <Loader /> : error ? (
+                <div className="m-4 sm:m-6 lg:m-8 bg-red-50 border border-red-200 p-6 rounded-lg shadow-sm">
+                    <div className="flex items-start">
+                        <div className="flex-shrink-0">
+                            <ExclamationCircleIcon className="h-8 w-8 text-red-500" />
+                        </div>
+                        <div className="ml-4">
+                            <h3 className="text-lg font-bold text-red-800">Ação Necessária: Verifique a Configuração</h3>
+                            <div className="mt-2 text-sm text-red-700">
+                                <p>{error}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ) : (
               <div className="overflow-x-auto">
                   <table className="w-full text-left">
                       <thead className="bg-brand-light">
