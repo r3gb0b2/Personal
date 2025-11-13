@@ -2,20 +2,21 @@
 import React, { useState } from 'react';
 
 interface LoginScreenProps {
-  onLogin: (password: string) => boolean;
+  onLogin: (username: string, password: string) => Promise<boolean>;
   onShowStudentLogin: () => void;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onShowStudentLogin }) => {
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const success = onLogin(password);
+    const success = await onLogin(username, password);
     if (!success) {
-      setError('Senha incorreta. Tente novamente.');
+      setError('Usuário ou senha incorretos. Tente novamente.');
     }
   };
 
@@ -24,22 +25,37 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onShowStudentLogin }
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-xl shadow-2xl">
         <div>
           <h2 className="text-3xl font-extrabold text-center text-brand-dark">
-            Acesso Restrito
+            Acesso ao Painel
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Painel do Personal Trainer
+            Login de Admin ou Personal Trainer
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm -space-y-px">
+          <div className="rounded-md shadow-sm space-y-4">
             <div>
-              <label htmlFor="password-input" className="sr-only">Password</label>
+              <label htmlFor="username-input" className="sr-only">Usuário</label>
+              <input
+                id="username-input"
+                name="username"
+                type="text"
+                autoComplete="username"
+                required
+                className="appearance-none rounded-md relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"
+                placeholder="Usuário"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="password-input" className="sr-only">Senha</label>
               <input
                 id="password-input"
                 name="password"
                 type="password"
+                autoComplete="current-password"
                 required
-                className="appearance-none rounded-md relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-brand-accent focus:border-brand-accent focus:z-10 sm:text-sm"
+                className="appearance-none rounded-md relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"
                 placeholder="Senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

@@ -43,6 +43,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
         }
     }
 
+    // Fix: Add a placeholder 'trainerId' to satisfy the type. It will be overwritten by the parent component.
     const studentToAdd: Omit<Student, 'id'> = {
       name: newStudent.name.trim(),
       email: newStudent.email.trim().toLowerCase(),
@@ -53,6 +54,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
       remainingSessions: remainingSessions,
       sessions: [],
       profilePictureUrl: null,
+      trainerId: '',
     };
 
     onAdd(studentToAdd);

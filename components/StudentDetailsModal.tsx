@@ -80,6 +80,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
     if (!plan) return;
 
     // Create payment record
+    // Fix: Add the missing 'trainerId' property to the payment record.
     const paymentRecord: Omit<Payment, 'id'> = {
         studentId: student.id,
         studentName: student.name,
@@ -88,6 +89,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
         amount: plan.price,
         paymentDate: new Date().toISOString(),
         paymentMethod: method,
+        trainerId: student.trainerId,
     };
     await onAddPayment(paymentRecord);
 

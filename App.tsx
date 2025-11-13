@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from './firebase';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
@@ -6,52 +5,93 @@ import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
 import StudentLogin from './components/student/StudentLogin';
 import StudentPortal from './components/student/StudentPortal';
-import { APP_PASSWORD, AUTH_SESSION_KEY } from './constants';
-import { Student, Plan, Payment } from './types';
+import AdminDashboard from './components/admin/AdminDashboard';
+import { ADMIN_USERNAME, ADMIN_PASSWORD, AUTH_SESSION_KEY } from './constants';
+import { Student, Plan, Payment, Trainer } from './types';
 
-type View = 'trainerLogin' | 'dashboard' | 'studentLogin' | 'studentPortal';
+type View = 'trainerLogin' | 'dashboard' | 'studentLogin' | 'studentPortal' | 'adminDashboard';
 
 const App: React.FC = () => {
   const [view, setView] = useState<View>('trainerLogin');
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [currentUser, setCurrentUser] = useState<Trainer | { id: 'admin', username: 'admin' } | null>(null);
   const [currentStudentData, setCurrentStudentData] = useState<{ student: Student; payments: Payment[] } | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   useEffect(() => {
-    const sessionAuth = sessionStorage.getItem(AUTH_SESSION_KEY);
-    if (sessionAuth === 'true') {
-      setView('dashboard');
+    try {
+        const sessionAuth = sessionStorage.getItem(AUTH_SESSION_KEY);
+        if (sessionAuth) {
+            const parsedUser = JSON.parse(sessionAuth);
+            setCurrentUser(parsedUser);
+            if (parsedUser.id === 'admin') {
+                setView('adminDashboard');
+            } else {
+                setView('dashboard');
+            }
+        }
+    } catch (e) {
+        // Corrupted session data, clear it
+        sessionStorage.removeItem(AUTH_SESSION_KEY);
     }
   }, []);
   
-  const fetchPlans = useCallback(async () => {
+  const fetchPlansForStudentPortal = useCallback(async () => {
     try {
         const plansSnapshot = await getDocs(collection(db, 'plans'));
         const plansList = plansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan));
         setPlans(plansList);
     } catch (e) {
-        console.error("Could not fetch plans", e);
+        console.error("Could not fetch plans for student portal", e);
     }
   }, []);
 
   useEffect(() => {
       // Fetch plans once on initial load for the student portal
-      if(plans.length === 0) {
-          fetchPlans();
+      if (view === 'studentLogin' && plans.length === 0) {
+          fetchPlansForStudentPortal();
       }
-  }, [plans, fetchPlans]);
+  }, [view, plans.length, fetchPlansForStudentPortal]);
 
-  const handleTrainerLogin = (password: string): boolean => {
-    if (password === APP_PASSWORD) {
-      sessionStorage.setItem(AUTH_SESSION_KEY, 'true');
-      setView('dashboard');
+  const handleLogin = async (username: string, password: string): Promise<boolean> => {
+    // Admin Login
+    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+      const adminUser = { id: 'admin', username: 'admin' };
+      sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(adminUser));
+      setCurrentUser(adminUser);
+      setView('adminDashboard');
       return true;
     }
+
+    // Trainer Login
+    try {
+      const q = query(collection(db, 'trainers'), where("username", "==", username));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) return false;
+
+      const trainerDoc = querySnapshot.docs[0];
+      const trainerData = trainerDoc.data();
+
+      // In a real app, password should be hashed. Here we do a simple check.
+      if (trainerData.password === password) {
+        const trainer = { id: trainerDoc.id, username: trainerData.username };
+        sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(trainer));
+        setCurrentUser(trainer);
+        setView('dashboard');
+        return true;
+      }
+
+    } catch (e) {
+      console.error("Error during trainer login:", e);
+    }
+    
     return false;
   };
 
   const handleLogout = () => {
     sessionStorage.removeItem(AUTH_SESSION_KEY);
+    setCurrentUser(null);
     setView('trainerLogin');
   };
 
@@ -101,8 +141,6 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error("Firebase Connection Error Details:", error);
-      // CRITICAL: This error almost always means the firebase.ts file has incorrect placeholder credentials,
-      // the Firestore rules are too restrictive, or the database hasn't been created.
       return { 
           success: false, 
           message: "CONNECTION_ERROR"
@@ -119,8 +157,14 @@ const App: React.FC = () => {
 
   const renderView = () => {
       switch(view) {
+          case 'adminDashboard':
+              return <AdminDashboard onLogout={handleLogout} />;
           case 'dashboard':
-              return <Dashboard onLogout={handleLogout} />;
+              if (currentUser && currentUser.id !== 'admin') {
+                return <Dashboard onLogout={handleLogout} trainer={currentUser as Trainer} />;
+              }
+              // Fallback if user is not a trainer
+              return <LoginScreen onLogin={handleLogin} onShowStudentLogin={() => setView('studentLogin')} />;
           case 'studentLogin':
               return <StudentLogin onLogin={handleStudentLogin} onBackToTrainerLogin={() => setView('trainerLogin')} isLoading={isLoading} />;
           case 'studentPortal':
@@ -132,7 +176,7 @@ const App: React.FC = () => {
               return null;
           case 'trainerLogin':
           default:
-              return <LoginScreen onLogin={handleTrainerLogin} onShowStudentLogin={() => setView('studentLogin')} />;
+              return <LoginScreen onLogin={handleLogin} onShowStudentLogin={() => setView('studentLogin')} />;
       }
   }
 

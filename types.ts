@@ -7,6 +7,7 @@ export interface Plan {
   type: PlanType;
   durationInDays?: number; // e.g., 30 for monthly
   numberOfSessions?: number; // e.g., 10 sessions
+  trainerId: string;
 }
 
 export type ClassSessionType = 'regular' | 'extra' | 'absent';
@@ -18,7 +19,7 @@ export interface ClassSession {
 }
 
 export interface Student {
-  id: string;
+  id:string;
   name: string;
   email: string;
   phone: string;
@@ -28,6 +29,7 @@ export interface Student {
   sessions: ClassSession[];
   remainingSessions?: number;
   profilePictureUrl?: string | null;
+  trainerId: string;
 }
 
 export type PaymentMethod = 'Pix' | 'Dinheiro' | 'Cartão de Crédito' | 'Transferência';
@@ -41,4 +43,11 @@ export interface Payment {
     amount: number;
     paymentDate: string; // ISO string format
     paymentMethod: PaymentMethod;
+    trainerId: string;
+}
+
+export interface Trainer {
+    id: string;
+    username: string;
+    password?: string; // Should be handled securely, only for creation
 }

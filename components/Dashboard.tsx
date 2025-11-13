@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy } from 'firebase/firestore';
-import { Student, Plan, Payment } from '../types';
+import { Student, Plan, Payment, Trainer } from '../types';
 import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon } from './icons';
 import StudentDetailsModal from './StudentDetailsModal';
 import PlanManagementModal from './PlanManagementModal';
@@ -11,6 +11,7 @@ import FinancialReportModal from './modals/FinancialReportModal';
 
 interface DashboardProps {
   onLogout: () => void;
+  trainer: Trainer;
 }
 
 const Loader: React.FC = () => (
@@ -19,7 +20,7 @@ const Loader: React.FC = () => (
     </div>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -37,9 +38,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     try {
       const toISO = (ts: any) => ts && ts.toDate ? ts.toDate().toISOString() : null;
       
-      // Fetch students
+      // Fetch all documents and filter client-side to handle legacy data for 'bruno'
       const studentsSnapshot = await getDocs(collection(db, 'students'));
-      const studentsList = studentsSnapshot.docs.map(docSnapshot => {
+      const plansSnapshot = await getDocs(collection(db, 'plans'));
+      const paymentsSnapshot = await getDocs(query(collection(db, 'payments'), orderBy('paymentDate', 'desc')));
+
+      const filterByTrainer = (doc: any) => {
+          const data = doc.data();
+          // Belongs to current trainer OR is legacy data and current trainer is 'bruno'
+          return data.trainerId === trainer.id || (trainer.username === 'bruno' && !data.trainerId);
+      };
+
+      const studentsList = studentsSnapshot.docs.filter(filterByTrainer).map(docSnapshot => {
         const data = docSnapshot.data();
         return {
           id: docSnapshot.id,
@@ -50,14 +60,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
         } as Student;
       });
 
-      // Fetch plans
-      const plansSnapshot = await getDocs(collection(db, 'plans'));
-      const plansList = plansSnapshot.docs.map(docSnapshot => ({ id: docSnapshot.id, ...docSnapshot.data() } as Plan));
+      const plansList = plansSnapshot.docs.filter(filterByTrainer).map(docSnapshot => ({ id: docSnapshot.id, ...docSnapshot.data() } as Plan));
 
-      // Fetch payments
-      const paymentsQuery = query(collection(db, 'payments'), orderBy('paymentDate', 'desc'));
-      const paymentsSnapshot = await getDocs(paymentsQuery);
-      const paymentsList = paymentsSnapshot.docs.map(docSnapshot => {
+      const paymentsList = paymentsSnapshot.docs.filter(filterByTrainer).map(docSnapshot => {
         const data = docSnapshot.data();
         return {
             id: docSnapshot.id,
@@ -69,13 +74,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       setStudents(studentsList);
       setPlans(plansList);
       setPayments(paymentsList);
+
     } catch (err) {
       console.error("Firebase Connection Error Details:", err);
       setError("CONNECTION_ERROR");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [trainer.id, trainer.username]);
 
   useEffect(() => {
     fetchData();
@@ -118,6 +124,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     const studentRef = doc(db, 'students', updatedStudent.id);
     const dataToUpdate = {
         ...updatedStudent,
+        trainerId: trainer.id, // Ensure trainerId is set on update (migrates old data)
         startDate: Timestamp.fromDate(new Date(updatedStudent.startDate)),
         paymentDueDate: updatedStudent.paymentDueDate ? Timestamp.fromDate(new Date(updatedStudent.paymentDueDate)) : null,
         sessions: updatedStudent.sessions.map(s => ({ ...s, date: Timestamp.fromDate(new Date(s.date))}))
@@ -131,11 +138,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const handleAddStudent = async (newStudentData: Omit<Student, 'id'>) => {
     const studentWithTimestamps = {
         ...newStudentData,
+        trainerId: trainer.id, // Add trainerId
         startDate: Timestamp.fromDate(new Date(newStudentData.startDate)),
         paymentDueDate: newStudentData.paymentDueDate ? Timestamp.fromDate(new Date(newStudentData.paymentDueDate)) : null,
     };
     const docRef = await addDoc(collection(db, 'students'), studentWithTimestamps);
-    setStudents(prev => [...prev, { ...newStudentData, id: docRef.id }]);
+    setStudents(prev => [...prev, { ...newStudentData, id: docRef.id, trainerId: trainer.id }]);
   };
   
   const handleDeleteStudent = async (studentId: string) => {
@@ -145,16 +153,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   }
 
   const handleAddPlan = async (planData: Omit<Plan, 'id'>) => {
-    const docRef = await addDoc(collection(db, 'plans'), planData);
-    setPlans(prev => [...prev, { ...planData, id: docRef.id }]);
+    const planToAdd = { ...planData, trainerId: trainer.id };
+    const docRef = await addDoc(collection(db, 'plans'), planToAdd);
+    setPlans(prev => [...prev, { ...planToAdd, id: docRef.id }]);
   };
 
   const handleUpdatePlan = async (updatedPlan: Plan) => {
       const planRef = doc(db, 'plans', updatedPlan.id);
-      const dataToUpdate = { ...updatedPlan };
+      const dataToUpdate = { ...updatedPlan, trainerId: trainer.id };
       delete (dataToUpdate as any).id;
-      // Using setDoc without merge performs a full overwrite, which is
-      // necessary to remove old fields when a plan's type changes.
       await setDoc(planRef, dataToUpdate);
       setPlans(prev => prev.map(p => p.id === updatedPlan.id ? updatedPlan : p));
   }
@@ -169,10 +176,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
   const handleAddPayment = async (paymentData: Omit<Payment, 'id'>) => {
       const paymentWithTimestamp = {
           ...paymentData,
+          trainerId: trainer.id,
           paymentDate: Timestamp.fromDate(new Date(paymentData.paymentDate)),
       };
       const docRef = await addDoc(collection(db, 'payments'), paymentWithTimestamp);
-      const newPayment = { ...paymentData, id: docRef.id };
+      const newPayment = { ...paymentData, id: docRef.id, trainerId: trainer.id };
       setPayments(prev => [newPayment, ...prev]);
   };
 
@@ -236,7 +244,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     <>
       <div className="bg-brand-dark">
           <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-white">Dashboard do Personal</h1>
+            <h1 className="text-2xl font-bold text-white">Dashboard do Personal - [{trainer.username}]</h1>
             <button onClick={onLogout} className="flex items-center gap-2 text-white hover:text-red-400 transition-colors">
               <LogoutIcon className="w-5 h-5" />
               <span>Sair</span>
@@ -330,7 +338,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                                                 <p className="mt-1">Isto significa que suas <strong>Regras de Segurança</strong> do Firestore estão bloqueando o acesso. Para desenvolvimento, você pode usar regras abertas.</p>
                                                 <p className="mt-1">Vá para a seção <strong>Firestore Database &gt; Rules</strong> no seu Firebase Console e cole as seguintes regras:</p>
                                                 <pre className="mt-1 p-2 bg-red-100 text-red-900 rounded text-xs whitespace-pre-wrap font-mono">
-                                                    {`rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`}
+                                                    {`rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if request.auth != null && request.auth.uid == resource.data.trainerId;\n      // Allow admin to manage trainers\n      match /trainers/{trainerId} {\n           allow read, write: if true; // Or restrict to admin user \n      }\n    }\n  }\n}`}
                                                 </pre>
                                             </div>
 
