@@ -358,7 +358,13 @@ const DetailsTab: React.FC<any> = ({ student, plans, isEditing, setIsEditing, ed
                         ))}
                          <button
                             type="button"
-                            onClick={addScheduleItem}
+                            onClick={(e) => {
+                                // Prevent the click from bubbling up to the modal's backdrop overlay,
+                                // which would cause it to close. This can be an issue on mobile
+                                // where event propagation can be inconsistent during re-renders.
+                                e.stopPropagation();
+                                addScheduleItem();
+                            }}
                             className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-brand-primary bg-blue-100 rounded-md hover:bg-blue-200"
                         >
                             <PlusIcon className="w-4 h-4" /> Adicionar Horário

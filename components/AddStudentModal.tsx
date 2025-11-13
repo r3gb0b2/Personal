@@ -215,7 +215,12 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
                 ))}
                 <button
                     type="button"
-                    onClick={addScheduleItem}
+                    onClick={(e) => {
+                        // Prevent the click from bubbling up to the modal's backdrop overlay,
+                        // which could close it, especially on mobile devices during a re-render.
+                        e.stopPropagation();
+                        addScheduleItem();
+                    }}
                     className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-brand-primary bg-blue-100 rounded-md hover:bg-blue-200"
                 >
                     <PlusIcon className="w-4 h-4" /> Adicionar Horário
