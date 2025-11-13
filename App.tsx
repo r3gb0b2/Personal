@@ -6,7 +6,7 @@ import Dashboard from './components/Dashboard';
 import StudentLogin from './components/student/StudentLogin';
 import StudentPortal from './components/student/StudentPortal';
 import AdminDashboard from './components/admin/AdminDashboard';
-import { ADMIN_USERNAME, ADMIN_PASSWORD, AUTH_SESSION_KEY } from './constants';
+import { AUTH_SESSION_KEY } from './constants';
 import { Student, Plan, Payment, Trainer } from './types';
 
 type View = 'trainerLogin' | 'dashboard' | 'studentLogin' | 'studentPortal' | 'adminDashboard';
@@ -54,23 +54,38 @@ const App: React.FC = () => {
   }, [view, plans.length, fetchPlansForStudentPortal]);
 
   const handleLogin = async (username: string, password: string): Promise<boolean> => {
+    const normalizedUsername = username.trim().toLowerCase();
+    
     // Admin Login
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-      const adminUser = { id: 'admin', username: 'admin' };
-      sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(adminUser));
-      setCurrentUser(adminUser);
-      setView('adminDashboard');
-      return true;
+    if (normalizedUsername === 'admin') {
+      try {
+        const adminRef = doc(db, 'settings', 'admin');
+        const adminSnap = await getDoc(adminRef);
+        if (adminSnap.exists() && adminSnap.data().password === password) {
+            const adminUser = { id: 'admin', username: 'admin' };
+            sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(adminUser));
+            setCurrentUser(adminUser);
+            setView('adminDashboard');
+            return true;
+        }
+      } catch (e) {
+        console.error("Error during admin login:", e);
+        return false;
+      }
     }
 
-    // Trainer Login
+    // Trainer Login (Case-insensitive)
     try {
-      const q = query(collection(db, 'trainers'), where("username", "==", username));
-      const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) return false;
+      const trainersCollection = collection(db, 'trainers');
+      const trainersSnapshot = await getDocs(trainersCollection);
 
-      const trainerDoc = querySnapshot.docs[0];
+      const trainerDoc = trainersSnapshot.docs.find(doc => {
+          const trainerData = doc.data();
+          return trainerData.username && trainerData.username.toLowerCase() === normalizedUsername;
+      });
+
+      if (!trainerDoc) return false;
+
       const trainerData = trainerDoc.data();
 
       // In a real app, password should be hashed. Here we do a simple check.

@@ -1,19 +1,79 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../firebase';
-import { collection, getDocs, addDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, deleteDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { Trainer } from '../../types';
-import { LogoutIcon, PlusIcon, UserIcon, TrashIcon } from '../icons';
+import { LogoutIcon, PlusIcon, UserIcon, TrashIcon, SettingsIcon } from '../icons';
 import Modal from '../modals/Modal';
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
+const AdminPasswordModal: React.FC<{
+    isOpen: boolean,
+    onClose: () => void,
+    onPasswordUpdate: (current: string, newPass: string) => Promise<{success: boolean, message: string}>
+}> = ({ isOpen, onClose, onPasswordUpdate }) => {
+    const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: ''});
+    const [message, setMessage] = useState({type: '', text: ''});
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setPasswordData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setMessage({type: '', text: ''});
+        if (passwordData.new !== passwordData.confirm) {
+            setMessage({type: 'error', text: 'As novas senhas não coincidem.'});
+            return;
+        }
+        const result = await onPasswordUpdate(passwordData.current, passwordData.new);
+        if (result.success) {
+            setMessage({type: 'success', text: result.message});
+            setPasswordData({ current: '', new: '', confirm: ''});
+        } else {
+            setMessage({type: 'error', text: result.message});
+        }
+    }
+
+    return (
+        <Modal title="Alterar Senha do Administrador" isOpen={isOpen} onClose={onClose}>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700">Senha Atual</label>
+                    <input type="password" name="current" value={passwordData.current} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Nova Senha</label>
+                    <input type="password" name="new" value={passwordData.new} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Confirmar Nova Senha</label>
+                    <input type="password" name="confirm" value={passwordData.confirm} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required />
+                </div>
+                 {message.text && (
+                    <p className={`text-sm ${message.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>
+                        {message.text}
+                    </p>
+                )}
+                <div className="flex justify-end gap-4 pt-4">
+                    <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Cancelar</button>
+                    <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Salvar Senha</button>
+                </div>
+            </form>
+        </Modal>
+    );
+}
+
+
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddModalOpen, setAddModalOpen] = useState(false);
+  const [isPasswordModalOpen, setPasswordModalOpen] = useState(false);
   const [newTrainer, setNewTrainer] = useState({ username: '', password: '' });
 
   const fetchTrainers = useCallback(async () => {
@@ -67,7 +127,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             alert("Não foi possível excluir o personal.");
         }
     }
-  }
+  };
+
+  const handleUpdateAdminPassword = async (current: string, newPass: string): Promise<{success: boolean, message: string}> => {
+      try {
+          const adminRef = doc(db, 'settings', 'admin');
+          const adminSnap = await getDoc(adminRef);
+
+          if (!adminSnap.exists()) {
+              return { success: false, message: "Conta de admin não encontrada no banco de dados." };
+          }
+          if (adminSnap.data().password !== current) {
+              return { success: false, message: "A senha atual está incorreta." };
+          }
+
+          await updateDoc(adminRef, { password: newPass });
+          return { success: true, message: "Senha de administrador alterada com sucesso!" };
+
+      } catch (error) {
+           console.error("Failed to update admin password:", error);
+           return { success: false, message: "Erro ao atualizar a senha." };
+      }
+  };
 
   return (
     <>
@@ -83,10 +164,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
         <div className="flex justify-between items-center mb-8">
-          <h2 className="text-xl font-bold">Gerenciar Personais</h2>
-          <button onClick={() => setAddModalOpen(true)} className="flex items-center gap-2 bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-accent transition-colors shadow">
-            <PlusIcon className="w-5 h-5" /> Adicionar Personal
-          </button>
+          <h2 className="text-xl font-bold">Gerenciar Acessos</h2>
+          <div className="flex gap-4">
+            <button onClick={() => setAddModalOpen(true)} className="flex items-center gap-2 bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-accent transition-colors shadow">
+                <PlusIcon className="w-5 h-5" /> Adicionar Personal
+            </button>
+            <button onClick={() => setPasswordModalOpen(true)} className="flex items-center gap-2 bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors shadow">
+                <SettingsIcon className="w-5 h-5" /> Alterar Senha
+            </button>
+          </div>
         </div>
 
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -97,7 +183,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <table className="w-full text-left">
                 <thead className="bg-brand-light">
                   <tr>
-                    <th className="p-4 font-semibold">Usuário</th>
+                    <th className="p-4 font-semibold">Usuário do Personal</th>
                     <th className="p-4 font-semibold">Ações</th>
                   </tr>
                 </thead>
@@ -145,6 +231,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             </div>
           </form>
         </Modal>
+      )}
+
+      {isPasswordModalOpen && (
+        <AdminPasswordModal
+            isOpen={isPasswordModalOpen}
+            onClose={() => setPasswordModalOpen(false)}
+            onPasswordUpdate={handleUpdateAdminPassword}
+        />
       )}
     </>
   );

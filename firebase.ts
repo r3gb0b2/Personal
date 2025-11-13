@@ -38,18 +38,21 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 
 /*
-IMPORTANTE: Nova Coleção 'trainers'
+IMPORTANTE: Novas Coleções 'trainers' e 'settings'
 
-Para o novo sistema de múltiplos personais, você PRECISA criar manualmente os
-primeiros registros na sua coleção do Firestore.
+Para o sistema de múltiplos personais e alteração de senha do admin,
+você PRECISA criar manualmente os primeiros registros no Firestore.
 
 1. Vá para o Firestore Database no seu Console do Firebase.
 2. Crie uma nova coleção chamada "trainers".
-3. Adicione um novo documento com ID automático.
-4. Adicione os campos:
+3. Adicione um novo documento com ID automático e os campos:
    - `username` (string): bruno
    - `password` (string): 12345
-5. Você poderá criar outros personais pela interface de Admin (login: admin/admin).
+4. Crie uma nova coleção chamada "settings".
+5. Crie um documento com o ID EXATO "admin".
+6. Dentro do documento "admin", adicione o campo:
+   - `password` (string): admin
+   (O usuário do admin é sempre "admin" e não precisa ser armazenado).
 */
 
 
@@ -73,12 +76,17 @@ service cloud.firestore {
      match /payments/{paymentId} {
       allow read, write: if request.auth != null && request.auth.uid == resource.data.trainerId;
     }
+    
+    match /settings/admin {
+      // Idealmente, restrinja isso a um UID de admin específico
+      allow read, write: if true; 
+    }
 
     // A coleção de trainers pode ser gerenciada pelo admin (requer lógica adicional)
     // Para simplificar, começamos permitindo a leitura por qualquer um logado.
     match /trainers/{trainerId} {
        allow read: if request.auth != null;
-       allow create: if true; // Permite que o admin crie novos trainers
+       allow create, write: if true; // Permite que o admin crie/edite trainers
     }
   }
 }

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy, updateDoc, getDoc } from 'firebase/firestore';
 import { AUTH_SESSION_KEY } from '../constants';
 import { Student, Plan, Payment, Trainer, DaySchedule } from '../types';
 import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon } from './icons';
@@ -27,29 +27,59 @@ const TrainerProfileModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   trainer: Trainer;
-  onUpdate: (updatedTrainer: Omit<Trainer, 'id' | 'username' | 'password'>) => Promise<void>;
-}> = ({ isOpen, onClose, trainer, onUpdate }) => {
+  onUpdateProfile: (updatedProfile: Omit<Trainer, 'id' | 'username' | 'password'>) => Promise<void>;
+  onUpdatePassword: (currentPassword: string, newPassword: string) => Promise<{success: boolean, message: string}>;
+}> = ({ isOpen, onClose, trainer, onUpdateProfile, onUpdatePassword }) => {
   const [formData, setFormData] = useState({
     fullName: trainer.fullName || '',
     contactEmail: trainer.contactEmail || '',
     instagram: trainer.instagram || '',
     whatsapp: trainer.whatsapp || '',
   });
+  
+  const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: ''});
+  const [passwordMessage, setPasswordMessage] = useState({type: '', text: ''});
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({...prev, [name]: value}));
   };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await onUpdate(formData);
-    onClose();
+  
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setPasswordData(prev => ({ ...prev, [name]: value }));
   };
+
+  const handleProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await onUpdateProfile(formData);
+    onClose(); // Close only on profile save, password has its own feedback
+  };
+  
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setPasswordMessage({type: '', text: ''});
+      if (passwordData.new !== passwordData.confirm) {
+          setPasswordMessage({type: 'error', text: 'As novas senhas não coincidem.'});
+          return;
+      }
+      if (!passwordData.current || !passwordData.new) {
+          setPasswordMessage({type: 'error', text: 'Todos os campos de senha são obrigatórios.'});
+          return;
+      }
+      const result = await onUpdatePassword(passwordData.current, passwordData.new);
+      if (result.success) {
+          setPasswordMessage({type: 'success', text: result.message});
+          setPasswordData({ current: '', new: '', confirm: ''});
+      } else {
+          setPasswordMessage({type: 'error', text: result.message});
+      }
+  }
 
   return (
     <Modal title="Meu Perfil e Contato" isOpen={isOpen} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleProfileSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">Nome Completo (Exibição)</label>
           <input type="text" name="fullName" value={formData.fullName} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
@@ -67,8 +97,36 @@ const TrainerProfileModal: React.FC<{
           <input type="tel" name="whatsapp" value={formData.whatsapp} onChange={handleInputChange} placeholder="ex: 5511999998888" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
         </div>
         <div className="flex justify-end gap-4 pt-4">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Cancelar</button>
-          <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Salvar Alterações</button>
+          <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Salvar Perfil</button>
+        </div>
+      </form>
+      
+      <hr className="my-6"/>
+
+       <form onSubmit={handlePasswordSubmit} className="space-y-4">
+        <h3 className="text-lg font-bold text-brand-dark">Alterar Senha</h3>
+         <div>
+            <label className="block text-sm font-medium text-gray-700">Senha Atual</label>
+            <input type="password" name="current" value={passwordData.current} onChange={handlePasswordChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"/>
+        </div>
+        <div>
+            <label className="block text-sm font-medium text-gray-700">Nova Senha</label>
+            <input type="password" name="new" value={passwordData.new} onChange={handlePasswordChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"/>
+        </div>
+         <div>
+            <label className="block text-sm font-medium text-gray-700">Confirmar Nova Senha</label>
+            <input type="password" name="confirm" value={passwordData.confirm} onChange={handlePasswordChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"/>
+        </div>
+        
+        {passwordMessage.text && (
+            <p className={`text-sm ${passwordMessage.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>
+                {passwordMessage.text}
+            </p>
+        )}
+
+        <div className="flex justify-end gap-4 pt-4">
+             <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Fechar</button>
+             <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-secondary rounded-md hover:bg-gray-700">Alterar Senha</button>
         </div>
       </form>
     </Modal>
@@ -169,6 +227,29 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     // A more advanced solution would involve a global state manager.
     window.location.reload();
   };
+  
+  const handleUpdateTrainerPassword = async (currentPassword: string, newPassword: string): Promise<{success: boolean, message: string}> => {
+      try {
+          const trainerRef = doc(db, 'trainers', trainer.id);
+          const trainerSnap = await getDoc(trainerRef);
+          
+          if (!trainerSnap.exists()) {
+              return { success: false, message: "Usuário não encontrado." };
+          }
+          
+          const trainerData = trainerSnap.data();
+          if (trainerData.password !== currentPassword) {
+              return { success: false, message: "A senha atual está incorreta."};
+          }
+
+          await updateDoc(trainerRef, { password: newPassword });
+          return { success: true, message: "Senha alterada com sucesso!"};
+
+      } catch (error) {
+          console.error("Error updating password:", error);
+          return { success: false, message: "Ocorreu um erro ao alterar a senha." };
+      }
+  }
   
   const upcomingExpirations = useMemo(() => {
     const now = new Date();
@@ -575,7 +656,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             isOpen={isProfileModalOpen}
             onClose={() => setProfileModalOpen(false)}
             trainer={trainer}
-            onUpdate={handleUpdateTrainerProfile}
+            onUpdateProfile={handleUpdateTrainerProfile}
+            onUpdatePassword={handleUpdateTrainerPassword}
         />
       )}
     </>
