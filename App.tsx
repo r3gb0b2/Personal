@@ -145,6 +145,8 @@ const App: React.FC = () => {
         const brunoSnapshot = await getDocs(q);
         if (!brunoSnapshot.empty) {
             trainerIdToFetch = brunoSnapshot.docs[0].id;
+            // FIX: Ensure the student object itself is updated with the new trainerId
+            student.trainerId = trainerIdToFetch;
         }
       }
 
