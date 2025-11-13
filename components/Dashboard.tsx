@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy, updateDoc } from 'firebase/firestore';
 import { AUTH_SESSION_KEY } from '../constants';
-import { Student, Plan, Payment, Trainer } from '../types';
+import { Student, Plan, Payment, Trainer, Schedule } from '../types';
 import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon } from './icons';
 import StudentDetailsModal from './StudentDetailsModal';
 import PlanManagementModal from './PlanManagementModal';
@@ -265,6 +265,31 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
 
   const getPlan = (planId: string | null) => plans.find(p => p.id === planId);
 
+  const formatSchedule = (schedule: Schedule | null | undefined): string => {
+    if (!schedule || !schedule.days || schedule.days.length === 0) {
+        return 'N/A';
+    }
+
+    const dayMap: { [key: string]: string } = {
+        sunday: 'Dom',
+        monday: 'Seg',
+        tuesday: 'Ter',
+        wednesday: 'Qua',
+        thursday: 'Qui',
+        friday: 'Sex',
+        saturday: 'Sáb',
+    };
+
+    const sortedDays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+        .filter(day => schedule.days.includes(day));
+
+    const dayStr = sortedDays.map(day => dayMap[day]).join(', ');
+    
+    const timeStr = schedule.startTime && schedule.endTime ? ` - ${schedule.startTime} às ${schedule.endTime}` : '';
+    
+    return `${dayStr}${timeStr}`;
+  };
+
   const getStudentStatus = (student: Student) => {
       const plan = getPlan(student.planId);
       if (!plan) return { text: 'Sem Plano', color: 'gray', situation: 'N/A' };
@@ -435,6 +460,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                           <tr>
                               <th className="p-4 font-semibold">Nome</th>
                               <th className="p-4 font-semibold">Plano</th>
+                              <th className="p-4 font-semibold">Horário</th>
                               <th className="p-4 font-semibold">Situação</th>
                               <th className="p-4 font-semibold">Status</th>
                           </tr>
@@ -463,6 +489,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                                           </div>
                                       </td>
                                       <td className="p-4 text-gray-600">{getPlan(student.planId)?.name || 'N/A'}</td>
+                                      <td className="p-4 text-gray-600">{formatSchedule(student.schedule)}</td>
                                       <td className="p-4 text-gray-600">{status.situation}</td>
                                       <td className="p-4">
                                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${colorClasses[status.color]}`}>{status.text}</span>
@@ -471,7 +498,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                               )
                           }) : (
                                <tr>
-                                  <td colSpan={4} className="text-center p-8 text-gray-500">Nenhum aluno cadastrado.</td>
+                                  <td colSpan={5} className="text-center p-8 text-gray-500">Nenhum aluno cadastrado.</td>
                               </tr>
                           )}
                       </tbody>

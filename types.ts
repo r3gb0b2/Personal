@@ -18,6 +18,12 @@ export interface ClassSession {
   type: ClassSessionType;
 }
 
+export interface Schedule {
+    days: string[]; // e.g., ["monday", "wednesday", "friday"]
+    startTime: string; // e.g., "09:00"
+    endTime: string; // e.g., "10:00"
+}
+
 export interface Student {
   id:string;
   name: string;
@@ -30,6 +36,7 @@ export interface Student {
   remainingSessions?: number;
   profilePictureUrl?: string | null;
   trainerId: string;
+  schedule?: Schedule | null;
 }
 
 export type PaymentMethod = 'Pix' | 'Dinheiro' | 'Cartão de Crédito' | 'Transferência';
