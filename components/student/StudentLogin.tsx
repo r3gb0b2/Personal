@@ -46,18 +46,50 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBackToTrainerLog
                     <div className="ml-3 flex-1">
                         <h3 className="text-lg font-bold text-red-800">Erro de Acesso</h3>
                          {error === "CONNECTION_ERROR" ? (
-                             <div className="mt-2 text-sm text-red-700 space-y-3">
-                                <p>A aplicação não pôde se conectar ao banco de dados. Para diagnosticar, siga os passos abaixo:</p>
+                             <div className="mt-2 text-sm text-red-700 space-y-4">
+                                <p>A aplicação não conseguiu se conectar ou ler os dados do seu banco de dados Firebase. A causa exata está no console do seu navegador.</p>
                                 
-                                <div className="p-2 bg-red-100 rounded-md border border-red-300">
-                                    <h4 className="font-bold text-red-900">Diagnóstico Avançado</h4>
+                                <div className="p-3 bg-red-100 rounded-md border border-red-300">
+                                    <h4 className="font-bold text-red-900">Como Diagnosticar o Erro Exato</h4>
                                     <ol className="list-decimal list-inside space-y-1 mt-1 text-red-800">
-                                        <li>Pressione <strong className="font-mono bg-white text-red-900 px-1 py-0.5 rounded">F12</strong> para abrir o "Console do Desenvolvedor".</li>
-                                        <li>Procure por um erro em vermelho começando com <strong className="font-mono">"Firebase Connection Error Details:"</strong>.</li>
-                                        <li>O erro exato (ex: <strong className="font-mono">permission-denied</strong>) irá indicar a causa real do problema.</li>
+                                        <li>Pressione a tecla <strong className="font-mono bg-white text-red-900 px-1 py-0.5 rounded">F12</strong> no seu teclado para abrir o "Console do Desenvolvedor".</li>
+                                        <li>Recarregue a página e tente fazer o login novamente.</li>
+                                        <li>Procure por uma mensagem de erro em vermelho que começa com <strong className="font-mono">"Firebase Connection Error Details:"</strong>. O texto que se segue é o erro real.</li>
                                     </ol>
                                 </div>
-                                <p>Com o erro em mãos, verifique sua configuração no arquivo <strong>`firebase.ts`</strong> e as <strong>Regras de Segurança</strong> no Firebase Console.</p>
+                                
+                                <div>
+                                    <h4 className="font-bold">Soluções Para Erros Comuns</h4>
+                                    <p className="mb-2">Com base no erro que você encontrou no console, aqui estão as soluções:</p>
+                                    <div className="space-y-3 pl-2">
+                                        
+                                        <div className="border-l-4 border-red-300 pl-3">
+                                            <p className="font-semibold text-red-800">SE O ERRO DIZ: <strong className="font-mono">"The query requires an index"</strong></p>
+                                            <p className="mt-1">Este é o erro mais comum após a configuração inicial. Significa que o banco de dados precisa de um "índice" para buscar os dados de forma eficiente.</p>
+                                            <ol className="list-decimal list-inside space-y-1 mt-2 text-red-800">
+                                                <li>A própria mensagem de erro no console contém um <strong>link longo</strong>.</li>
+                                                <li><strong>Clique nesse link.</strong> Ele o levará diretamente ao Firebase Console.</li>
+                                                <li>Uma janela aparecerá para criar o índice. Apenas clique em <strong>"Criar"</strong>.</li>
+                                                <li>A criação do índice pode levar alguns minutos. Aguarde e depois atualize a aplicação. O problema estará resolvido.</li>
+                                            </ol>
+                                        </div>
+
+                                        <div className="border-l-4 border-red-300 pl-3 pt-2">
+                                            <p className="font-semibold text-red-800">SE O ERRO DIZ: <strong className="font-mono">"permission-denied"</strong></p>
+                                            <p className="mt-1">Isto significa que suas <strong>Regras de Segurança</strong> do Firestore estão bloqueando o acesso. Para desenvolvimento, você pode usar regras abertas.</p>
+                                            <p className="mt-1">Vá para a seção <strong>Firestore Database &gt; Rules</strong> no seu Firebase Console e cole as seguintes regras:</p>
+                                            <pre className="mt-1 p-2 bg-red-100 text-red-900 rounded text-xs whitespace-pre-wrap font-mono">
+                                                {`rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`}
+                                            </pre>
+                                        </div>
+
+                                        <div className="border-l-4 border-red-300 pl-3 pt-2">
+                                            <p className="font-semibold text-red-800">OUTROS ERROS (ex: <strong className="font-mono">invalid-api-key</strong>, <strong className="font-mono">NOT_FOUND</strong>)</p>
+                                            <p className="mt-1">Estes erros geralmente indicam um problema de configuração no arquivo <strong>`firebase.ts`</strong>. Verifique se você copiou e colou <strong>exatamente</strong> as credenciais do seu projeto Firebase.</p>
+                                        </div>
+                                        
+                                    </div>
+                                </div>
                             </div>
                         ) : (
                             <div className="mt-2 text-sm text-red-700">

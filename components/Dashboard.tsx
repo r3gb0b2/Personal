@@ -295,43 +295,51 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                             <ExclamationCircleIcon className="h-8 w-8 text-red-500" />
                         </div>
                         <div className="ml-4 flex-1">
-                            <h3 className="text-lg font-bold text-red-800">Ação Necessária: Erro de Conexão</h3>
+                            <h3 className="text-lg font-bold text-red-800">Ação Necessária: Erro de Acesso ao Banco de Dados</h3>
                              {error === "CONNECTION_ERROR" ? (
                                 <div className="mt-2 text-sm text-red-700 space-y-4">
-                                    <p>A aplicação não conseguiu se conectar ao seu banco de dados. Para descobrir a causa exata, siga os passos de diagnóstico abaixo.</p>
+                                    <p>A aplicação não conseguiu se conectar ou ler os dados do seu banco de dados Firebase. A causa exata está no console do seu navegador.</p>
                                     
                                     <div className="p-3 bg-red-100 rounded-md border border-red-300">
-                                        <h4 className="font-bold text-red-900">Passo 1: Diagnóstico Avançado</h4>
+                                        <h4 className="font-bold text-red-900">Como Diagnosticar o Erro Exato</h4>
                                         <ol className="list-decimal list-inside space-y-1 mt-1 text-red-800">
-                                            <li>Pressione a tecla <strong className="font-mono bg-white text-red-900 px-1 py-0.5 rounded">F12</strong> para abrir o "Console do Desenvolvedor".</li>
-                                            <li>Procure por uma mensagem de erro em vermelho que começa com <strong className="font-mono">"Firebase Connection Error Details:"</strong>.</li>
-                                            <li>O erro específico estará lá. Os mais comuns são:
-                                                <ul className="list-disc list-inside pl-4 mt-1">
-                                                    <li><strong className="font-mono">permission-denied</strong>: Suas <strong>Regras de Segurança</strong> do Firestore estão bloqueando o acesso.</li>
-                                                    <li><strong className="font-mono">FAILED_PRECONDITION</strong> ou <strong className="font-mono">NOT_FOUND</strong>: O `projectId` em `firebase.ts` pode estar errado ou o banco de dados não foi criado corretamente.</li>
-                                                    <li><strong className="font-mono">invalid-api-key</strong>: A `apiKey` no arquivo `firebase.ts` está incorreta.</li>
-                                                </ul>
-                                            </li>
+                                            <li>Pressione a tecla <strong className="font-mono bg-white text-red-900 px-1 py-0.5 rounded">F12</strong> no seu teclado para abrir o "Console do Desenvolvedor".</li>
+                                            <li>Recarregue a página e tente realizar a ação novamente.</li>
+                                            <li>Procure por uma mensagem de erro em vermelho que começa com <strong className="font-mono">"Firebase Connection Error Details:"</strong>. O texto que se segue é o erro real.</li>
                                         </ol>
                                     </div>
                                     
                                     <div>
-                                        <h4 className="font-bold">Passo 2: Verificações Comuns</h4>
-                                        <p className="mb-2">Com base no erro do console, verifique os seguintes pontos com atenção:</p>
-                                        <ol className="list-decimal list-inside space-y-2 pl-2">
-                                            <li>
-                                                <strong>Configuração Incorreta:</strong> Abra o arquivo <strong>`firebase.ts`</strong> e confirme se você substituiu as credenciais de exemplo pelas credenciais <strong>exatas</strong> do seu projeto no Firebase Console.
-                                            </li>
-                                            <li>
-                                                <strong>Regras de Segurança:</strong> Se o erro for `permission-denied`, vá para a seção <strong>Firestore Database &gt; Rules</strong> no seu Firebase Console e cole as seguintes regras (ideal para desenvolvimento):
+                                        <h4 className="font-bold">Soluções Para Erros Comuns</h4>
+                                        <p className="mb-2">Com base no erro que você encontrou no console, aqui estão as soluções:</p>
+                                        <div className="space-y-3 pl-2">
+                                            
+                                            <div className="border-l-4 border-red-300 pl-3">
+                                                <p className="font-semibold text-red-800">SE O ERRO DIZ: <strong className="font-mono">"The query requires an index"</strong></p>
+                                                <p className="mt-1">Este é o erro mais comum após a configuração inicial. Significa que o banco de dados precisa de um "índice" para buscar os dados de forma eficiente.</p>
+                                                <ol className="list-decimal list-inside space-y-1 mt-2 text-red-800">
+                                                    <li>A própria mensagem de erro no console contém um <strong>link longo</strong>.</li>
+                                                    <li><strong>Clique nesse link.</strong> Ele o levará diretamente ao Firebase Console.</li>
+                                                    <li>Uma janela aparecerá para criar o índice. Apenas clique em <strong>"Criar"</strong>.</li>
+                                                    <li>A criação do índice pode levar alguns minutos. Aguarde e depois atualize a aplicação. O problema estará resolvido.</li>
+                                                </ol>
+                                            </div>
+
+                                            <div className="border-l-4 border-red-300 pl-3 pt-2">
+                                                <p className="font-semibold text-red-800">SE O ERRO DIZ: <strong className="font-mono">"permission-denied"</strong></p>
+                                                <p className="mt-1">Isto significa que suas <strong>Regras de Segurança</strong> do Firestore estão bloqueando o acesso. Para desenvolvimento, você pode usar regras abertas.</p>
+                                                <p className="mt-1">Vá para a seção <strong>Firestore Database &gt; Rules</strong> no seu Firebase Console e cole as seguintes regras:</p>
                                                 <pre className="mt-1 p-2 bg-red-100 text-red-900 rounded text-xs whitespace-pre-wrap font-mono">
                                                     {`rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`}
                                                 </pre>
-                                            </li>
-                                            <li>
-                                                <strong>Banco de Dados Não Criado:</strong> Verifique se você clicou em "Create database" na seção <strong>Firestore Database</strong> do seu projeto Firebase para ativar o serviço.
-                                            </li>
-                                        </ol>
+                                            </div>
+
+                                            <div className="border-l-4 border-red-300 pl-3 pt-2">
+                                                <p className="font-semibold text-red-800">OUTROS ERROS (ex: <strong className="font-mono">invalid-api-key</strong>, <strong className="font-mono">NOT_FOUND</strong>)</p>
+                                                <p className="mt-1">Estes erros geralmente indicam um problema de configuração no arquivo <strong>`firebase.ts`</strong>. Verifique se você copiou e colou <strong>exatamente</strong> as credenciais do seu projeto Firebase.</p>
+                                            </div>
+                                            
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
