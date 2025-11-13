@@ -73,6 +73,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
             fetchData();
         } catch (error) {
             console.error("File upload error:", error);
+            alert("Erro ao enviar arquivo. Verifique as regras de segurança do Firebase Storage e sua conexão com a internet.");
         } finally {
             setUploadingFile(false);
         }
@@ -97,6 +98,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
             fetchData();
         } catch (error) {
             console.error("Photo upload error:", error);
+            alert("Erro ao enviar foto. Verifique as regras de segurança do Firebase Storage e sua conexão com a internet.");
         } finally {
             setUploadingPhoto(false);
         }

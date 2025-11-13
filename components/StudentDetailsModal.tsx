@@ -248,14 +248,19 @@ const WorkoutsTab: React.FC<{student: Student, workouts: Workout[], onUpdate: ()
     const handleAddWorkout = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newWorkout.title.trim()) return;
-        await addDoc(collection(db, 'workouts'), {
-            ...newWorkout,
-            studentId: student.id,
-            trainerId: student.trainerId,
-            createdAt: Timestamp.now(),
-        });
-        setNewWorkout({ title: '', description: '', youtubeUrl: '' });
-        onUpdate();
+        try {
+            await addDoc(collection(db, 'workouts'), {
+                ...newWorkout,
+                studentId: student.id,
+                trainerId: student.trainerId,
+                createdAt: Timestamp.now(),
+            });
+            setNewWorkout({ title: '', description: '', youtubeUrl: '' });
+            onUpdate();
+        } catch (error) {
+            console.error("Error adding workout:", error);
+            alert("Não foi possível adicionar o treino. Verifique o console para mais detalhes e certifique-se que as regras de segurança do Firestore permitem escrita na coleção 'workouts'.");
+        }
     };
     const handleDeleteWorkout = async (id: string) => {
         if (window.confirm("Tem certeza que deseja excluir este treino?")) {
@@ -268,9 +273,9 @@ const WorkoutsTab: React.FC<{student: Student, workouts: Workout[], onUpdate: ()
             <div>
                 <h3 className="font-bold text-lg mb-2">Adicionar Novo Treino</h3>
                 <form onSubmit={handleAddWorkout} className="space-y-3 p-4 border rounded-md bg-gray-50">
-                    <input type="text" name="title" placeholder="Título do Treino (ex: Treino A - Peito e Tríceps)" value={newWorkout.title} onChange={handleInputChange} className="w-full border-gray-300 rounded-md" required />
-                    <textarea name="description" placeholder="Descrição e exercícios..." value={newWorkout.description} onChange={handleInputChange} className="w-full border-gray-300 rounded-md" rows={5}></textarea>
-                    <input type="url" name="youtubeUrl" placeholder="Link do YouTube (opcional)" value={newWorkout.youtubeUrl} onChange={handleInputChange} className="w-full border-gray-300 rounded-md" />
+                    <input type="text" name="title" placeholder="Título do Treino (ex: Treino A - Peito e Tríceps)" value={newWorkout.title} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" required />
+                    <textarea name="description" placeholder="Descrição e exercícios..." value={newWorkout.description} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" rows={5}></textarea>
+                    <input type="url" name="youtubeUrl" placeholder="Link do YouTube (opcional)" value={newWorkout.youtubeUrl} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
                     <button type="submit" className="w-full px-4 py-2 font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Adicionar Treino</button>
                 </form>
             </div>
