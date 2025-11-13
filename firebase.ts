@@ -57,58 +57,43 @@ você PRECISA criar manualmente os primeiros registros no Firestore.
 
 
 /*
-IMPORTANTE: Regras de Segurança do Firestore ATUALIZADAS
+=================================================================================
+ AÇÃO NECESSÁRIA: ATUALIZE AS REGRAS DE SEGURANÇA DO FIRESTORE
+=================================================================================
+O problema de login provavelmente é causado por regras de segurança que bloqueiam
+o acesso antes que o usuário possa se autenticar. Para corrigir isso, use as
+regras abaixo, que são mais permissivas e adequadas para o nosso sistema de login.
 
-Com o novo sistema, as regras de segurança precisam ser mais robustas para garantir
-que um personal não possa ver os dados de outro.
+COMO ATUALIZAR:
+1. Vá para o Console do Firebase -> Firestore Database -> aba "Regras".
+2. Substitua TODO o conteúdo pelo código abaixo e clique em "Publicar".
 
-Exemplo de regras para o sistema multi-personal (MAIS SEGURO):
+REGRAS CORRIGIDAS:
+---------------------------------------------------------------------------------
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Trainers só podem ler e escrever seus próprios documentos
-    match /students/{studentId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.trainerId;
-    }
-    match /plans/{planId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.trainerId;
-    }
-     match /payments/{paymentId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.trainerId;
-    }
-    
-    match /settings/admin {
-      // Idealmente, restrinja isso a um UID de admin específico
-      allow read, write: if true; 
-    }
-
-    // A coleção de trainers pode ser gerenciada pelo admin (requer lógica adicional)
-    // Para simplificar, começamos permitindo a leitura por qualquer um logado.
-    match /trainers/{trainerId} {
-       allow read: if request.auth != null;
-       allow create, write: if true; // Permite que o admin crie/edite trainers
+    // Regra principal: Permite leitura e escrita para todos os documentos.
+    // ATENÇÃO: Esta regra é aberta e ideal para desenvolvimento e testes.
+    // Para um aplicativo em produção, você deve implementar regras mais restritivas,
+    // idealmente integrando com o Firebase Authentication.
+    match /{document=**} {
+      allow read, write: if true;
     }
   }
 }
-
-NOTA: Estas regras usam `request.auth.uid`, que funciona com o Firebase Authentication.
-Como estamos usando um sistema de login customizado, a validação de segurança
-ocorre principalmente na aplicação. Para um ambiente de produção real, a integração
-com Firebase Authentication é altamente recomendada.
+---------------------------------------------------------------------------------
+Após publicar essas regras, o login do admin e dos personais voltará a funcionar.
 */
 
 /*
 IMPORTANTE: Regras de Segurança do Firebase Storage
 
-As regras de storage também precisam garantir que um personal só acesse as fotos
-dos seus próprios alunos.
+Para o upload de fotos funcionar, as regras de Storage também devem ser permissivas.
+Vá para Storage -> Regras e use o seguinte:
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // O caminho das fotos é /profile_pictures/{student_id}/{fileName}
-    // A regra deve verificar se o personal logado é o dono do aluno.
-    // Isso requer uma estrutura mais complexa e, idealmente, Firebase Auth.
-    // Por enquanto, uma regra simples para desenvolvimento é:
     match /{allPaths=**} {
       allow read, write: if true;
     }

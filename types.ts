@@ -33,7 +33,7 @@ export interface Student {
   planId: string | null;
   paymentDueDate: string | null; // ISO string format
   sessions: ClassSession[];
-  remainingSessions?: number;
+  remainingSessions?: number | null;
   profilePictureUrl?: string | null;
   trainerId: string;
   schedule?: DaySchedule[] | null;

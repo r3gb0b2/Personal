@@ -61,12 +61,16 @@ const App: React.FC = () => {
       try {
         const adminRef = doc(db, 'settings', 'admin');
         const adminSnap = await getDoc(adminRef);
-        if (adminSnap.exists() && adminSnap.data().password === password) {
-            const adminUser = { id: 'admin', username: 'admin' };
-            sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(adminUser));
-            setCurrentUser(adminUser);
-            setView('adminDashboard');
-            return true;
+        if (adminSnap.exists()) {
+            if (adminSnap.data().password === password) {
+                const adminUser = { id: 'admin', username: 'admin' };
+                sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(adminUser));
+                setCurrentUser(adminUser);
+                setView('adminDashboard');
+                return true;
+            }
+        } else {
+             console.error("Admin login failed: The 'admin' document was not found in the 'settings' collection. Please check your Firestore setup instructions in `firebase.ts`.");
         }
       } catch (e) {
         console.error("Error during admin login:", e);
@@ -78,6 +82,10 @@ const App: React.FC = () => {
     try {
       const trainersCollection = collection(db, 'trainers');
       const trainersSnapshot = await getDocs(trainersCollection);
+      
+      if (trainersSnapshot.empty) {
+          console.error("Trainer login failed: The 'trainers' collection is empty or could not be read. Please check Firestore setup and security rules.");
+      }
 
       const trainerDoc = trainersSnapshot.docs.find(doc => {
           const trainerData = doc.data();

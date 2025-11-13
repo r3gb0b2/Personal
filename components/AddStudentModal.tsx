@@ -123,7 +123,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
     
     const selectedPlan = plans.find(p => p.id === newStudent.planId);
     let paymentDueDate = null;
-    let remainingSessions = undefined;
+    let remainingSessions: number | null = null;
 
     if (selectedPlan) {
         if (selectedPlan.type === 'duration' && selectedPlan.durationInDays) {
