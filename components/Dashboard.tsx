@@ -107,12 +107,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
 
       const studentsList = studentsSnapshot.docs.filter(filterByTrainer).map(docSnapshot => {
         const data = docSnapshot.data();
+        
+        // Sanitize schedule to ensure it's always an array or null, preventing render errors with legacy data.
+        let scheduleData = data.schedule || null;
+        if (scheduleData && !Array.isArray(scheduleData)) {
+            // If it's an old single schedule object, wrap it in an array.
+            if (typeof scheduleData === 'object' && scheduleData.day && scheduleData.startTime) {
+                scheduleData = [scheduleData];
+            } else {
+                // Otherwise, if the format is unknown/invalid, nullify it to prevent crashes.
+                scheduleData = null;
+            }
+        }
+
         return {
           id: docSnapshot.id,
           ...data,
           startDate: toISO(data.startDate) || new Date().toISOString(),
           paymentDueDate: toISO(data.paymentDueDate),
           sessions: (data.sessions || []).filter(Boolean).map((s: any) => ({ ...s, date: toISO(s.date) })),
+          schedule: scheduleData, // Overwrite original schedule with the sanitized version
         } as Student;
       });
 
@@ -438,7 +452,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
 
                                             <div className="border-l-4 border-red-300 pl-3 pt-2">
                                                 <p className="font-semibold text-red-800">OUTROS ERROS (ex: <strong className="font-mono">invalid-api-key</strong>, <strong className="font-mono">NOT_FOUND</strong>)</p>
-                                                <p className="mt-1">Estes erros geralmente indicam um problema de configuração no arquivo <strong>`firebase.ts`</strong>. Verifique se você copiou e colou <strong>exatamente</strong> as credenciais do seu projeto Firebase.</p>
+                                                <p className="mt-1">Estes erros geralmente indicam um problema de configuração no arquivo <strong>\`firebase.ts\`</strong>. Verifique se você copiou e colou <strong>exatamente</strong> as credenciais do seu projeto Firebase.</p>
                                             </div>
                                             
                                         </div>
