@@ -181,7 +181,13 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
 
     let updatedStudent = { ...editableStudent };
     if (plan.type === 'duration' && plan.durationInDays) {
-        const newDueDate = new Date();
+        const now = new Date();
+        const currentDueDate = editableStudent.paymentDueDate ? new Date(editableStudent.paymentDueDate) : null;
+        
+        // Use the current due date as the base if it's in the future, otherwise use today's date.
+        const baseDate = (currentDueDate && currentDueDate > now) ? currentDueDate : now;
+
+        const newDueDate = new Date(baseDate);
         newDueDate.setDate(newDueDate.getDate() + plan.durationInDays);
         updatedStudent.paymentDueDate = newDueDate.toISOString();
     } else if (plan.type === 'session' && plan.numberOfSessions) {
