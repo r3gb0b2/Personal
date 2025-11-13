@@ -3,12 +3,13 @@ import { db } from '../firebase';
 import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy, updateDoc } from 'firebase/firestore';
 import { AUTH_SESSION_KEY } from '../constants';
 import { Student, Plan, Payment, Trainer, DaySchedule } from '../types';
-import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon } from './icons';
+import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon } from './icons';
 import StudentDetailsModal from './StudentDetailsModal';
 import PlanManagementModal from './PlanManagementModal';
 import AddStudentModal from './AddStudentModal';
 import FinancialReportModal from './modals/FinancialReportModal';
 import Modal from './modals/Modal';
+import ScheduleView from './ScheduleView';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -81,6 +82,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<'list' | 'schedule'>('list');
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isPlanModalOpen, setPlanModalOpen] = useState(false);
@@ -391,6 +393,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             <button onClick={() => setPlanModalOpen(true)} className="flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors shadow">
                 <BriefcaseIcon className="w-5 h-5" /> Gerenciar Planos
             </button>
+             <button onClick={() => setView(view === 'list' ? 'schedule' : 'list')} className="flex items-center gap-2 bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors shadow">
+                <CalendarIcon className="w-5 h-5" /> {view === 'list' ? 'Ver Agenda' : 'Ver Lista de Alunos'}
+            </button>
             <button onClick={() => setFinancialReportModalOpen(true)} className="flex items-center gap-2 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors shadow">
                 <ChartBarIcon className="w-5 h-5" /> Controle Financeiro
             </button>
@@ -399,126 +404,129 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             </button>
         </div>
 
-        {/* Students List */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="p-6 border-b">
-                <h2 className="text-xl font-bold">Lista de Alunos</h2>
-            </div>
-            {loading ? <Loader /> : error ? (
-                <div className="m-4 sm:m-6 lg:m-8 bg-red-50 border border-red-200 p-6 rounded-lg shadow-sm">
-                    <div className="flex items-start">
-                        <div className="flex-shrink-0">
-                            <ExclamationCircleIcon className="h-8 w-8 text-red-500" />
-                        </div>
-                        <div className="ml-4 flex-1">
-                            <h3 className="text-lg font-bold text-red-800">Ação Necessária: Erro de Acesso ao Banco de Dados</h3>
-                             {error === "CONNECTION_ERROR" ? (
-                                <div className="mt-2 text-sm text-red-700 space-y-4">
-                                    <p>A aplicação não conseguiu se conectar ou ler os dados do seu banco de dados Firebase. A causa exata está no console do seu navegador.</p>
-                                    
-                                    <div className="p-3 bg-red-100 rounded-md border border-red-300">
-                                        <h4 className="font-bold text-red-900">Como Diagnosticar o Erro Exato</h4>
-                                        <ol className="list-decimal list-inside space-y-1 mt-1 text-red-800">
-                                            <li>Pressione a tecla <strong className="font-mono bg-white text-red-900 px-1 py-0.5 rounded">F12</strong> no seu teclado para abrir o "Console do Desenvolvedor".</li>
-                                            <li>Recarregue a página e tente realizar a ação novamente.</li>
-                                            <li>Procure por uma mensagem de erro em vermelho que começa com <strong className="font-mono">"Firebase Connection Error Details:"</strong>. O texto que se segue é o erro real.</li>
-                                        </ol>
-                                    </div>
-                                    
-                                    <div>
-                                        <h4 className="font-bold">Soluções Para Erros Comuns</h4>
-                                        <p className="mb-2">Com base no erro que você encontrou no console, aqui estão as soluções:</p>
-                                        <div className="space-y-3 pl-2">
-                                            
-                                            <div className="border-l-4 border-red-300 pl-3">
-                                                <p className="font-semibold text-red-800">SE O ERRO DIZ: <strong className="font-mono">"The query requires an index"</strong></p>
-                                                <p className="mt-1">Este é o erro mais comum após a configuração inicial. Significa que o banco de dados precisa de um "índice" para buscar os dados de forma eficiente.</p>
-                                                <ol className="list-decimal list-inside space-y-1 mt-2 text-red-800">
-                                                    <li>A própria mensagem de erro no console contém um <strong>link longo</strong>.</li>
-                                                    <li><strong>Clique nesse link.</strong> Ele o levará diretamente ao Firebase Console.</li>
-                                                    <li>Uma janela aparecerá para criar o índice. Apenas clique em <strong>"Criar"</strong>.</li>
-                                                    <li>A criação do índice pode levar alguns minutos. Aguarde e depois atualize a aplicação. O problema estará resolvido.</li>
-                                                </ol>
-                                            </div>
-
-                                            <div className="border-l-4 border-red-300 pl-3 pt-2">
-                                                <p className="font-semibold text-red-800">SE O ERRO DIZ: <strong className="font-mono">"permission-denied"</strong></p>
-                                                <p className="mt-1">Isto significa que suas <strong>Regras de Segurança</strong> do Firestore estão bloqueando o acesso. Para desenvolvimento, você pode usar regras abertas.</p>
-                                                <p className="mt-1">Vá para a seção <strong>Firestore Database &gt; Rules</strong> no seu Firebase Console e cole as seguintes regras:</p>
-                                                <pre className="mt-1 p-2 bg-red-100 text-red-900 rounded text-xs whitespace-pre-wrap font-mono">
-                                                    {`rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if request.auth != null && request.auth.uid == resource.data.trainerId;\n      // Allow admin to manage trainers\n      match /trainers/{trainerId} {\n           allow read, write: if true; // Or restrict to admin user \n      }\n    }\n  }\n}`}
-                                                </pre>
-                                            </div>
-
-                                            <div className="border-l-4 border-red-300 pl-3 pt-2">
-                                                <p className="font-semibold text-red-800">OUTROS ERROS (ex: <strong className="font-mono">invalid-api-key</strong>, <strong className="font-mono">NOT_FOUND</strong>)</p>
-                                                <p className="mt-1">Estes erros geralmente indicam um problema de configuração no arquivo <strong>\`firebase.ts\`</strong>. Verifique se você copiou e colou <strong>exatamente</strong> as credenciais do seu projeto Firebase.</p>
-                                            </div>
-                                            
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="mt-2 text-sm text-red-700">
-                                   <p>{error}</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            ) : (
-              <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                      <thead className="bg-brand-light">
-                          <tr>
-                              <th className="p-4 font-semibold">Nome</th>
-                              <th className="p-4 font-semibold">Plano</th>
-                              <th className="p-4 font-semibold">Horário</th>
-                              <th className="p-4 font-semibold">Situação</th>
-                              <th className="p-4 font-semibold">Status</th>
-                          </tr>
-                      </thead>
-                      <tbody>
-                          {students.length > 0 ? students.map(student => {
-                              const status = getStudentStatus(student);
-                              const colorClasses = {
-                                  red: 'text-red-800 bg-red-100',
-                                  yellow: 'text-yellow-800 bg-yellow-100',
-                                  green: 'text-green-800 bg-green-100',
-                                  gray: 'text-gray-800 bg-gray-100',
-                              }
-                              return (
-                                  <tr key={student.id} onClick={() => setSelectedStudent(student)} className="border-t hover:bg-gray-50 cursor-pointer">
-                                      <td className="p-4 font-medium">
-                                          <div className="flex items-center gap-3">
-                                              {student.profilePictureUrl ? (
-                                                  <img src={student.profilePictureUrl} alt={student.name} className="w-10 h-10 rounded-full object-cover"/>
-                                              ) : (
-                                                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                                                      <UserIcon className="w-6 h-6 text-gray-500"/>
-                                                  </div>
-                                              )}
-                                              <span>{student.name}</span>
-                                          </div>
-                                      </td>
-                                      <td className="p-4 text-gray-600">{getPlan(student.planId)?.name || 'N/A'}</td>
-                                      <td className="p-4 text-gray-600">{formatSchedule(student.schedule)}</td>
-                                      <td className="p-4 text-gray-600">{status.situation}</td>
-                                      <td className="p-4">
-                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${colorClasses[status.color]}`}>{status.text}</span>
-                                      </td>
-                                  </tr>
-                              )
-                          }) : (
-                               <tr>
-                                  <td colSpan={5} className="text-center p-8 text-gray-500">Nenhum aluno cadastrado.</td>
-                              </tr>
-                          )}
-                      </tbody>
-                  </table>
+        {view === 'schedule' ? (
+            <ScheduleView students={students} />
+        ) : (
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="p-6 border-b">
+                  <h2 className="text-xl font-bold">Lista de Alunos</h2>
               </div>
-            )}
-        </div>
+              {loading ? <Loader /> : error ? (
+                  <div className="m-4 sm:m-6 lg:m-8 bg-red-50 border border-red-200 p-6 rounded-lg shadow-sm">
+                      <div className="flex items-start">
+                          <div className="flex-shrink-0">
+                              <ExclamationCircleIcon className="h-8 w-8 text-red-500" />
+                          </div>
+                          <div className="ml-4 flex-1">
+                              <h3 className="text-lg font-bold text-red-800">Ação Necessária: Erro de Acesso ao Banco de Dados</h3>
+                              {error === "CONNECTION_ERROR" ? (
+                                  <div className="mt-2 text-sm text-red-700 space-y-4">
+                                      <p>A aplicação não conseguiu se conectar ou ler os dados do seu banco de dados Firebase. A causa exata está no console do seu navegador.</p>
+                                      
+                                      <div className="p-3 bg-red-100 rounded-md border border-red-300">
+                                          <h4 className="font-bold text-red-900">Como Diagnosticar o Erro Exato</h4>
+                                          <ol className="list-decimal list-inside space-y-1 mt-1 text-red-800">
+                                              <li>Pressione a tecla <strong className="font-mono bg-white text-red-900 px-1 py-0.5 rounded">F12</strong> no seu teclado para abrir o "Console do Desenvolvedor".</li>
+                                              <li>Recarregue a página e tente realizar a ação novamente.</li>
+                                              <li>Procure por uma mensagem de erro em vermelho que começa com <strong className="font-mono">"Firebase Connection Error Details:"</strong>. O texto que se segue é o erro real.</li>
+                                          </ol>
+                                      </div>
+                                      
+                                      <div>
+                                          <h4 className="font-bold">Soluções Para Erros Comuns</h4>
+                                          <p className="mb-2">Com base no erro que você encontrou no console, aqui estão as soluções:</p>
+                                          <div className="space-y-3 pl-2">
+                                              
+                                              <div className="border-l-4 border-red-300 pl-3">
+                                                  <p className="font-semibold text-red-800">SE O ERRO DIZ: <strong className="font-mono">"The query requires an index"</strong></p>
+                                                  <p className="mt-1">Este é o erro mais comum após a configuração inicial. Significa que o banco de dados precisa de um "índice" para buscar os dados de forma eficiente.</p>
+                                                  <ol className="list-decimal list-inside space-y-1 mt-2 text-red-800">
+                                                      <li>A própria mensagem de erro no console contém um <strong>link longo</strong>.</li>
+                                                      <li><strong>Clique nesse link.</strong> Ele o levará diretamente ao Firebase Console.</li>
+                                                      <li>Uma janela aparecerá para criar o índice. Apenas clique em <strong>"Criar"</strong>.</li>
+                                                      <li>A criação do índice pode levar alguns minutos. Aguarde e depois atualize a aplicação. O problema estará resolvido.</li>
+                                                  </ol>
+                                              </div>
+
+                                              <div className="border-l-4 border-red-300 pl-3 pt-2">
+                                                  <p className="font-semibold text-red-800">SE O ERRO DIZ: <strong className="font-mono">"permission-denied"</strong></p>
+                                                  <p className="mt-1">Isto significa que suas <strong>Regras de Segurança</strong> do Firestore estão bloqueando o acesso. Para desenvolvimento, você pode usar regras abertas.</p>
+                                                  <p className="mt-1">Vá para a seção <strong>Firestore Database &gt; Rules</strong> no seu Firebase Console e cole as seguintes regras:</p>
+                                                  <pre className="mt-1 p-2 bg-red-100 text-red-900 rounded text-xs whitespace-pre-wrap font-mono">
+                                                      {`rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if request.auth != null && request.auth.uid == resource.data.trainerId;\n      // Allow admin to manage trainers\n      match /trainers/{trainerId} {\n           allow read, write: if true; // Or restrict to admin user \n      }\n    }\n  }\n}`}
+                                                  </pre>
+                                              </div>
+
+                                              <div className="border-l-4 border-red-300 pl-3 pt-2">
+                                                  <p className="font-semibold text-red-800">OUTROS ERROS (ex: <strong className="font-mono">invalid-api-key</strong>, <strong className="font-mono">NOT_FOUND</strong>)</p>
+                                                  <p className="mt-1">Estes erros geralmente indicam um problema de configuração no arquivo <strong>\`firebase.ts\`</strong>. Verifique se você copiou e colou <strong>exatamente</strong> as credenciais do seu projeto Firebase.</p>
+                                              </div>
+                                              
+                                          </div>
+                                      </div>
+                                  </div>
+                              ) : (
+                                  <div className="mt-2 text-sm text-red-700">
+                                    <p>{error}</p>
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+                  </div>
+              ) : (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-brand-light">
+                            <tr>
+                                <th className="p-4 font-semibold">Nome</th>
+                                <th className="p-4 font-semibold">Plano</th>
+                                <th className="p-4 font-semibold">Horário</th>
+                                <th className="p-4 font-semibold">Situação</th>
+                                <th className="p-4 font-semibold">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {students.length > 0 ? students.map(student => {
+                                const status = getStudentStatus(student);
+                                const colorClasses = {
+                                    red: 'text-red-800 bg-red-100',
+                                    yellow: 'text-yellow-800 bg-yellow-100',
+                                    green: 'text-green-800 bg-green-100',
+                                    gray: 'text-gray-800 bg-gray-100',
+                                }
+                                return (
+                                    <tr key={student.id} onClick={() => setSelectedStudent(student)} className="border-t hover:bg-gray-50 cursor-pointer">
+                                        <td className="p-4 font-medium">
+                                            <div className="flex items-center gap-3">
+                                                {student.profilePictureUrl ? (
+                                                    <img src={student.profilePictureUrl} alt={student.name} className="w-10 h-10 rounded-full object-cover"/>
+                                                ) : (
+                                                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                                        <UserIcon className="w-6 h-6 text-gray-500"/>
+                                                    </div>
+                                                )}
+                                                <span>{student.name}</span>
+                                            </div>
+                                        </td>
+                                        <td className="p-4 text-gray-600">{getPlan(student.planId)?.name || 'N/A'}</td>
+                                        <td className="p-4 text-gray-600">{formatSchedule(student.schedule)}</td>
+                                        <td className="p-4 text-gray-600">{status.situation}</td>
+                                        <td className="p-4">
+                                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${colorClasses[status.color]}`}>{status.text}</span>
+                                        </td>
+                                    </tr>
+                                )
+                            }) : (
+                                  <tr>
+                                    <td colSpan={5} className="text-center p-8 text-gray-500">Nenhum aluno cadastrado.</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+              )}
+          </div>
+        )}
       </main>
 
       {selectedStudent && (
@@ -529,6 +537,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
           onUpdate={handleUpdateStudent}
           onDelete={handleDeleteStudent}
           onAddPayment={handleAddPayment}
+          allStudents={students}
         />
       )}
       
@@ -547,6 +556,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             plans={plans}
             onClose={() => setAddStudentModalOpen(false)}
             onAdd={handleAddStudent}
+            allStudents={students}
         />
       )}
 

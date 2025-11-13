@@ -7,9 +7,52 @@ interface AddStudentModalProps {
   plans: Plan[];
   onClose: () => void;
   onAdd: (student: Omit<Student, 'id'>) => Promise<void>;
+  allStudents: Student[];
 }
 
-const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd }) => {
+const timeToMinutes = (time: string): number => {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+};
+
+const checkScheduleConflict = (
+    scheduleToCheck: DaySchedule[],
+    allStudents: Student[]
+): { hasConflict: boolean; conflictWith?: string } => {
+    if (!scheduleToCheck) {
+        return { hasConflict: false };
+    }
+
+    for (const scheduleItem of scheduleToCheck) {
+        if (!scheduleItem.startTime || !scheduleItem.endTime) continue;
+        const startA = timeToMinutes(scheduleItem.startTime);
+        const endA = timeToMinutes(scheduleItem.endTime);
+
+        for (const otherStudent of allStudents) {
+            if (!otherStudent.schedule) {
+                continue;
+            }
+
+            for (const otherScheduleItem of otherStudent.schedule) {
+                 if (!otherScheduleItem.startTime || !otherScheduleItem.endTime) continue;
+                if (scheduleItem.day === otherScheduleItem.day) {
+                    const startB = timeToMinutes(otherScheduleItem.startTime);
+                    const endB = timeToMinutes(otherScheduleItem.endTime);
+
+                    // Check for overlap
+                    if (startA < endB && startB < endA) {
+                        return { hasConflict: true, conflictWith: otherStudent.name };
+                    }
+                }
+            }
+        }
+    }
+
+    return { hasConflict: false };
+};
+
+
+const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd, allStudents }) => {
   const [newStudent, setNewStudent] = useState<{
     name: string;
     email: string;
@@ -65,6 +108,17 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
     if (!newStudent.name.trim()) {
       alert("O nome do aluno é obrigatório.");
       return;
+    }
+
+    const { hasConflict, conflictWith } = checkScheduleConflict(
+        newStudent.schedule,
+        allStudents
+    );
+
+    if (hasConflict) {
+        if (!window.confirm(`Atenção: Este horário conflita com o de ${conflictWith}. Deseja salvar mesmo assim?`)) {
+            return; // Abort save if user clicks "Cancel"
+        }
     }
     
     const selectedPlan = plans.find(p => p.id === newStudent.planId);

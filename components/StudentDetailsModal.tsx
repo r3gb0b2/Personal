@@ -16,11 +16,54 @@ interface StudentDetailsModalProps {
   onUpdate: (student: Student) => Promise<void>;
   onDelete: (studentId: string) => Promise<void>;
   onAddPayment: (payment: Omit<Payment, 'id'>) => Promise<void>;
+  allStudents: Student[];
 }
 
 type Tab = 'details' | 'workouts' | 'files' | 'progress';
 
-const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plans, onClose, onUpdate, onDelete, onAddPayment }) => {
+const timeToMinutes = (time: string): number => {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+};
+
+const checkScheduleConflict = (
+    currentStudentId: string,
+    scheduleToCheck: DaySchedule[],
+    allStudents: Student[]
+): { hasConflict: boolean; conflictWith?: string } => {
+    if (!scheduleToCheck) {
+        return { hasConflict: false };
+    }
+
+    for (const scheduleItem of scheduleToCheck) {
+        if (!scheduleItem.startTime || !scheduleItem.endTime) continue;
+        const startA = timeToMinutes(scheduleItem.startTime);
+        const endA = timeToMinutes(scheduleItem.endTime);
+
+        for (const otherStudent of allStudents) {
+            if (otherStudent.id === currentStudentId || !otherStudent.schedule) {
+                continue;
+            }
+
+            for (const otherScheduleItem of otherStudent.schedule) {
+                 if (!otherScheduleItem.startTime || !otherScheduleItem.endTime) continue;
+                if (scheduleItem.day === otherScheduleItem.day) {
+                    const startB = timeToMinutes(otherScheduleItem.startTime);
+                    const endB = timeToMinutes(otherScheduleItem.endTime);
+
+                    // Check for overlap
+                    if (startA < endB && startB < endA) {
+                        return { hasConflict: true, conflictWith: otherStudent.name };
+                    }
+                }
+            }
+        }
+    }
+
+    return { hasConflict: false };
+};
+
+const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plans, onClose, onUpdate, onDelete, onAddPayment, allStudents }) => {
   const [activeTab, setActiveTab] = useState<Tab>('details');
   const [editableStudent, setEditableStudent] = useState<Student>(student);
   const [isEditing, setIsEditing] = useState(false);
@@ -67,6 +110,18 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
   };
   
   const handleSave = async () => {
+    const { hasConflict, conflictWith } = checkScheduleConflict(
+        editableStudent.id,
+        editableStudent.schedule ?? [],
+        allStudents
+    );
+
+    if (hasConflict) {
+        if (!window.confirm(`Atenção: Este horário conflita com o de ${conflictWith}. Deseja salvar mesmo assim?`)) {
+            return; // Abort save if user clicks "Cancel"
+        }
+    }
+    
     const studentToUpdate = {
         ...editableStudent,
         email: editableStudent.email.trim().toLowerCase(),
