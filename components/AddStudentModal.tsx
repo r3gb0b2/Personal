@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Plan, Student } from '../types';
+import { Plan, Student, DaySchedule } from '../types';
 import Modal from './modals/Modal';
+import { PlusIcon, TrashIcon } from './icons';
 
 interface AddStudentModalProps {
   plans: Plan[];
@@ -9,16 +10,18 @@ interface AddStudentModalProps {
 }
 
 const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd }) => {
-  const [newStudent, setNewStudent] = useState({
+  const [newStudent, setNewStudent] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    planId: string;
+    schedule: DaySchedule[];
+  }>({
     name: '',
     email: '',
     phone: '',
     planId: '',
-    schedule: {
-        days: [] as string[],
-        startTime: '',
-        endTime: '',
-    }
+    schedule: [],
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -27,32 +30,35 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
   };
 
   const daysOfWeek = [
-    { id: 'monday', label: 'Seg' },
-    { id: 'tuesday', label: 'Ter' },
-    { id: 'wednesday', label: 'Qua' },
-    { id: 'thursday', label: 'Qui' },
-    { id: 'friday', label: 'Sex' },
-    { id: 'saturday', label: 'Sáb' },
-    { id: 'sunday', label: 'Dom' },
+    { id: 'monday', label: 'Segunda-feira' },
+    { id: 'tuesday', label: 'Terça-feira' },
+    { id: 'wednesday', label: 'Quarta-feira' },
+    { id: 'thursday', label: 'Quinta-feira' },
+    { id: 'friday', label: 'Sexta-feira' },
+    { id: 'saturday', label: 'Sábado' },
+    { id: 'sunday', label: 'Domingo' },
   ];
 
-  const handleDayChange = (dayId: string) => {
-    setNewStudent(prev => {
-        const currentDays = prev.schedule.days;
-        const newDays = currentDays.includes(dayId)
-            ? currentDays.filter(d => d !== dayId)
-            : [...currentDays, dayId];
-        return { ...prev, schedule: { ...prev.schedule, days: newDays } };
-    });
+  const handleScheduleChange = (index: number, field: keyof DaySchedule, value: string) => {
+    const updatedSchedule = [...newStudent.schedule];
+    updatedSchedule[index] = { ...updatedSchedule[index], [field]: value };
+    setNewStudent(prev => ({ ...prev, schedule: updatedSchedule }));
   };
 
-  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+  const addScheduleItem = () => {
     setNewStudent(prev => ({
         ...prev,
-        schedule: { ...prev.schedule, [name]: value }
+        schedule: [...prev.schedule, { day: 'monday', startTime: '', endTime: '' }]
     }));
   };
+
+  const removeScheduleItem = (index: number) => {
+    setNewStudent(prev => ({
+        ...prev,
+        schedule: prev.schedule.filter((_, i) => i !== index)
+    }));
+  };
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +93,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
       sessions: [],
       profilePictureUrl: null,
       trainerId: '',
-      schedule: newStudent.schedule.days.length > 0 ? newStudent.schedule : null,
+      schedule: newStudent.schedule.length > 0 ? newStudent.schedule.filter(s => s.startTime && s.endTime) : null,
     };
 
     onAdd(studentToAdd);
@@ -122,49 +128,44 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
          <div>
             <label className="block text-sm font-medium text-gray-700">Horário Fixo (Opcional)</label>
             <div className="mt-2 p-3 border rounded-md space-y-3 bg-gray-50">
-                <div>
-                    <p className="text-xs font-medium text-gray-600 mb-2">Dias da Semana</p>
-                    <div className="flex flex-wrap gap-2">
-                        {daysOfWeek.map(day => (
-                            <button
-                                key={day.id}
-                                type="button"
-                                onClick={() => handleDayChange(day.id)}
-                                className={`px-3 py-1 text-sm rounded-full border ${
-                                    newStudent.schedule.days.includes(day.id)
-                                        ? 'bg-brand-primary text-white border-brand-primary'
-                                        : 'bg-white text-gray-700 hover:bg-gray-100'
-                                }`}
-                            >
-                                {day.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label htmlFor="startTimeAdd" className="text-xs font-medium text-gray-600">Início</label>
+                 {newStudent.schedule.map((item, index) => (
+                    <div key={index} className="grid grid-cols-[1fr,auto,auto,auto] gap-2 items-center">
+                        <select
+                            value={item.day}
+                            onChange={(e) => handleScheduleChange(index, 'day', e.target.value)}
+                            className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"
+                        >
+                            {daysOfWeek.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+                        </select>
                         <input
                             type="time"
-                            id="startTimeAdd"
-                            name="startTime"
-                            value={newStudent.schedule.startTime}
-                            onChange={handleTimeChange}
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"
+                            value={item.startTime}
+                            onChange={(e) => handleScheduleChange(index, 'startTime', e.target.value)}
+                            className="border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"
                         />
-                    </div>
-                    <div>
-                        <label htmlFor="endTimeAdd" className="text-xs font-medium text-gray-600">Fim</label>
-                        <input
+                         <input
                             type="time"
-                            id="endTimeAdd"
-                            name="endTime"
-                            value={newStudent.schedule.endTime}
-                            onChange={handleTimeChange}
-                            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-1 px-2 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"
+                            value={item.endTime}
+                            onChange={(e) => handleScheduleChange(index, 'endTime', e.target.value)}
+                            className="border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"
                         />
+                        <button
+                            type="button"
+                            onClick={() => removeScheduleItem(index)}
+                            className="text-red-500 hover:text-red-700 p-1"
+                            aria-label="Remover horário"
+                        >
+                            <TrashIcon className="w-5 h-5" />
+                        </button>
                     </div>
-                </div>
+                ))}
+                <button
+                    type="button"
+                    onClick={addScheduleItem}
+                    className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-brand-primary bg-blue-100 rounded-md hover:bg-blue-200"
+                >
+                    <PlusIcon className="w-4 h-4" /> Adicionar Horário
+                </button>
             </div>
         </div>
         <div className="flex justify-end gap-4 pt-4">

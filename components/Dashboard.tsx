@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy, updateDoc } from 'firebase/firestore';
 import { AUTH_SESSION_KEY } from '../constants';
-import { Student, Plan, Payment, Trainer, Schedule } from '../types';
+import { Student, Plan, Payment, Trainer, DaySchedule } from '../types';
 import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon } from './icons';
 import StudentDetailsModal from './StudentDetailsModal';
 import PlanManagementModal from './PlanManagementModal';
@@ -234,7 +234,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   }
 
   const handleDeletePlan = async (planId: string) => {
-      if(window.confirm("Tem certeza que deseja excluir este plano? Alunos associados a ele não serão afetados, mas você не poderá adicioná-lo a novos alunos.")) {
+      if(window.confirm("Tem certeza que deseja excluir este plano? Alunos associados a ele não serão afetados, mas você não poderá adicioná-lo a novos alunos.")) {
           await deleteDoc(doc(db, 'plans', planId));
           setPlans(prev => prev.filter(p => p.id !== planId));
       }
@@ -265,8 +265,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
 
   const getPlan = (planId: string | null) => plans.find(p => p.id === planId);
 
-  const formatSchedule = (schedule: Schedule | null | undefined): string => {
-    if (!schedule || !schedule.days || schedule.days.length === 0) {
+  const formatSchedule = (schedule: DaySchedule[] | null | undefined): string => {
+    if (!schedule || schedule.length === 0) {
         return 'N/A';
     }
 
@@ -279,15 +279,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         friday: 'Sex',
         saturday: 'Sáb',
     };
-
-    const sortedDays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-        .filter(day => schedule.days.includes(day));
-
-    const dayStr = sortedDays.map(day => dayMap[day]).join(', ');
     
-    const timeStr = schedule.startTime && schedule.endTime ? ` - ${schedule.startTime} às ${schedule.endTime}` : '';
-    
-    return `${dayStr}${timeStr}`;
+    const dayOrder = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+    const sortedSchedule = [...schedule].sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day));
+
+    return sortedSchedule.map(item => 
+        `${dayMap[item.day] || item.day} ${item.startTime}-${item.endTime}`
+    ).join(' | ');
   };
 
   const getStudentStatus = (student: Student) => {
