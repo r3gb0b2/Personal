@@ -103,7 +103,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
   };
 
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStudent.name.trim()) {
       alert("O nome do aluno é obrigatório.");
@@ -117,7 +117,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
 
     if (hasConflict) {
         if (!window.confirm(`Atenção: Este horário conflita com o de ${conflictWith}. Deseja salvar mesmo assim?`)) {
-            return; // Abort save if user clicks "Cancel"
+            return;
         }
     }
     
@@ -135,7 +135,6 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
         }
     }
 
-    // Fix: Add a placeholder 'trainerId' to satisfy the type. It will be overwritten by the parent component.
     const studentToAdd: Omit<Student, 'id'> = {
       name: newStudent.name.trim(),
       email: newStudent.email.trim().toLowerCase(),
@@ -150,8 +149,13 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
       schedule: newStudent.schedule.length > 0 ? newStudent.schedule.filter(s => s.startTime && s.endTime) : null,
     };
 
-    onAdd(studentToAdd);
-    onClose();
+    try {
+        await onAdd(studentToAdd);
+        onClose(); // Only close on success
+    } catch (error) {
+        console.error("Failed to add student:", error);
+        alert("Houve um erro ao salvar o aluno. Verifique o console para mais detalhes e tente novamente.");
+    }
   };
 
   return (
@@ -216,8 +220,7 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
                 <button
                     type="button"
                     onClick={(e) => {
-                        // Prevent the click from bubbling up to the modal's backdrop overlay,
-                        // which could close it, especially on mobile devices during a re-render.
+                        e.preventDefault();
                         e.stopPropagation();
                         addScheduleItem();
                     }}
