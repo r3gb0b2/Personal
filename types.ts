@@ -61,6 +61,7 @@ export interface Trainer {
     contactEmail?: string;
     instagram?: string; // e.g., 'username' without @
     whatsapp?: string; // e.g., '5511999998888'
+    status?: 'pending' | 'approved';
 }
 
 export interface Workout {

@@ -2,11 +2,12 @@
 import React, { useState } from 'react';
 
 interface LoginScreenProps {
-  onLogin: (username: string, password: string) => Promise<boolean>;
+  onLogin: (username: string, password: string) => Promise<{ success: boolean; message?: string; }>;
   onShowStudentLogin: () => void;
+  onShowTrainerRegistration: () => void;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onShowStudentLogin }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onShowStudentLogin, onShowTrainerRegistration }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -14,9 +15,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onShowStudentLogin }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const success = await onLogin(username, password);
-    if (!success) {
-      setError('Usuário ou senha incorretos. Tente novamente.');
+    const result = await onLogin(username, password);
+    if (!result.success) {
+      setError(result.message || 'Ocorreu um erro desconhecido.');
     }
   };
 
@@ -74,9 +75,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onShowStudentLogin }
             </button>
           </div>
         </form>
-         <div className="text-center">
-            <button onClick={onShowStudentLogin} className="font-medium text-sm text-brand-primary hover:text-brand-accent">
+         <div className="text-center text-sm">
+            <button onClick={onShowStudentLogin} className="font-medium text-brand-primary hover:text-brand-accent">
                 Acessar portal do aluno
+            </button>
+             <span className="text-gray-400 mx-2">|</span>
+             <button onClick={onShowTrainerRegistration} className="font-medium text-brand-primary hover:text-brand-accent">
+                Não tem uma conta? Cadastre-se
             </button>
         </div>
       </div>

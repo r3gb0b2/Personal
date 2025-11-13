@@ -48,6 +48,7 @@ você PRECISA criar manualmente os primeiros registros no Firestore.
 3. Adicione um novo documento com ID automático e os campos:
    - `username` (string): bruno
    - `password` (string): 12345
+   - `status` (string): approved  <-- ADICIONE ESTE CAMPO AO SEU PERSONAL INICIAL
 4. Crie uma nova coleção chamada "settings".
 5. Crie um documento com o ID EXATO "admin".
 6. Dentro do documento "admin", adicione o campo:
