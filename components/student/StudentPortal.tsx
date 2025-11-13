@@ -71,11 +71,12 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
                 uploadedAt: Timestamp.now(),
             });
             fetchData();
-        } catch (error) {
+        } catch (error: any) {
             console.error("File upload error:", error);
-            alert("Erro ao enviar arquivo. Verifique as regras de segurança do Firebase Storage e sua conexão com a internet.");
+            alert(`Erro ao enviar arquivo. Verifique suas permissões e conexão. Detalhes: ${error.message}`);
         } finally {
             setUploadingFile(false);
+            if (e.target) e.target.value = '';
         }
     };
     
@@ -96,11 +97,12 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
             });
             setPhotoNotes('');
             fetchData();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Photo upload error:", error);
-            alert("Erro ao enviar foto. Verifique as regras de segurança do Firebase Storage e sua conexão com a internet.");
+            alert(`Erro ao enviar foto. Verifique suas permissões e conexão. Detalhes: ${error.message}`);
         } finally {
             setUploadingPhoto(false);
+            if (e.target) e.target.value = '';
         }
     };
 

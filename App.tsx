@@ -137,20 +137,19 @@ const App: React.FC = () => {
       });
 
       let trainer: Trainer | null = null;
-      let trainerIdForFetch = student.trainerId;
+      let trainerIdToFetch = student.trainerId;
 
-      if (!trainerIdForFetch) {
-        // Handle legacy students who might not have a trainerId by assigning them to 'bruno'.
-        // This logic is based on similar legacy handling in the main Dashboard.
+      // For legacy students without a trainerId, default to 'bruno'.
+      if (!trainerIdToFetch) {
         const q = query(collection(db, 'trainers'), where("username", "==", "bruno"));
         const brunoSnapshot = await getDocs(q);
         if (!brunoSnapshot.empty) {
-            trainerIdForFetch = brunoSnapshot.docs[0].id;
+            trainerIdToFetch = brunoSnapshot.docs[0].id;
         }
       }
 
-      if (trainerIdForFetch) {
-          const trainerRef = doc(db, 'trainers', trainerIdForFetch);
+      if (trainerIdToFetch) {
+          const trainerRef = doc(db, 'trainers', trainerIdToFetch);
           const trainerSnap = await getDoc(trainerRef);
           if (trainerSnap.exists()) {
               trainer = { id: trainerSnap.id, ...trainerSnap.data() } as Trainer;
