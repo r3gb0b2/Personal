@@ -50,4 +50,37 @@ export interface Trainer {
     id: string;
     username: string;
     password?: string; // Should be handled securely, only for creation
+    fullName?: string;
+    contactEmail?: string;
+    instagram?: string; // e.g., 'username' without @
+    whatsapp?: string; // e.g., '5511999998888'
+}
+
+export interface Workout {
+    id: string;
+    studentId: string;
+    trainerId: string;
+    title: string;
+    description: string;
+    youtubeUrl?: string;
+    createdAt: string; // ISO string
+}
+
+export interface StudentFile {
+    id: string;
+    studentId: string;
+    trainerId: string;
+    fileName: string;
+    fileUrl: string;
+    uploadedAt: string; // ISO string
+}
+
+export interface ProgressPhoto {
+    id: string;
+    studentId: string;
+    trainerId: string;
+    photoUrl: string;
+    studentNotes?: string;
+    trainerFeedback?: string;
+    uploadedAt: string; // ISO string
 }

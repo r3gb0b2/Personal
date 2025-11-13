@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from './firebase';
-import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, Timestamp, doc, getDoc } from 'firebase/firestore';
 import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
 import StudentLogin from './components/student/StudentLogin';
@@ -15,7 +15,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<View>('trainerLogin');
   const [plans, setPlans] = useState<Plan[]>([]);
   const [currentUser, setCurrentUser] = useState<Trainer | { id: 'admin', username: 'admin' } | null>(null);
-  const [currentStudentData, setCurrentStudentData] = useState<{ student: Student; payments: Payment[] } | null>(null);
+  const [currentStudentData, setCurrentStudentData] = useState<{ student: Student; payments: Payment[]; trainer: Trainer | null } | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   useEffect(() => {
@@ -75,7 +75,8 @@ const App: React.FC = () => {
 
       // In a real app, password should be hashed. Here we do a simple check.
       if (trainerData.password === password) {
-        const trainer = { id: trainerDoc.id, username: trainerData.username };
+        const trainer = { id: trainerDoc.id, ...trainerData } as Trainer;
+        delete trainer.password; // Don't store password in session
         sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(trainer));
         setCurrentUser(trainer);
         setView('dashboard');
@@ -134,8 +135,18 @@ const App: React.FC = () => {
               paymentDate: toISO(data.paymentDate),
           } as Payment;
       });
+
+      let trainer: Trainer | null = null;
+      if (student.trainerId) {
+          const trainerRef = doc(db, 'trainers', student.trainerId);
+          const trainerSnap = await getDoc(trainerRef);
+          if (trainerSnap.exists()) {
+              trainer = { id: trainerSnap.id, ...trainerSnap.data() } as Trainer;
+              delete trainer.password;
+          }
+      }
       
-      setCurrentStudentData({ student, payments });
+      setCurrentStudentData({ student, payments, trainer });
       setView('studentPortal');
       return { success: true };
 

@@ -1,13 +1,14 @@
-
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy, updateDoc } from 'firebase/firestore';
+import { AUTH_SESSION_KEY } from '../constants';
 import { Student, Plan, Payment, Trainer } from '../types';
-import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon } from './icons';
+import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon } from './icons';
 import StudentDetailsModal from './StudentDetailsModal';
 import PlanManagementModal from './PlanManagementModal';
 import AddStudentModal from './AddStudentModal';
 import FinancialReportModal from './modals/FinancialReportModal';
+import Modal from './modals/Modal';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -20,6 +21,60 @@ const Loader: React.FC = () => (
     </div>
 );
 
+// TrainerProfileModal Component defined locally
+const TrainerProfileModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  trainer: Trainer;
+  onUpdate: (updatedTrainer: Omit<Trainer, 'id' | 'username' | 'password'>) => Promise<void>;
+}> = ({ isOpen, onClose, trainer, onUpdate }) => {
+  const [formData, setFormData] = useState({
+    fullName: trainer.fullName || '',
+    contactEmail: trainer.contactEmail || '',
+    instagram: trainer.instagram || '',
+    whatsapp: trainer.whatsapp || '',
+  });
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({...prev, [name]: value}));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await onUpdate(formData);
+    onClose();
+  };
+
+  return (
+    <Modal title="Meu Perfil e Contato" isOpen={isOpen} onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Nome Completo (Exibição)</label>
+          <input type="text" name="fullName" value={formData.fullName} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Email de Contato</label>
+          <input type="email" name="contactEmail" value={formData.contactEmail} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Instagram (apenas usuário, sem @)</label>
+          <input type="text" name="instagram" value={formData.instagram} onChange={handleInputChange} placeholder="ex: seunome" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">WhatsApp (com código do país)</label>
+          <input type="tel" name="whatsapp" value={formData.whatsapp} onChange={handleInputChange} placeholder="ex: 5511999998888" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
+        </div>
+        <div className="flex justify-end gap-4 pt-4">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Cancelar</button>
+          <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Salvar Alterações</button>
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -31,6 +86,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [isPlanModalOpen, setPlanModalOpen] = useState(false);
   const [isAddStudentModalOpen, setAddStudentModalOpen] = useState(false);
   const [isFinancialReportModalOpen, setFinancialReportModalOpen] = useState(false);
+  const [isProfileModalOpen, setProfileModalOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -86,6 +142,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleUpdateTrainerProfile = async (data: Omit<Trainer, 'id' | 'username' | 'password'>) => {
+    const trainerRef = doc(db, 'trainers', trainer.id);
+    await updateDoc(trainerRef, data);
+
+    const updatedTrainer = { ...trainer, ...data };
+    sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(updatedTrainer));
+    // A page reload is a simple way to reflect the changes everywhere.
+    // A more advanced solution would involve a global state manager.
+    window.location.reload();
+  };
   
   const upcomingExpirations = useMemo(() => {
     const now = new Date();
@@ -167,7 +234,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   }
 
   const handleDeletePlan = async (planId: string) => {
-      if(window.confirm("Tem certeza que deseja excluir este plano? Alunos associados a ele não serão afetados, mas você não poderá adicioná-lo a novos alunos.")) {
+      if(window.confirm("Tem certeza que deseja excluir este plano? Alunos associados a ele não serão afetados, mas você не poderá adicioná-lo a novos alunos.")) {
           await deleteDoc(doc(db, 'plans', planId));
           setPlans(prev => prev.filter(p => p.id !== planId));
       }
@@ -244,7 +311,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     <>
       <div className="bg-brand-dark">
           <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-white">Dashboard do Personal - [{trainer.username}]</h1>
+            <h1 className="text-2xl font-bold text-white">Dashboard do Personal - [{trainer.fullName || trainer.username}]</h1>
             <button onClick={onLogout} className="flex items-center gap-2 text-white hover:text-red-400 transition-colors">
               <LogoutIcon className="w-5 h-5" />
               <span>Sair</span>
@@ -288,6 +355,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             </button>
             <button onClick={() => setFinancialReportModalOpen(true)} className="flex items-center gap-2 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors shadow">
                 <ChartBarIcon className="w-5 h-5" /> Controle Financeiro
+            </button>
+            <button onClick={() => setProfileModalOpen(true)} className="flex items-center gap-2 bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors shadow">
+                <SettingsIcon className="w-5 h-5" /> Meu Perfil
             </button>
         </div>
 
@@ -448,6 +518,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             students={students}
             onDeletePayment={handleDeletePayment}
           />
+      )}
+
+      {isProfileModalOpen && (
+        <TrainerProfileModal
+            isOpen={isProfileModalOpen}
+            onClose={() => setProfileModalOpen(false)}
+            trainer={trainer}
+            onUpdate={handleUpdateTrainerProfile}
+        />
       )}
     </>
   );
