@@ -38,36 +38,35 @@ const StudentLogin: React.FC<StudentLoginProps> = ({ onLogin, onBackToTrainerLog
         </div>
         
         {error && (
-              <div className="bg-red-50 border border-red-200 p-4 rounded-lg shadow-sm">
-                  <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                          <ExclamationCircleIcon className="h-6 w-6 text-red-500" />
-                      </div>
-                      <div className="ml-3 w-full">
-                          <h3 className="text-base font-bold text-red-800">Erro de Acesso</h3>
-                           {error === "CONNECTION_ERROR" ? (
-                                <div className="mt-2 text-sm text-red-700 space-y-2">
-                                    <p className="font-semibold">Não foi possível conectar ao banco de dados. Por favor, verifique os seguintes pontos:</p>
-                                    <ol className="list-decimal list-inside space-y-1 pl-2">
-                                        <li>
-                                            <strong>Arquivo `firebase.ts`:</strong> Confirme se as credenciais estão corretas.
-                                        </li>
-                                        <li>
-                                            <strong>Regras de Segurança:</strong> No Firebase Console, vá para <strong>Firestore Database &gt; Rules</strong> e certifique-se de que as regras permitem leitura (ex: `allow read, write: if true;`).
-                                        </li>
-                                        <li>
-                                            <strong>Banco de Dados Ativado:</strong> Confirme se o serviço Firestore foi criado no seu projeto.
-                                        </li>
+             <div className="m-4 sm:m-2 lg:m-2 bg-red-50 border border-red-200 p-4 rounded-lg shadow-sm">
+                <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                        <ExclamationCircleIcon className="h-8 w-8 text-red-500" />
+                    </div>
+                    <div className="ml-3 flex-1">
+                        <h3 className="text-lg font-bold text-red-800">Erro de Acesso</h3>
+                         {error === "CONNECTION_ERROR" ? (
+                             <div className="mt-2 text-sm text-red-700 space-y-3">
+                                <p>A aplicação não pôde se conectar ao banco de dados. Para diagnosticar, siga os passos abaixo:</p>
+                                
+                                <div className="p-2 bg-red-100 rounded-md border border-red-300">
+                                    <h4 className="font-bold text-red-900">Diagnóstico Avançado</h4>
+                                    <ol className="list-decimal list-inside space-y-1 mt-1 text-red-800">
+                                        <li>Pressione <strong className="font-mono bg-white text-red-900 px-1 py-0.5 rounded">F12</strong> para abrir o "Console do Desenvolvedor".</li>
+                                        <li>Procure por um erro em vermelho começando com <strong className="font-mono">"Firebase Connection Error Details:"</strong>.</li>
+                                        <li>O erro exato (ex: <strong className="font-mono">permission-denied</strong>) irá indicar a causa real do problema.</li>
                                     </ol>
                                 </div>
-                            ) : (
-                                <div className="mt-2 text-sm text-red-700">
-                                   <p>{error}</p>
-                                </div>
-                            )}
-                      </div>
-                  </div>
-              </div>
+                                <p>Com o erro em mãos, verifique sua configuração no arquivo <strong>`firebase.ts`</strong> e as <strong>Regras de Segurança</strong> no Firebase Console.</p>
+                            </div>
+                        ) : (
+                            <div className="mt-2 text-sm text-red-700">
+                               <p>{error}</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
           )}
           
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

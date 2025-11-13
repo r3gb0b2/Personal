@@ -100,7 +100,7 @@ const App: React.FC = () => {
       return { success: true };
 
     } catch (error) {
-      console.error("Error during student login:", error);
+      console.error("Firebase Connection Error Details:", error);
       // CRITICAL: This error almost always means the firebase.ts file has incorrect placeholder credentials,
       // the Firestore rules are too restrictive, or the database hasn't been created.
       return { 
