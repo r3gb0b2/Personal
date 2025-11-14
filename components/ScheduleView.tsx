@@ -13,6 +13,7 @@ const timeToMinutes = (time: string): number => {
 
 const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
     const [now, setNow] = useState(new Date());
+    const [displayDate, setDisplayDate] = useState(new Date());
     const containerRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const hourHeightRem = 6; // h-24 -> 6rem
@@ -25,7 +26,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
 
     // Auto-scroll to current time on initial load
     useEffect(() => {
-        const currentHour = now.getHours();
+        const currentHour = new Date().getHours();
         if (scrollContainerRef.current && currentHour >= calendarStartHour) {
             const hoursIntoDay = currentHour - calendarStartHour;
             // Scroll so the current hour is a little bit above the vertical center of the viewport
@@ -35,14 +36,14 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
     }, []);
 
     const weekDates = useMemo(() => {
-        const startOfWeek = new Date();
+        const startOfWeek = new Date(displayDate);
         startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); // Sunday
         return Array.from({ length: 7 }, (_, i) => {
             const date = new Date(startOfWeek);
             date.setDate(date.getDate() + i);
             return date;
         });
-    }, []);
+    }, [displayDate]);
 
     const isToday = (date: Date) => {
         const today = new Date();
@@ -103,10 +104,45 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
         return (minutesFromStart / 60) * hourHeightRem;
     }, [now]);
 
+    const handlePrevWeek = () => {
+        setDisplayDate(current => {
+            const newDate = new Date(current);
+            newDate.setDate(newDate.getDate() - 7);
+            return newDate;
+        });
+    };
+    
+    const handleNextWeek = () => {
+        setDisplayDate(current => {
+            const newDate = new Date(current);
+            newDate.setDate(newDate.getDate() + 7);
+            return newDate;
+        });
+    };
+    
+    const handleToday = () => {
+        setDisplayDate(new Date());
+    };
 
     return (
         <div ref={containerRef} className="bg-white p-4 sm:p-6 rounded-lg shadow-md flex flex-col h-[85vh]">
-            <h2 className="text-xl font-bold mb-4 text-brand-dark">Agenda da Semana</h2>
+             <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-4 gap-4">
+                <h2 className="text-xl font-bold text-brand-dark">Agenda da Semana</h2>
+                <div className="flex items-center gap-4">
+                    <span className="font-semibold text-gray-700 capitalize">
+                        {displayDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                    </span>
+                    <div className="flex items-center gap-1 rounded-md border p-1">
+                        <button onClick={handlePrevWeek} className="p-1 text-gray-600 hover:bg-gray-100 rounded-md" aria-label="Semana anterior">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                        </button>
+                        <button onClick={handleToday} className="px-3 py-1 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-md">Hoje</button>
+                        <button onClick={handleNextWeek} className="p-1 text-gray-600 hover:bg-gray-100 rounded-md" aria-label="Próxima semana">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
             
             <header className="grid grid-cols-[4rem,1fr] sticky top-0 bg-white z-20 pb-2">
                 <div />
@@ -136,8 +172,16 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
 
                     {/* Day columns for appointments */}
                     <div className="grid grid-cols-7 relative">
-                        {appointments.map(({ dayKey, events }) => (
+                        {appointments.map(({ dayKey, events, date }) => (
                             <div key={dayKey} className="relative border-l border-gray-100">
+                                {isToday(date) && currentTimePosition !== null && (
+                                    <div className="absolute top-0 left-0 right-0 pointer-events-none" style={{ transform: `translateY(${currentTimePosition}rem)` }}>
+                                        <div className="relative h-px bg-red-500">
+                                            <div className="absolute -left-1.5 -top-1.5 w-3 h-3 rounded-full bg-red-500"></div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {events.map((appt, index) => {
                                     const startMinutes = timeToMinutes(appt.startTime);
                                     const endMinutes = timeToMinutes(appt.endTime);
@@ -167,15 +211,6 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
                         ))}
                     </div>
                 </div>
-
-                {/* Current Time Indicator */}
-                {currentTimePosition !== null && isToday(now) && (
-                     <div className="absolute top-0 left-16 right-0 pointer-events-none" style={{ transform: `translateY(${currentTimePosition}rem)` }}>
-                        <div className="relative h-px bg-red-500">
-                           <div className="absolute -left-2 -top-1.5 w-3 h-3 rounded-full bg-red-500"></div>
-                        </div>
-                    </div>
-                )}
             </div>
         </div>
     );
