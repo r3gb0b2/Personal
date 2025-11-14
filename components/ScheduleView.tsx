@@ -56,7 +56,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students, plans, onSelectSt
 
     const timeSlots = Array.from({ length: (22 - calendarStartHour) }, (_, i) => {
         const hour = calendarStartHour + i;
-        return `${hour % 12 === 0 ? 12 : hour % 12} ${hour < 12 || hour === 24 ? 'AM' : 'PM'}`;
+        return `${String(hour).padStart(2, '0')}:00`;
     });
 
     const appointments = useMemo(() => {
