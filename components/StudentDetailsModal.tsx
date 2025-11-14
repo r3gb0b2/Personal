@@ -184,11 +184,15 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
         const now = new Date();
         const currentDueDate = editableStudent.paymentDueDate ? new Date(editableStudent.paymentDueDate) : null;
         
-        // Use the current due date as the base if it's in the future, otherwise use today's date.
         const baseDate = (currentDueDate && currentDueDate > now) ? currentDueDate : now;
-
         const newDueDate = new Date(baseDate);
-        newDueDate.setDate(newDueDate.getDate() + plan.durationInDays);
+
+        if (plan.durationInDays >= 28 && plan.durationInDays <= 31) {
+            newDueDate.setMonth(newDueDate.getMonth() + 1);
+        } else {
+            newDueDate.setDate(newDueDate.getDate() + plan.durationInDays);
+        }
+        
         updatedStudent.paymentDueDate = newDueDate.toISOString();
     } else if (plan.type === 'session' && plan.numberOfSessions) {
         const currentBalance = updatedStudent.remainingSessions ?? 0;
@@ -328,6 +332,30 @@ const DetailsTab: React.FC<any> = ({ student, plans, isEditing, setIsEditing, ed
                 <div><label className="block text-sm font-medium text-gray-700">Email</label><input type="email" name="email" value={editableStudent.email} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"/></div>
                 <div><label className="block text-sm font-medium text-gray-700">Telefone</label><input type="tel" name="phone" value={editableStudent.phone} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"/></div>
                 <div><label className="block text-sm font-medium text-gray-700">Plano</label><select name="planId" value={editableStudent.planId ?? ''} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"><option value="">Sem Plano</option>{plans.map((p: Plan) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+                {(() => {
+                    const selectedPlan = plans.find((p: Plan) => p.id === editableStudent.planId);
+                    if (selectedPlan?.type === 'duration') {
+                        return (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">Data de Vencimento</label>
+                                <input
+                                    type="date"
+                                    name="paymentDueDate"
+                                    value={editableStudent.paymentDueDate ? editableStudent.paymentDueDate.split('T')[0] : ''}
+                                    onChange={(e) => {
+                                        const dateValue = e.target.value;
+                                        setEditableStudent((prev: Student) => ({
+                                            ...prev,
+                                            paymentDueDate: dateValue ? new Date(dateValue + 'T00:00:00').toISOString() : null,
+                                        }));
+                                    }}
+                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"
+                                />
+                            </div>
+                        );
+                    }
+                    return null;
+                })()}
                 <div>
                     <label className="block text-sm font-medium text-gray-700">Horário Fixo</label>
                     <div className="mt-2 p-3 border rounded-md space-y-3 bg-gray-50">
