@@ -4,14 +4,6 @@ import * as admin from "firebase-admin";
 admin.initializeApp();
 const db = admin.firestore();
 
-// A helper type to avoid using `any` for the config object.
-interface BrevoConfig {
-  brevo?: {
-    key: string;
-    sender: string;
-  };
-}
-
 /**
  * Checks daily for students with low session counts and sends reminders.
  * This function is scheduled to run every day at 9:00 AM São Paulo time.
@@ -22,17 +14,24 @@ export const sendLowSessionReminders = functions.pubsub
   .onRun(async () => {
     functions.logger.info("Starting low session reminder check.");
 
-    const config = functions.config() as BrevoConfig;
-    const apiKey = config.brevo?.key;
-    const sender = config.brevo?.sender;
+    // Brevo configuration is now retrieved from the Admin Panel settings
+    const brevoConfigRef = db.doc("settings/brevoConfig");
+    const brevoConfigSnap = await brevoConfigRef.get();
 
-    if (!apiKey || !sender) {
-      const errorMsg =
-        "Brevo API key or sender email is not configured in Firebase " +
-        "Functions environment variables. Please run " +
-        "`firebase functions:config:set brevo.key='...'` and " +
-        "`firebase functions:config:set brevo.sender='...'`";
-      functions.logger.error(errorMsg);
+    if (!brevoConfigSnap.exists || !brevoConfigSnap.data()) {
+      functions.logger.error(
+        "Brevo config not found in Firestore at 'settings/brevoConfig'."
+      );
+      return null;
+    }
+
+    const {apiKey, senderEmail} = brevoConfigSnap.data() as
+      {apiKey?: string, senderEmail?: string};
+
+    if (!apiKey || !senderEmail) {
+      functions.logger.error(
+        "Brevo API key or sender email is not configured in Firestore."
+      );
       return null;
     }
 
@@ -93,23 +92,19 @@ export const sendLowSessionReminders = functions.pubsub
       const trainerName = trainer.fullName || trainer.username;
       const subject = "Suas aulas de personal estão acabando!";
       const htmlContent = `
-          <p>Olá ${student.name},</p>
-          <p>Este é um lembrete de que seu pacote de aulas está no fim.</p>
-          <p>
-            Restam <strong>${remaining} aula${remaining > 1 ? "s" : ""}
-            </strong>.
-          </p>
-          <p>
-            Fale com seu personal para renovar o plano e não interromper
-            seus treinos.
-          </p>
-          <p>Abraços,<br/>${trainerName}</p>
-        `.trim();
+        <p>Olá ${student.name},</p>
+        <p>Este é um lembrete de que seu pacote de aulas está no fim.</p>
+        <p>Restam <strong>${remaining} aula${remaining > 1 ? "s" : ""}
+        </strong>.</p>
+        <p>Fale com seu personal para renovar o plano e não interromper
+        seus treinos.</p>
+        <p>Abraços,<br/>${trainerName}</p>
+      `.trim();
 
       const payload = {
-        sender: {email: sender, name: trainerName},
+        sender: {email: senderEmail, name: trainerName},
         to: [{email: student.email, name: student.name}],
-        replyTo: {email: trainer.contactEmail || sender, name: trainerName},
+        replyTo: {email: trainer.contactEmail || senderEmail, name: trainerName},
         subject,
         htmlContent,
       };
@@ -134,14 +129,12 @@ export const sendLowSessionReminders = functions.pubsub
         } else {
           const errorData = await response.json();
           functions.logger.error(
-            `Failed to send email to ${student.name}`,
-            errorData,
+            `Failed to send email to ${student.name}`, errorData
           );
         }
       } catch (error) {
         functions.logger.error(
-          `System error sending email to ${student.name}`,
-          error,
+          `System error sending email to ${student.name}`, error
         );
       }
     });

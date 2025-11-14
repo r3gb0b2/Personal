@@ -57,18 +57,23 @@ const AutomationSettingsModal: React.FC<{ isOpen: boolean, onClose: () => void }
 
                 <div className="space-y-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <h3 className="text-lg font-bold text-yellow-800">Solução de Problemas Comuns</h3>
-                    <div className="space-y-3">
-                        <div>
-                            <h4 className="font-semibold text-yellow-900">Se o erro diz: `Error: spawn npm ... ENOENT`</h4>
-                            <p className="text-sm">Isso significa que o comando `npm` não foi encontrado. Garanta que o <strong className="font-semibold">Node.js</strong> está instalado corretamente no seu computador e que o terminal que você está usando foi reiniciado após a instalação.</p>
+                    <div className="space-y-4">
+                        <div className="border-l-4 border-yellow-400 pl-4">
+                            <h4 className="font-semibold text-yellow-900">ERRO PRINCIPAL: `Error: spawn npm ... ENOENT`</h4>
+                            <p className="text-sm mt-1">Este erro significa que o comando `npm` não foi encontrado em seu sistema. É um problema de ambiente, não do código.</p>
+                            <ol className="list-decimal list-inside space-y-2 pl-2 mt-2 text-sm">
+                                <li><strong>Verifique a Instalação:</strong> Abra um **novo** terminal e digite <code className="bg-yellow-100 p-1 rounded">npm -v</code>. Se você receber um número de versão (ex: `10.5.0`), o NPM está instalado. Se receber "comando não encontrado", ele não está instalado ou configurado corretamente.</li>
+                                <li><strong>Solução:</strong> Baixe e instale a versão LTS do Node.js (que inclui o NPM) a partir do site oficial: <a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">https://nodejs.org/</a>.</li>
+                                <li><strong>IMPORTANTE:</strong> Após instalar, **reinicie seu computador** ou, no mínimo, feche e abra novamente TODOS os seus terminais para garantir que as alterações sejam aplicadas.</li>
+                            </ol>
                         </div>
-                        <div>
-                            <h4 className="font-semibold text-yellow-900">Se o erro diz: `functions predeploy error: Command terminated with non-zero exit code`</h4>
-                            <p className="text-sm">Isso geralmente indica um erro de formatação ou de tipo no código (`lint` ou `tsc`). As versões mais recentes do código já corrigem isso, mas se o erro persistir, copie o log completo do terminal e procure ajuda.</p>
-                        </div>
-                         <div>
+                        <div className="border-l-4 border-yellow-400 pl-4">
                             <h4 className="font-semibold text-yellow-900">Se o erro diz: `HTTP Error: 403, The caller does not have permission`</h4>
                             <p className="text-sm">Este erro quase sempre significa que o <strong className="font-semibold">Passo 2 (Permissões no Google Cloud)</strong> não foi feito ou foi feito incorretamente. Revise cada item do passo 2 com atenção.</p>
+                        </div>
+                         <div className="border-l-4 border-yellow-400 pl-4">
+                            <h4 className="font-semibold text-yellow-900">Se o erro diz: `functions predeploy error...` com erros de `lint`</h4>
+                            <p className="text-sm">Isso indica um erro de formatação no código. As versões mais recentes do arquivo `functions/src/index.ts` que eu forneci já corrigem isso. Garanta que você está usando a versão mais atual do arquivo.</p>
                         </div>
                     </div>
                 </div>
