@@ -38,22 +38,27 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 
 /*
-IMPORTANTE: Novas Coleções 'trainers' e 'settings'
+IMPORTANTE: Novas Coleções 'trainers', 'settings' e 'trainerSettings'
 
-Para o sistema de múltiplos personais e alteração de senha do admin,
+Para o sistema de múltiplos personais e funcionalidades de e-mail,
 você PRECISA criar manualmente os primeiros registros no Firestore.
 
-1. Vá para o Firestore Database no seu Console do Firebase.
-2. Crie uma nova coleção chamada "trainers".
-3. Adicione um novo documento com ID automático e os campos:
-   - `username` (string): bruno
-   - `password` (string): 12345
-   - `status` (string): approved  <-- ADICIONE ESTE CAMPO AO SEU PERSONAL INICIAL
-4. Crie uma nova coleção chamada "settings".
-5. Crie um documento com o ID EXATO "admin".
-6. Dentro do documento "admin", adicione o campo:
-   - `password` (string): admin
-   (O usuário do admin é sempre "admin" e não precisa ser armazenado).
+1. Crie a coleção "trainers":
+   - Adicione um documento com ID automático e os campos:
+     - `username` (string): bruno
+     - `password` (string): 12345
+
+2. Crie a coleção "settings":
+   - Crie um documento com o ID EXATO "admin".
+   - Dentro dele, adicione o campo `password` (string): admin
+
+3. Crie a coleção "trainerSettings":
+   - Crie um documento cujo ID seja o MESMO ID do documento do personal
+     na coleção "trainers" (você precisa copiar e colar o ID).
+   - Dentro dele, adicione os campos (todos do tipo string):
+     - `brevoApiKey`: (sua chave da API da Brevo)
+     - `senderEmail`: (o email que aparecerá como remetente)
+     - `replyToEmail`: (o seu email para onde as respostas irão)
 */
 
 

@@ -37,6 +37,7 @@ export interface Student {
   profilePictureUrl?: string | null;
   trainerId: string;
   schedule?: DaySchedule[] | null;
+  remindersSent?: { [key: string]: string }; // e.g., { 'sessions_3': '2023-10-27T10:00:00Z' }
 }
 
 export type PaymentMethod = 'Pix' | 'Dinheiro' | 'Cartão de Crédito' | 'Transferência';
@@ -61,7 +62,13 @@ export interface Trainer {
     contactEmail?: string;
     instagram?: string; // e.g., 'username' without @
     whatsapp?: string; // e.g., '5511999998888'
-    status?: 'pending' | 'approved';
+}
+
+export interface TrainerSettings {
+    id?: string; // Corresponds to trainerId
+    brevoApiKey?: string;
+    senderEmail?: string;
+    replyToEmail?: string;
 }
 
 export interface Workout {

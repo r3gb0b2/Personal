@@ -8,9 +8,8 @@ import StudentPortal from './components/student/StudentPortal';
 import AdminDashboard from './components/admin/AdminDashboard';
 import { AUTH_SESSION_KEY } from './constants';
 import { Student, Plan, Payment, Trainer } from './types';
-import TrainerRegistration from './components/TrainerRegistration';
 
-type View = 'trainerLogin' | 'dashboard' | 'studentLogin' | 'studentPortal' | 'adminDashboard' | 'trainerRegistration';
+type View = 'trainerLogin' | 'dashboard' | 'studentLogin' | 'studentPortal' | 'adminDashboard';
 
 const App: React.FC = () => {
   const [view, setView] = useState<View>('trainerLogin');
@@ -54,7 +53,7 @@ const App: React.FC = () => {
       }
   }, [view, plans.length, fetchPlansForStudentPortal]);
 
-  const handleLogin = async (username: string, password: string): Promise<{ success: boolean; message?: string; }> => {
+  const handleLogin = async (username: string, password: string): Promise<boolean> => {
     const normalizedUsername = username.trim().toLowerCase();
     
     // Admin Login
@@ -68,14 +67,14 @@ const App: React.FC = () => {
                 sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(adminUser));
                 setCurrentUser(adminUser);
                 setView('adminDashboard');
-                return { success: true };
+                return true;
             }
         } else {
              console.error("Admin login failed: The 'admin' document was not found in the 'settings' collection. Please check your Firestore setup instructions in `firebase.ts`.");
         }
       } catch (e) {
         console.error("Error during admin login:", e);
-        return { success: false, message: 'Erro de conexão. Tente novamente.' };
+        return false;
       }
     }
 
@@ -93,28 +92,25 @@ const App: React.FC = () => {
           return trainerData.username && trainerData.username.toLowerCase() === normalizedUsername;
       });
 
-      if (!trainerDoc) return { success: false, message: 'Usuário ou senha incorretos. Tente novamente.' };
+      if (!trainerDoc) return false;
 
       const trainerData = trainerDoc.data();
 
+      // In a real app, password should be hashed. Here we do a simple check.
       if (trainerData.password === password) {
-        if (trainerData.status === 'pending') {
-            return { success: false, message: 'Seu cadastro está pendente de aprovação pelo administrador.' };
-        }
-        
         const trainer = { id: trainerDoc.id, ...trainerData } as Trainer;
         delete trainer.password; // Don't store password in session
         sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(trainer));
         setCurrentUser(trainer);
         setView('dashboard');
-        return { success: true };
+        return true;
       }
 
     } catch (e) {
       console.error("Error during trainer login:", e);
     }
     
-    return { success: false, message: 'Usuário ou senha incorretos. Tente novamente.' };
+    return false;
   };
 
   const handleLogout = () => {
@@ -215,7 +211,7 @@ const App: React.FC = () => {
                 return <Dashboard onLogout={handleLogout} trainer={currentUser as Trainer} />;
               }
               // Fallback if user is not a trainer
-              return <LoginScreen onLogin={handleLogin} onShowStudentLogin={() => setView('studentLogin')} onShowTrainerRegistration={() => setView('trainerRegistration')} />;
+              return <LoginScreen onLogin={handleLogin} onShowStudentLogin={() => setView('studentLogin')} />;
           case 'studentLogin':
               return <StudentLogin onLogin={handleStudentLogin} onBackToTrainerLogin={() => setView('trainerLogin')} isLoading={isLoading} />;
           case 'studentPortal':
@@ -225,11 +221,9 @@ const App: React.FC = () => {
               // Fallback to login if data is missing
               setView('studentLogin');
               return null;
-          case 'trainerRegistration':
-              return <TrainerRegistration onBackToLogin={() => setView('trainerLogin')} />;
           case 'trainerLogin':
           default:
-              return <LoginScreen onLogin={handleLogin} onShowStudentLogin={() => setView('studentLogin')} onShowTrainerRegistration={() => setView('trainerRegistration')} />;
+              return <LoginScreen onLogin={handleLogin} onShowStudentLogin={() => setView('studentLogin')} />;
       }
   }
 

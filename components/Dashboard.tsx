@@ -2,14 +2,16 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy, updateDoc, getDoc } from 'firebase/firestore';
 import { AUTH_SESSION_KEY } from '../constants';
-import { Student, Plan, Payment, Trainer, DaySchedule } from '../types';
-import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon } from './icons';
+import { Student, Plan, Payment, Trainer, DaySchedule, TrainerSettings } from '../types';
+import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon, MailIcon } from './icons';
 import StudentDetailsModal from './StudentDetailsModal';
 import PlanManagementModal from './PlanManagementModal';
 import AddStudentModal from './AddStudentModal';
 import FinancialReportModal from './modals/FinancialReportModal';
 import Modal from './modals/Modal';
 import ScheduleView from './ScheduleView';
+import BulkEmailModal from './modals/BulkEmailModal';
+import { sendEmail, EmailParams } from '../../services/emailService';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -27,9 +29,11 @@ const TrainerProfileModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   trainer: Trainer;
+  trainerSettings: TrainerSettings;
   onUpdateProfile: (updatedProfile: Omit<Trainer, 'id' | 'username' | 'password'>) => Promise<void>;
   onUpdatePassword: (currentPassword: string, newPassword: string) => Promise<{success: boolean, message: string}>;
-}> = ({ isOpen, onClose, trainer, onUpdateProfile, onUpdatePassword }) => {
+  onUpdateSettings: (settings: TrainerSettings) => Promise<void>;
+}> = ({ isOpen, onClose, trainer, trainerSettings, onUpdateProfile, onUpdatePassword, onUpdateSettings }) => {
   const [formData, setFormData] = useState({
     fullName: trainer.fullName || '',
     contactEmail: trainer.contactEmail || '',
@@ -37,6 +41,12 @@ const TrainerProfileModal: React.FC<{
     whatsapp: trainer.whatsapp || '',
   });
   
+  const [settingsData, setSettingsData] = useState<TrainerSettings>({
+      brevoApiKey: trainerSettings?.brevoApiKey || '',
+      senderEmail: trainerSettings?.senderEmail || '',
+      replyToEmail: trainerSettings?.replyToEmail || '',
+  });
+
   const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: ''});
   const [passwordMessage, setPasswordMessage] = useState({type: '', text: ''});
 
@@ -45,16 +55,22 @@ const TrainerProfileModal: React.FC<{
     const { name, value } = e.target;
     setFormData(prev => ({...prev, [name]: value}));
   };
+
+  const handleSettingsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setSettingsData(prev => ({ ...prev, [name]: value }));
+  };
   
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setPasswordData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleProfileSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await onUpdateProfile(formData);
-    onClose(); // Close only on profile save, password has its own feedback
+    await onUpdateSettings(settingsData);
+    onClose();
   };
   
   const handlePasswordSubmit = async (e: React.FormEvent) => {
@@ -78,8 +94,9 @@ const TrainerProfileModal: React.FC<{
   }
 
   return (
-    <Modal title="Meu Perfil e Contato" isOpen={isOpen} onClose={onClose}>
-      <form onSubmit={handleProfileSubmit} className="space-y-4">
+    <Modal title="Meu Perfil e Configurações" isOpen={isOpen} onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <h3 className="text-lg font-bold text-brand-dark">Perfil e Contato</h3>
         <div>
           <label className="block text-sm font-medium text-gray-700">Nome Completo (Exibição)</label>
           <input type="text" name="fullName" value={formData.fullName} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
@@ -96,8 +113,26 @@ const TrainerProfileModal: React.FC<{
           <label className="block text-sm font-medium text-gray-700">WhatsApp (com código do país)</label>
           <input type="tel" name="whatsapp" value={formData.whatsapp} onChange={handleInputChange} placeholder="ex: 5511999998888" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
         </div>
+        
+        <hr className="my-6" />
+
+        <h3 className="text-lg font-bold text-brand-dark">Configurações de E-mail (Brevo)</h3>
+        <p className="text-xs text-gray-500">Necessário para o envio de e-mails em massa e lembretes automáticos. Obtenha sua chave em <a href="https://www.brevo.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Brevo.com</a>.</p>
+         <div>
+          <label className="block text-sm font-medium text-gray-700">Chave da API da Brevo</label>
+          <input type="password" name="brevoApiKey" value={settingsData.brevoApiKey} onChange={handleSettingsChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">E-mail Remetente</label>
+          <input type="email" name="senderEmail" value={settingsData.senderEmail} onChange={handleSettingsChange} placeholder="ex: contato@meusite.com" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">E-mail para Respostas</label>
+          <input type="email" name="replyToEmail" value={settingsData.replyToEmail} placeholder="ex: seuemail@gmail.com" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" />
+        </div>
+
         <div className="flex justify-end gap-4 pt-4">
-          <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Salvar Perfil</button>
+          <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Salvar Perfil e Configurações</button>
         </div>
       </form>
       
@@ -138,6 +173,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [trainerSettings, setTrainerSettings] = useState<TrainerSettings>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'list' | 'schedule'>('list');
@@ -147,6 +183,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [isAddStudentModalOpen, setAddStudentModalOpen] = useState(false);
   const [isFinancialReportModalOpen, setFinancialReportModalOpen] = useState(false);
   const [isProfileModalOpen, setProfileModalOpen] = useState(false);
+  const [isBulkEmailModalOpen, setBulkEmailModalOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -154,28 +191,28 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     try {
       const toISO = (ts: any) => ts && ts.toDate ? ts.toDate().toISOString() : null;
       
-      // Fetch all documents and filter client-side to handle legacy data for 'bruno'
       const studentsSnapshot = await getDocs(collection(db, 'students'));
       const plansSnapshot = await getDocs(collection(db, 'plans'));
       const paymentsSnapshot = await getDocs(query(collection(db, 'payments'), orderBy('paymentDate', 'desc')));
+      const settingsRef = doc(db, 'trainerSettings', trainer.id);
+      const settingsSnap = await getDoc(settingsRef);
+
+      if (settingsSnap.exists()) {
+        setTrainerSettings(settingsSnap.data() as TrainerSettings);
+      }
 
       const filterByTrainer = (doc: any) => {
           const data = doc.data();
-          // Belongs to current trainer OR is legacy data and current trainer is 'bruno'
           return data.trainerId === trainer.id || (trainer.username === 'bruno' && !data.trainerId);
       };
 
       const studentsList = studentsSnapshot.docs.filter(filterByTrainer).map(docSnapshot => {
         const data = docSnapshot.data();
-        
-        // Sanitize schedule to ensure it's always an array or null, preventing render errors with legacy data.
         let scheduleData = data.schedule || null;
         if (scheduleData && !Array.isArray(scheduleData)) {
-            // If it's an old single schedule object, wrap it in an array.
             if (typeof scheduleData === 'object' && scheduleData.day && scheduleData.startTime) {
                 scheduleData = [scheduleData];
             } else {
-                // Otherwise, if the format is unknown/invalid, nullify it to prevent crashes.
                 scheduleData = null;
             }
         }
@@ -186,7 +223,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
           startDate: toISO(data.startDate) || new Date().toISOString(),
           paymentDueDate: toISO(data.paymentDueDate),
           sessions: (data.sessions || []).filter(Boolean).map((s: any) => ({ ...s, date: toISO(s.date) })),
-          schedule: scheduleData, // Overwrite original schedule with the sanitized version
+          schedule: scheduleData,
         } as Student;
       });
 
@@ -217,14 +254,110 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     fetchData();
   }, [fetchData]);
 
+    const handleUpdateTrainerSettings = async (settings: TrainerSettings) => {
+        const settingsRef = doc(db, 'trainerSettings', trainer.id);
+        await setDoc(settingsRef, settings, { merge: true });
+        setTrainerSettings(settings);
+    };
+
+    const checkAndSendReminders = useCallback(async (students: Student[], plans: Plan[], settings: TrainerSettings) => {
+        if (!settings.brevoApiKey || !settings.senderEmail || !settings.replyToEmail) {
+            return; // Exit if email is not configured
+        }
+        console.log("Checking for reminders...");
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        for (const student of students) {
+            if (!student.planId || !student.email) continue;
+            const plan = plans.find(p => p.id === student.planId);
+            if (!plan) continue;
+
+            let reminderToSend: { type: string; subject: string; message: string; } | null = null;
+            
+            // Check for duration-based plans
+            if (plan.type === 'duration' && student.paymentDueDate) {
+                const dueDate = new Date(student.paymentDueDate);
+                dueDate.setHours(0, 0, 0, 0);
+                const diffTime = dueDate.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays === 3 && !student.remindersSent?.['days_3']) {
+                    reminderToSend = {
+                        type: 'days_3',
+                        subject: `Lembrete: Seu plano expira em 3 dias`,
+                        message: `Olá ${student.name}, tudo bem? Passando para lembrar que seu plano "${plan.name}" está prestes a vencer em 3 dias. Garanta a sua renovação para não perdermos o ritmo!`,
+                    };
+                } else if (diffDays === 1 && !student.remindersSent?.['days_1']) {
+                     reminderToSend = {
+                        type: 'days_1',
+                        subject: `Lembrete: Seu plano expira amanhã!`,
+                        message: `Olá ${student.name}, tudo bem? Passando para lembrar que seu plano "${plan.name}" vence amanhã. Conto com você para continuarmos nossa jornada juntos!`,
+                    };
+                }
+            }
+
+            // Check for session-based plans
+            if (plan.type === 'session' && student.remainingSessions != null) {
+                if (student.remainingSessions === 3 && !student.remindersSent?.['sessions_3']) {
+                     reminderToSend = {
+                        type: 'sessions_3',
+                        subject: `Lembrete: Restam 3 aulas no seu pacote`,
+                        message: `Olá ${student.name}, tudo bem? Passando para avisar que restam apenas 3 aulas no seu pacote "${plan.name}". Já vamos programar a renovação?`,
+                    };
+                } else if (student.remainingSessions === 1 && !student.remindersSent?.['sessions_1']) {
+                     reminderToSend = {
+                        type: 'sessions_1',
+                        subject: `Lembrete: Sua última aula está chegando!`,
+                        message: `Olá ${student.name}, tudo bem? Passando para avisar que você tem apenas 1 aula restante no seu pacote "${plan.name}". Vamos renovar para mantermos o foco total!`,
+                    };
+                }
+            }
+            
+            if (reminderToSend) {
+                try {
+                    console.log(`Sending reminder '${reminderToSend.type}' to ${student.name}`);
+                    const emailParams: EmailParams = {
+                        apiKey: settings.brevoApiKey,
+                        to: [{ email: student.email, name: student.name }],
+                        sender: { email: settings.senderEmail, name: trainer.fullName || trainer.username },
+                        replyTo: { email: settings.replyToEmail, name: trainer.fullName || trainer.username },
+                        subject: reminderToSend.subject,
+                        htmlContent: `<p>${reminderToSend.message}</p><p>Qualquer dúvida, é só responder a este e-mail.</p><p>Abraços,<br/>${trainer.fullName || trainer.username}</p>`,
+                    };
+                    await sendEmail(emailParams);
+                    
+                    // Update student doc in Firestore to mark reminder as sent
+                    const studentRef = doc(db, 'students', student.id);
+                    const updatedReminders = { ...student.remindersSent, [reminderToSend.type]: new Date().toISOString() };
+                    await updateDoc(studentRef, { remindersSent: updatedReminders });
+                    
+                    // Update local state to prevent re-sending in the same session
+                    setStudents(prev => prev.map(s => s.id === student.id ? { ...s, remindersSent: updatedReminders } : s));
+
+                } catch (error) {
+                    console.error(`Failed to send reminder to ${student.email}:`, error);
+                    // Optional: show a notification to the trainer
+                }
+            }
+        }
+    }, [trainer.fullName, trainer.username]);
+
+    // Run reminder check after data is loaded
+    useEffect(() => {
+        if (!loading && students.length > 0 && plans.length > 0 && trainerSettings.brevoApiKey) {
+            checkAndSendReminders(students, plans, trainerSettings);
+        }
+    }, [loading, students, plans, trainerSettings, checkAndSendReminders]);
+
+
   const handleUpdateTrainerProfile = async (data: Omit<Trainer, 'id' | 'username' | 'password'>) => {
     const trainerRef = doc(db, 'trainers', trainer.id);
     await updateDoc(trainerRef, data);
 
     const updatedTrainer = { ...trainer, ...data };
     sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(updatedTrainer));
-    // A page reload is a simple way to reflect the changes everywhere.
-    // A more advanced solution would involve a global state manager.
     window.location.reload();
   };
   
@@ -288,7 +421,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     const studentRef = doc(db, 'students', updatedStudent.id);
     const dataToUpdate = {
         ...updatedStudent,
-        trainerId: trainer.id, // Ensure trainerId is set on update (migrates old data)
+        trainerId: trainer.id,
         startDate: Timestamp.fromDate(new Date(updatedStudent.startDate)),
         paymentDueDate: updatedStudent.paymentDueDate ? Timestamp.fromDate(new Date(updatedStudent.paymentDueDate)) : null,
         sessions: updatedStudent.sessions.map(s => ({ ...s, date: Timestamp.fromDate(new Date(s.date))}))
@@ -302,7 +435,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const handleAddStudent = async (newStudentData: Omit<Student, 'id'>) => {
     const studentWithTimestamps = {
         ...newStudentData,
-        trainerId: trainer.id, // Add trainerId
+        trainerId: trainer.id,
         startDate: Timestamp.fromDate(new Date(newStudentData.startDate)),
         paymentDueDate: newStudentData.paymentDueDate ? Timestamp.fromDate(new Date(newStudentData.paymentDueDate)) : null,
     };
@@ -428,13 +561,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       return { text: 'N/A', color: 'gray', situation: 'N/A' };
   };
 
-  const handleSelectStudentFromSchedule = (studentId: string) => {
-    const student = students.find(s => s.id === studentId);
-    if (student) {
-        setSelectedStudent(student);
-    }
-  };
-
   return (
     <>
       <div className="bg-brand-dark">
@@ -484,6 +610,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
              <button onClick={() => setView(view === 'list' ? 'schedule' : 'list')} className="flex items-center gap-2 bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors shadow">
                 <CalendarIcon className="w-5 h-5" /> {view === 'list' ? 'Ver Agenda' : 'Ver Lista de Alunos'}
             </button>
+             <button onClick={() => setBulkEmailModalOpen(true)} className="flex items-center gap-2 bg-orange-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors shadow">
+                <MailIcon className="w-5 h-5" /> Enviar E-mail
+            </button>
             <button onClick={() => setFinancialReportModalOpen(true)} className="flex items-center gap-2 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors shadow">
                 <ChartBarIcon className="w-5 h-5" /> Controle Financeiro
             </button>
@@ -493,11 +622,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         </div>
 
         {view === 'schedule' ? (
-            <ScheduleView 
-                students={students} 
-                plans={plans} 
-                onSelectStudent={handleSelectStudentFromSchedule} 
-            />
+            <ScheduleView students={students} />
         ) : (
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="p-6 border-b">
@@ -545,7 +670,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                                                   <p className="mt-1">Isto significa que suas <strong>Regras de Segurança</strong> do Firestore estão bloqueando o acesso. Para desenvolvimento, você pode usar regras abertas.</p>
                                                   <p className="mt-1">Vá para a seção <strong>Firestore Database &gt; Rules</strong> no seu Firebase Console e cole as seguintes regras:</p>
                                                   <pre className="mt-1 p-2 bg-red-100 text-red-900 rounded text-xs whitespace-pre-wrap font-mono">
-                                                      {`rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if request.auth != null && request.auth.uid == resource.data.trainerId;\n      // Allow admin to manage trainers\n      match /trainers/{trainerId} {\n           allow read, write: if true; // Or restrict to admin user \n      }\n    }\n  }\n}`}
+                                                      {`rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`}
                                                   </pre>
                                               </div>
 
@@ -580,7 +705,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                         <tbody>
                             {students.length > 0 ? students.map(student => {
                                 const status = getStudentStatus(student);
-                                const colorClasses = {
+                                const colorClasses: { [key: string]: string } = {
                                     red: 'text-red-800 bg-red-100',
                                     yellow: 'text-yellow-800 bg-yellow-100',
                                     green: 'text-green-800 bg-green-100',
@@ -667,8 +792,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             isOpen={isProfileModalOpen}
             onClose={() => setProfileModalOpen(false)}
             trainer={trainer}
+            trainerSettings={trainerSettings}
             onUpdateProfile={handleUpdateTrainerProfile}
             onUpdatePassword={handleUpdateTrainerPassword}
+            onUpdateSettings={handleUpdateTrainerSettings}
+        />
+      )}
+
+      {isBulkEmailModalOpen && (
+        <BulkEmailModal
+          isOpen={isBulkEmailModalOpen}
+          onClose={() => setBulkEmailModalOpen(false)}
+          students={students}
+          trainer={trainer}
+          trainerSettings={trainerSettings}
         />
       )}
     </>
