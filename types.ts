@@ -85,6 +85,13 @@ export interface Workout {
     createdAt: string; // ISO string
 }
 
+export interface WorkoutTemplate {
+    id: string;
+    trainerId: string;
+    title: string;
+    exercises: Exercise[];
+}
+
 
 export interface StudentFile {
     id: string;

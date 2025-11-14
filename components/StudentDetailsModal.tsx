@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer, Exercise } from '../types';
+import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer, Exercise, WorkoutTemplate } from '../types';
 import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon, EyeIcon, EyeOffIcon } from './icons';
 import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
@@ -8,11 +8,13 @@ import { db, storage } from '../firebase';
 import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc, Timestamp, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { sendEmail, generateEmailTemplate } from '../services/emailService';
+import WorkoutEditor from './WorkoutEditor';
 
 interface StudentDetailsModalProps {
   student: Student;
   plans: Plan[];
   trainer: Trainer;
+  workoutTemplates: WorkoutTemplate[];
   onClose: () => void;
   onUpdate: (student: Student) => Promise<void>;
   onDelete: (studentId: string) => Promise<void>;
@@ -64,7 +66,7 @@ const checkScheduleConflict = (
     return { hasConflict: false };
 };
 
-const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plans, trainer, onClose, onUpdate, onDelete, onAddPayment, allStudents }) => {
+const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plans, trainer, workoutTemplates, onClose, onUpdate, onDelete, onAddPayment, allStudents }) => {
   const [activeTab, setActiveTab] = useState<Tab>('details');
   const [editableStudent, setEditableStudent] = useState<Student>(student);
   const [isEditing, setIsEditing] = useState(false);
@@ -232,7 +234,7 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
         return <div className="text-center p-8">Carregando...</div>;
     }
     switch (activeTab) {
-        case 'workouts': return <WorkoutsTab student={student} trainer={trainer} workouts={workouts} onUpdate={fetchFeatureData} />;
+        case 'workouts': return <WorkoutsTab student={student} trainer={trainer} workouts={workouts} templates={workoutTemplates} onUpdate={fetchFeatureData} />;
         case 'files': return <FilesTab student={student} files={studentFiles} onUpdate={fetchFeatureData} />;
         case 'progress': return <ProgressTab student={student} photos={progressPhotos} onUpdate={fetchFeatureData} />;
         case 'details':
@@ -508,20 +510,19 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
     );
 };
 
-const WorkoutsTab: React.FC<{ student: Student, trainer: Trainer, workouts: Workout[], onUpdate: () => void }> = ({ student, trainer, workouts, onUpdate }) => {
-    const [isAdding, setIsAdding] = useState(false);
+const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Workout[]; templates: WorkoutTemplate[]; onUpdate: () => void; }> = ({ student, trainer, workouts, templates, onUpdate }) => {
     const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
+    const [creationMode, setCreationMode] = useState<'idle' | 'choice' | 'editing'>('idle');
+    const [newWorkoutData, setNewWorkoutData] = useState<Workout | null>(null);
 
     const handleSaveWorkout = async (workout: Omit<Workout, 'id' | 'createdAt'> | Workout) => {
         try {
-            if ('id' in workout) {
-                // Updating existing workout
+            if ('id' in workout && workout.id) {
                 const workoutRef = doc(db, 'workouts', workout.id);
                 const dataToSave = { ...workout };
-                delete (dataToSave as any).id; // Don't save id field inside document
+                delete (dataToSave as any).id;
                 await updateDoc(workoutRef, dataToSave);
             } else {
-                // Adding new workout
                 await addDoc(collection(db, 'workouts'), {
                     ...workout,
                     studentId: student.id,
@@ -529,9 +530,10 @@ const WorkoutsTab: React.FC<{ student: Student, trainer: Trainer, workouts: Work
                     createdAt: Timestamp.now(),
                 });
             }
-            onUpdate(); // Refresh the list
-            setIsAdding(false);
+            onUpdate();
+            setCreationMode('idle');
             setEditingWorkout(null);
+            setNewWorkoutData(null);
         } catch (error) {
             console.error("Error saving workout:", error);
             alert("Não foi possível salvar o treino.");
@@ -545,12 +547,72 @@ const WorkoutsTab: React.FC<{ student: Student, trainer: Trainer, workouts: Work
         }
     };
 
-    if (isAdding || editingWorkout) {
+    const handleSelectTemplate = (template: WorkoutTemplate) => {
+        const workoutFromTemplate = {
+            id: '',
+            studentId: student.id,
+            trainerId: trainer.id,
+            title: template.title,
+            exercises: template.exercises.map(ex => ({...ex, id: `${Date.now()}-${Math.random()}`})), // Give new IDs to exercises
+            createdAt: new Date().toISOString()
+        };
+        setNewWorkoutData(workoutFromTemplate);
+        setCreationMode('editing');
+    };
+
+    const handleCancelCreation = () => {
+        setCreationMode('idle');
+        setEditingWorkout(null);
+        setNewWorkoutData(null);
+    };
+    
+    if (creationMode === 'choice') {
+        return (
+            <div className="p-4">
+                <h3 className="font-bold text-lg mb-4">Criar Nova Planilha</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button onClick={() => setCreationMode('editing')} className="p-6 border rounded-lg hover:bg-gray-50 text-center">
+                        <h4 className="font-semibold text-brand-dark">Começar do Zero</h4>
+                        <p className="text-sm text-gray-500">Crie uma planilha de treino em branco.</p>
+                    </button>
+                    <button onClick={() => setCreationMode('editing')} className="p-6 border rounded-lg hover:bg-gray-50 text-center" disabled={templates.length === 0}>
+                        <h4 className="font-semibold text-brand-dark">Usar Modelo</h4>
+                        <p className="text-sm text-gray-500">
+                            {templates.length > 0 ? `Escolha um dos ${templates.length} modelos disponíveis.` : 'Nenhum modelo criado.'}
+                        </p>
+                    </button>
+                </div>
+                
+                 {templates.length > 0 && (
+                     <div className="mt-6">
+                        <h4 className="font-semibold mb-2">Selecione um modelo para começar:</h4>
+                         <div className="space-y-2 max-h-60 overflow-y-auto">
+                         {templates.map(t => (
+                             <button key={t.id} onClick={() => handleSelectTemplate(t)} className="w-full text-left p-3 border rounded-md hover:bg-blue-50">
+                                 <p className="font-semibold">{t.title}</p>
+                                 <p className="text-xs text-gray-500">{t.exercises.length} exercícios</p>
+                             </button>
+                         ))}
+                         </div>
+                     </div>
+                 )}
+                 <div className="text-right mt-4">
+                     <button onClick={handleCancelCreation} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                        Cancelar
+                    </button>
+                 </div>
+            </div>
+        )
+    }
+
+    if (creationMode === 'editing' || editingWorkout) {
         return <WorkoutEditor 
-            workout={editingWorkout} 
-            trainerId={trainer.id}
+            initialData={editingWorkout || newWorkoutData}
             onSave={handleSaveWorkout} 
-            onCancel={() => { setIsAdding(false); setEditingWorkout(null); }} 
+            onCancel={handleCancelCreation} 
+            trainerId={trainer.id}
+            studentId={student.id}
+            isTemplateMode={false}
         />
     }
 
@@ -558,7 +620,7 @@ const WorkoutsTab: React.FC<{ student: Student, trainer: Trainer, workouts: Work
         <div className="space-y-4 max-h-[60vh] overflow-y-auto p-1">
             <div className="flex justify-between items-center">
                 <h3 className="font-bold text-lg">Planilhas de Treino</h3>
-                <button onClick={() => setIsAdding(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">
+                <button onClick={() => setCreationMode('choice')} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">
                     <PlusIcon className="w-5 h-5" /> Nova Planilha
                 </button>
             </div>
@@ -586,174 +648,6 @@ const WorkoutsTab: React.FC<{ student: Student, trainer: Trainer, workouts: Work
         </div>
     );
 };
-
-const WorkoutEditor: React.FC<{
-    workout: Workout | null;
-    trainerId: string;
-    onSave: (workout: Omit<Workout, 'id' | 'createdAt'> | Workout) => void;
-    onCancel: () => void;
-}> = ({ workout, trainerId, onSave, onCancel }) => {
-    const [title, setTitle] = useState(workout?.title || '');
-    const [exercises, setExercises] = useState<Exercise[]>(workout?.exercises || []);
-    const [exerciseLibrary, setExerciseLibrary] = useState<Omit<Exercise, 'id'>[]>([]);
-    const [activeSuggestionBox, setActiveSuggestionBox] = useState<number | null>(null);
-    const [flashedIndex, setFlashedIndex] = useState<number | null>(null);
-    const exerciseRefs = useRef<(HTMLDivElement | null)[]>([]);
-
-    useEffect(() => {
-        const fetchLibrary = async () => {
-            if (!trainerId) return;
-            const q = query(collection(db, 'trainerExercises'), where("trainerId", "==", trainerId));
-            const snapshot = await getDocs(q);
-            const lib = snapshot.docs.map(doc => doc.data() as Omit<Exercise, 'id'>);
-            setExerciseLibrary(lib);
-        };
-        fetchLibrary();
-    }, [trainerId]);
-    
-    const handleExerciseChange = (index: number, field: keyof Exercise, value: string | boolean) => {
-        const newExercises = [...exercises];
-        newExercises[index] = { ...newExercises[index], [field]: value };
-        setExercises(newExercises);
-    };
-
-    const addExercise = () => {
-        setExercises([...exercises, { id: `${Date.now()}`, name: '', sets: '', reps: '', rest: '', notes: '', youtubeUrl: '', isHidden: false }]);
-    };
-    
-    const removeExercise = (index: number) => {
-        setExercises(exercises.filter((_, i) => i !== index));
-    };
-
-    const handleSelectSuggestion = (index: number, suggestion: Omit<Exercise, 'id'>) => {
-        const newExercises = [...exercises];
-        newExercises[index] = {
-            ...newExercises[index],
-            name: suggestion.name,
-            sets: suggestion.sets,
-            reps: suggestion.reps,
-            rest: suggestion.rest,
-            notes: suggestion.notes,
-            youtubeUrl: suggestion.youtubeUrl,
-        };
-        setExercises(newExercises);
-        setActiveSuggestionBox(null);
-        
-        // Visual feedback
-        setFlashedIndex(index);
-        setTimeout(() => setFlashedIndex(null), 1000);
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        
-        const newLibraryEntries = [];
-        for (const exercise of exercises) {
-            if (exercise.name) {
-                const isNewToLibrary = !exerciseLibrary.some(libEx => libEx.name.toLowerCase() === exercise.name.toLowerCase());
-                if (isNewToLibrary) {
-                    const { id, ...data } = exercise;
-                    const newLibraryEntry = { ...data, trainerId };
-                    newLibraryEntries.push(newLibraryEntry);
-
-                    const docId = `${trainerId}-${exercise.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')}`;
-                    await setDoc(doc(db, 'trainerExercises', docId), newLibraryEntry, { merge: true });
-                }
-            }
-        }
-        
-        // Immediately update local library state for next autocomplete
-        if (newLibraryEntries.length > 0) {
-            setExerciseLibrary(prev => [...prev, ...newLibraryEntries]);
-        }
-        
-        const workoutData = {
-            title,
-            exercises,
-            ...(workout && { id: workout.id, studentId: workout.studentId, trainerId: workout.trainerId })
-        };
-        onSave(workoutData as any);
-    };
-
-    const filteredSuggestions = (index: number) => {
-        const currentName = exercises[index]?.name;
-        if (activeSuggestionBox !== index || !currentName || currentName.length < 2) {
-            return [];
-        }
-        return exerciseLibrary.filter(ex => ex.name.toLowerCase().includes(currentName.toLowerCase()));
-    };
-
-    return (
-        <form onSubmit={handleSubmit} className="space-y-6 p-2 max-h-[65vh] overflow-y-auto">
-            <div>
-                <label className="block text-sm font-bold text-gray-700">Título da Planilha</label>
-                <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex: Treino A - Foco em Peito" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required />
-            </div>
-            <div className="space-y-4">
-                {exercises.map((ex, index) => {
-                    const cardClass = `p-4 border rounded-lg bg-gray-50 space-y-2 relative transition-all duration-300 ${ex.isHidden ? 'opacity-50 bg-gray-100' : ''} ${flashedIndex === index ? 'bg-green-100 border-green-300' : ''}`;
-                    return (
-                        <div key={ex.id} ref={el => exerciseRefs.current[index] = el} className={cardClass}>
-                            <div className="absolute top-2 right-2 flex gap-2">
-                                <button type="button" onClick={() => handleExerciseChange(index, 'isHidden', !ex.isHidden)} className="text-gray-400 hover:text-blue-600" title={ex.isHidden ? 'Mostrar para o aluno' : 'Ocultar do aluno'}>
-                                    {ex.isHidden ? <EyeOffIcon className="w-5 h-5"/> : <EyeIcon className="w-5 h-5"/>}
-                                </button>
-                                <button type="button" onClick={() => removeExercise(index)} className="text-gray-400 hover:text-red-600"><TrashIcon className="w-5 h-5"/></button>
-                            </div>
-                            <div className="relative">
-                                <input 
-                                    type="text" 
-                                    value={ex.name} 
-                                    onChange={e => {
-                                        handleExerciseChange(index, 'name', e.target.value);
-                                        setActiveSuggestionBox(index);
-                                    }}
-                                    onBlur={() => setTimeout(() => setActiveSuggestionBox(null), 200)}
-                                    placeholder="Nome do Exercício" 
-                                    className="text-md font-semibold w-full border-b pb-1 bg-transparent focus:outline-none focus:border-brand-primary pr-16"
-                                />
-                                {filteredSuggestions(index).length > 0 && (
-                                    <ul className="absolute z-20 w-full bg-white border rounded-md mt-1 max-h-40 overflow-y-auto shadow-lg">
-                                        {filteredSuggestions(index).map(suggestion => (
-                                            <li
-                                              key={suggestion.name}
-                                              className="p-2 hover:bg-gray-100 cursor-pointer"
-                                              onMouseDown={() => handleSelectSuggestion(index, suggestion)}
-                                            >
-                                              {suggestion.name}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                <input type="text" value={ex.sets} onChange={e => handleExerciseChange(index, 'sets', e.target.value)} placeholder="Séries" className="text-sm w-full border-gray-300 rounded-md"/>
-                                <input type="text" value={ex.reps} onChange={e => handleExerciseChange(index, 'reps', e.target.value)} placeholder="Reps" className="text-sm w-full border-gray-300 rounded-md"/>
-                                <input type="text" value={ex.rest} onChange={e => handleExerciseChange(index, 'rest', e.target.value)} placeholder="Descanso" className="text-sm w-full border-gray-300 rounded-md"/>
-                                <input type="text" value={ex.youtubeUrl} onChange={e => handleExerciseChange(index, 'youtubeUrl', e.target.value)} placeholder="Link YouTube (Opcional)" className="text-sm w-full border-gray-300 rounded-md"/>
-                            </div>
-                            <textarea value={ex.notes} onChange={e => handleExerciseChange(index, 'notes', e.target.value)} placeholder="Observações (ex: cadência, técnica)" className="text-sm w-full border-gray-300 rounded-md mt-1" rows={1}></textarea>
-                             {ex.studentFeedback && (
-                                <div className="mt-2 p-2 bg-yellow-50 border-l-4 border-yellow-300">
-                                    <p className="text-xs font-bold text-yellow-800">Feedback do Aluno:</p>
-                                    <p className="text-sm text-yellow-900 italic">"{ex.studentFeedback}"</p>
-                                </div>
-                            )}
-                        </div>
-                    )
-                })}
-                <button type="button" onClick={addExercise} className="w-full flex items-center justify-center gap-2 py-2 text-sm font-medium text-brand-primary border-2 border-dashed border-gray-300 rounded-md hover:bg-gray-100">
-                    <PlusIcon className="w-4 h-4"/> Adicionar Exercício
-                </button>
-            </div>
-            <div className="flex justify-end gap-4 pt-4 sticky bottom-0 bg-white py-2">
-                <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Cancelar</button>
-                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Salvar Planilha</button>
-            </div>
-        </form>
-    );
-};
-
 
 const FilesTab: React.FC<{student: Student, files: StudentFile[], onUpdate: () => void}> = ({ student, files, onUpdate }) => {
     // This tab is now interactive, allowing file uploads.

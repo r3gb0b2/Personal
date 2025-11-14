@@ -2,8 +2,8 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy, updateDoc, getDoc } from 'firebase/firestore';
 import { AUTH_SESSION_KEY } from '../constants';
-import { Student, Plan, Payment, Trainer, DaySchedule } from '../types';
-import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon, MailIcon } from './icons';
+import { Student, Plan, Payment, Trainer, DaySchedule, WorkoutTemplate } from '../types';
+import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon, MailIcon, ClipboardListIcon } from './icons';
 import StudentDetailsModal from './StudentDetailsModal';
 import PlanManagementModal from './PlanManagementModal';
 import AddStudentModal from './AddStudentModal';
@@ -11,7 +11,7 @@ import FinancialReportModal from './modals/FinancialReportModal';
 import Modal from './modals/Modal';
 import ScheduleView from './ScheduleView';
 import BulkEmailModal from './modals/BulkEmailModal';
-import { sendEmail, EmailPayload } from '../services/emailService';
+import WorkoutTemplateModal from './modals/WorkoutTemplateModal';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -171,6 +171,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [workoutTemplates, setWorkoutTemplates] = useState<WorkoutTemplate[]>([]);
   const [currentTrainer, setCurrentTrainer] = useState<Trainer>(trainer);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -178,6 +179,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isPlanModalOpen, setPlanModalOpen] = useState(false);
+  const [isTemplateModalOpen, setTemplateModalOpen] = useState(false);
   const [isAddStudentModalOpen, setAddStudentModalOpen] = useState(false);
   const [isFinancialReportModalOpen, setFinancialReportModalOpen] = useState(false);
   const [isProfileModalOpen, setProfileModalOpen] = useState(false);
@@ -192,6 +194,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       const studentsSnapshot = await getDocs(collection(db, 'students'));
       const plansSnapshot = await getDocs(collection(db, 'plans'));
       const paymentsSnapshot = await getDocs(query(collection(db, 'payments'), orderBy('paymentDate', 'desc')));
+      const templatesSnapshot = await getDocs(collection(db, 'workoutTemplates'));
 
       const filterByTrainer = (doc: any) => {
           const data = doc.data();
@@ -220,6 +223,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       });
 
       const plansList = plansSnapshot.docs.filter(filterByTrainer).map(docSnapshot => ({ id: docSnapshot.id, ...docSnapshot.data() } as Plan));
+      
+      const templatesList = templatesSnapshot.docs.filter(filterByTrainer).map(docSnapshot => ({ id: docSnapshot.id, ...docSnapshot.data() } as WorkoutTemplate));
 
       const paymentsList = paymentsSnapshot.docs.filter(filterByTrainer).map(docSnapshot => {
         const data = docSnapshot.data();
@@ -233,6 +238,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       setStudents(studentsList);
       setPlans(plansList);
       setPayments(paymentsList);
+      setWorkoutTemplates(templatesList);
 
     } catch (err) {
       console.error("Firebase Connection Error Details:", err);
@@ -526,6 +532,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             <button onClick={() => setPlanModalOpen(true)} className="flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors shadow">
                 <BriefcaseIcon className="w-5 h-5" /> Gerenciar Planos
             </button>
+             <button onClick={() => setTemplateModalOpen(true)} className="flex items-center gap-2 bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-600 transition-colors shadow">
+                <ClipboardListIcon className="w-5 h-5" /> Modelos de Treino
+            </button>
              <button onClick={() => setView(view === 'list' ? 'schedule' : 'list')} className="flex items-center gap-2 bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors shadow">
                 <CalendarIcon className="w-5 h-5" /> {view === 'list' ? 'Ver Agenda' : 'Ver Lista de Alunos'}
             </button>
@@ -670,6 +679,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
           student={selectedStudent}
           plans={plans}
           trainer={currentTrainer}
+          workoutTemplates={workoutTemplates}
           onClose={() => setSelectedStudent(null)}
           onUpdate={handleUpdateStudent}
           onDelete={handleDeleteStudent}
@@ -685,6 +695,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             onUpdatePlan={handleUpdatePlan}
             onDeletePlan={handleDeletePlan}
             onClose={() => setPlanModalOpen(false)}
+        />
+      )}
+
+      {isTemplateModalOpen && (
+        <WorkoutTemplateModal
+          isOpen={isTemplateModalOpen}
+          onClose={() => setTemplateModalOpen(false)}
+          templates={workoutTemplates}
+          trainerId={currentTrainer.id}
+          onUpdate={fetchData} 
         />
       )}
 
