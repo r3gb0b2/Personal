@@ -1,108 +1,149 @@
-// Fix: Use the v1 compatibility layer for firebase-functions.
-// The existing code is written for Cloud Functions v1 (e.g., uses functions.config()).
-// Newer versions of the firebase-functions SDK default to v2, causing type errors
-// and breaking changes. Importing from "firebase-functions/v1" ensures
-// that the v1 function signatures, types, and features are used.
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
-import cors from "cors";
 
 admin.initializeApp();
 
-const corsHandler = cors({origin: true});
+const db = admin.firestore();
 
-// Fix: Explicitly type request and response to ensure TypeScript uses the correct v1 signatures.
-// This resolves errors where properties like `method`, `body`, and `status` were not found,
-// and ensures compatibility with the `cors` middleware.
-export const sendEmail = functions.https.onRequest(
-  (request: functions.https.Request, response: functions.Response) => {
-    corsHandler(request, response, async () => {
-      if (request.method !== "POST") {
-        response.status(405).send("Method Not Allowed");
+// Função Agendada para rodar todos os dias às 9:00, horário de São Paulo
+export const sendLowSessionReminders = functions.pubsub
+  .schedule("every day 09:00")
+  .timeZone("America/Sao_Paulo")
+  .onRun(async (context) => {
+    functions.logger.info("Iniciando verificação de lembretes de poucas aulas.");
+
+    // Fix: The 'config' function on the 'functions' object was not being correctly
+    // typed, leading to a TypeScript error. Casting 'functions.config()' to 'any'
+    // bypasses the incorrect type definition and allows accessing configuration.
+    const config = functions.config() as any;
+    const apiKey = config.brevo?.key;
+    const globalSenderEmail = config.brevo?.sender;
+
+    if (!apiKey || !globalSenderEmail) {
+      functions.logger.error(
+        // Fix: Corrected typo in error message.
+        "A chave da API ou e-mail remetente da Brevo não estão configurados."
+      );
+      return null;
+    }
+
+    // 1. Buscar todos os planos do tipo 'session'
+    const plansSnapshot = await db
+      .collection("plans")
+      .where("type", "==", "session")
+      .get();
+    const sessionPlanIds = plansSnapshot.docs.map((doc) => doc.id);
+
+    if (sessionPlanIds.length === 0) {
+      functions.logger.info("Nenhum plano por sessão encontrado. Encerrando.");
+      return null;
+    }
+
+    // 2. Buscar alunos que têm esses planos e poucas aulas restantes (1, 2 ou 3)
+    const studentsSnapshot = await db
+      .collection("students")
+      .where("planId", "in", sessionPlanIds)
+      .where("remainingSessions", "in", [1, 2, 3])
+      .get();
+
+    if (studentsSnapshot.empty) {
+      functions.logger.info("Nenhum aluno com poucas aulas. Encerrando.");
+      return null;
+    }
+
+    // Agrupar alunos por personal para buscar dados do personal uma vez só
+    const trainersToFetch = new Set<string>();
+    studentsSnapshot.docs.forEach((doc) => {
+      const student = doc.data();
+      if (student.trainerId) {
+        trainersToFetch.add(student.trainerId);
+      }
+    });
+
+    const trainerPromises = Array.from(trainersToFetch).map((id) =>
+      db.collection("trainers").doc(id).get()
+    );
+    const trainerSnaps = await Promise.all(trainerPromises);
+    const trainerDataMap = new Map<string, admin.firestore.DocumentData>();
+    trainerSnaps.forEach((snap) => {
+      if (snap.exists) {
+        trainerDataMap.set(snap.id, snap.data()!);
+      }
+    });
+
+
+    // 3. Iterar e enviar e-mails
+    const emailPromises = studentsSnapshot.docs.map(async (studentDoc) => {
+      const student = studentDoc.data();
+      const studentId = studentDoc.id;
+      const remaining = student.remainingSessions;
+      const reminderKey = `sessions_${remaining}`;
+
+      // Verificar se o lembrete para esta contagem específica já foi enviado
+      if (student.remindersSent && student.remindersSent[reminderKey]) {
+        functions.logger.info(`Lembrete para ${student.name} (${remaining} aulas) já enviado.`);
         return;
       }
 
-      const apiKey = functions.config().brevo?.key;
-      const globalSenderEmail = functions.config().brevo?.sender;
-
-      if (!apiKey || !globalSenderEmail) {
-        functions.logger.error(
-          "Brevo API key or sender email is not configured in Firebase.",
-        );
-        response.status(500).json({
-          error: "A configuração de e-mail do servidor está incompleta.",
-        });
+      if (!student.email) {
+        functions.logger.warn(`Aluno ${student.name} não possui e-mail.`);
         return;
       }
+      
+      const trainer = trainerDataMap.get(student.trainerId);
+      if (!trainer) {
+          functions.logger.warn(`Personal do aluno ${student.name} não encontrado.`);
+          return;
+      }
+      
+      const trainerName = trainer.fullName || trainer.username;
 
-      const {
-        trainerId,
-        recipients,
+      // Montar e-mail
+      const subject = `Suas aulas de personal estão acabando!`;
+      const htmlContent = `
+        <p>Olá ${student.name},</p>
+        <p>Tudo bem? Este é um lembrete amigável de que seu pacote de aulas está chegando ao fim.</p>
+        <p>Atualmente, você tem <strong>${remaining} aula${remaining > 1 ? "s" : ""} restante${remaining > 1 ? "s" : ""}</strong>.</p>
+        <p>Para não interromper sua rotina de treinos, fale com seu personal para garantir a renovação do seu plano.</p>
+        <p>Qualquer dúvida, é só responder a este e-mail.</p>
+        <p>Abraços,<br/>${trainerName}</p>
+      `;
+
+      const emailPayload = {
+        sender: {email: globalSenderEmail, name: trainerName},
+        to: [{email: student.email, name: student.name}],
+        replyTo: {email: trainer.contactEmail || globalSenderEmail, name: trainerName},
         subject,
         htmlContent,
-      } = request.body;
-      if (
-        !trainerId ||
-        !recipients ||
-        !subject ||
-        !htmlContent
-      ) {
-        response.status(400).json({error: "Dados incompletos na requisição."});
-        return;
-      }
+      };
 
       try {
-        const trainerRef = admin.firestore().collection("trainers").doc(trainerId);
-        const trainerSnap = await trainerRef.get();
-
-        if (!trainerSnap.exists) {
-          response.status(404).json({error: "Personal não encontrado."});
-          return;
-        }
-        const trainerData = trainerSnap.data() || {};
-        const trainerName =
-          trainerData.fullName || trainerData.username || "Personal Trainer";
-
-        const sender = {
-          email: globalSenderEmail,
-          name: trainerName,
-        };
-
-        const replyTo = {
-          email: trainerData.contactEmail || globalSenderEmail,
-          name: trainerName,
-        };
-
-        const brevoResponse = await fetch("https://api.brevo.com/v3/smtp/email", {
+        const response = await fetch("https://api.brevo.com/v3/smtp/email", {
           method: "POST",
           headers: {
             "accept": "application/json",
             "api-key": apiKey,
             "content-type": "application/json",
           },
-          body: JSON.stringify({
-            sender,
-            to: recipients,
-            replyTo,
-            subject,
-            htmlContent,
-          }),
+          body: JSON.stringify(emailPayload),
         });
 
-        if (!brevoResponse.ok) {
-          const errorData = await brevoResponse.json();
-          functions.logger.error("Brevo API Error:", errorData);
-          const errorBody = JSON.stringify(errorData);
-          throw new Error(`Falha no envio: ${errorBody}`);
+        if (response.ok) {
+          functions.logger.info(`Email de lembrete enviado para ${student.name}.`);
+          // Marcar lembrete como enviado no Firestore
+          await studentDoc.ref.update({
+            [`remindersSent.${reminderKey}`]: new Date().toISOString(),
+          });
+        } else {
+          const errorData = await response.json();
+          functions.logger.error(`Falha ao enviar e-mail para ${student.name}`, errorData);
         }
-
-        response.status(200).json({success: true});
       } catch (error) {
-        functions.logger.error("Error in sendEmail function:", error);
-        const message = error instanceof Error ?
-          error.message : "Ocorreu um erro interno.";
-        response.status(500).json({error: message});
+        functions.logger.error(`Erro de sistema ao enviar e-mail para ${student.name}`, error);
       }
     });
-  },
-);
+
+    await Promise.all(emailPromises);
+    functions.logger.info("Verificação de lembretes concluída.");
+    return null;
+  });

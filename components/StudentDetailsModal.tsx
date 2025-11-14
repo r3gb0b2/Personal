@@ -218,7 +218,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
     }
     switch (activeTab) {
         case 'workouts': return <WorkoutsTab student={student} workouts={workouts} onUpdate={fetchFeatureData} />;
-        case 'files': return <FilesTab files={studentFiles} />;
+        case 'files': return <FilesTab student={student} files={studentFiles} onUpdate={fetchFeatureData} />;
         case 'progress': return <ProgressTab student={student} photos={progressPhotos} onUpdate={fetchFeatureData} />;
         case 'details':
         default:
@@ -314,6 +314,14 @@ const DetailsTab: React.FC<any> = ({ student, plans, isEditing, setIsEditing, ed
     };
     const dayOrder = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const sortedSchedule = student.schedule ? [...student.schedule].sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day)) : [];
+    
+    const remainingSessions = student.remainingSessions;
+    let reminderSentMessage = null;
+    if (remainingSessions && student.remindersSent && student.remindersSent[`sessions_${remainingSessions}`]) {
+        const reminderDate = new Date(student.remindersSent[`sessions_${remainingSessions}`]).toLocaleDateString('pt-BR');
+        reminderSentMessage = `Lembrete automático enviado em ${reminderDate}.`;
+    }
+
 
     return (
         isEditing ? (
@@ -384,7 +392,7 @@ const DetailsTab: React.FC<any> = ({ student, plans, isEditing, setIsEditing, ed
                     </ul>
                 ) : <p className="text-gray-600">Nenhum horário definido</p>}
             </div></div><div className="flex gap-2"><button onClick={() => setIsEditing(true)} className="px-3 py-1 text-sm font-medium text-white bg-brand-secondary rounded-md hover:bg-gray-700">Editar</button><button onClick={handleDelete} className="px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Excluir</button></div></div></div></div>
-            <div className={`p-4 rounded-lg ${(isPaymentDue || areSessionsLow) ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border`}><div className="flex justify-between items-center"><div><h3 className="font-bold text-lg">{studentPlan?.name || 'Sem plano'}</h3><div className="flex items-center gap-2 mt-1">{(isPaymentDue || areSessionsLow) ? <ExclamationCircleIcon className="w-5 h-5 text-red-500" /> : <CheckCircleIcon className="w-5 h-5 text-green-500" />}<span className={(isPaymentDue || areSessionsLow) ? 'text-red-600' : 'text-green-600'}>{studentPlan?.type === 'duration' && (student.paymentDueDate ? `Vencimento em ${formatDate(student.paymentDueDate)}` : 'Sem data de vencimento')}{studentPlan?.type === 'session' && (() => {const remaining = student.remainingSessions;if (remaining == null) return "Contagem de aulas não iniciada";if (remaining < 0) {const plural = Math.abs(remaining) > 1;return `${Math.abs(remaining)} aula${plural ? 's' : ''} devendo (a deduzir na renovação)`;}if (remaining === 0) return 'Nenhuma aula restante';const plural = remaining > 1;return `${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}`;})()}{!studentPlan && 'Aluno sem plano ativo'}</span></div></div>{student.planId && <button onClick={() => setPaymentModalOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Marcar como Pago/Renovar</button>}</div></div>
+            <div className={`p-4 rounded-lg ${(isPaymentDue || areSessionsLow) ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border`}><div className="flex justify-between items-center"><div><h3 className="font-bold text-lg">{studentPlan?.name || 'Sem plano'}</h3><div className="flex flex-col"><div className="flex items-center gap-2 mt-1"><span className={(isPaymentDue || areSessionsLow) ? 'text-red-600' : 'text-green-600'}>{(isPaymentDue || areSessionsLow) ? <ExclamationCircleIcon className="w-5 h-5 text-red-500" /> : <CheckCircleIcon className="w-5 h-5 text-green-500" />}{studentPlan?.type === 'duration' && (student.paymentDueDate ? `Vencimento em ${formatDate(student.paymentDueDate)}` : 'Sem data de vencimento')}{studentPlan?.type === 'session' && (() => {const remaining = student.remainingSessions;if (remaining == null) return "Contagem de aulas não iniciada";if (remaining < 0) {const plural = Math.abs(remaining) > 1;return `${Math.abs(remaining)} aula${plural ? 's' : ''} devendo (a deduzir na renovação)`;}if (remaining === 0) return 'Nenhuma aula restante';const plural = remaining > 1;return `${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}`;})()}{!studentPlan && 'Aluno sem plano ativo'}</span></div> {reminderSentMessage && (<p className="text-xs text-gray-500 mt-1 italic">{reminderSentMessage}</p>)} </div></div>{student.planId && <button onClick={() => setPaymentModalOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Marcar como Pago/Renovar</button>}</div></div>
             <div><div className="flex justify-between items-center mb-2"><h3 className="font-bold text-lg">Histórico de Aulas</h3><div className="flex gap-2"><button onClick={() => handleAddSession('regular')} className="flex items-center gap-2 px-3 py-1 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent"><PlusIcon className="w-4 h-4" /> Aula de Hoje</button><button onClick={() => handleAddSession('extra')} title="Adicionar aula extra gratuita" className="px-3 py-1 text-sm font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600">Extra</button><button onClick={() => handleAddSession('absent')} title="Marcar falta" className="px-3 py-1 text-sm font-medium text-white bg-red-500 rounded-md hover:bg-red-600">Falta</button></div></div><div className="border rounded-lg max-h-48 overflow-y-auto">{student.sessions.length > 0 ? (<ul className="divide-y">{student.sessions.sort((a: ClassSession,b: ClassSession) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((session: ClassSession) => {const sessionInfo = sessionTypeInfo[session.type] || { label: 'Desconhecido', color: 'text-gray-500', bg: 'bg-gray-100' };return (<li key={session.id} className={`p-3 flex justify-between items-center ${sessionInfo.bg}`}><div className="flex items-center gap-3"><CalendarIcon className={`w-5 h-5 ${sessionInfo.color}`} /><div><span className="font-medium">{new Date(session.date).toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'})}</span><span className={`ml-2 text-xs font-semibold ${sessionInfo.color}`}>({sessionInfo.label})</span></div></div><button onClick={() => handleDeleteSession(session.id)} className="text-gray-400 hover:text-red-600"><TrashIcon className="w-5 h-5" /></button></li>)})}</ul>) : (<p className="text-center text-gray-500 p-4">Nenhuma aula registrada.</p>)}</div></div>
             </div>
         )
@@ -461,27 +469,32 @@ const WorkoutsTab: React.FC<{student: Student, workouts: Workout[], onUpdate: ()
     );
 };
 
-const FilesTab: React.FC<{files: StudentFile[]}> = ({ files }) => (
-    <div>
-        <h3 className="font-bold text-lg mb-2">Arquivos Enviados pelo Aluno</h3>
-        <div className="border rounded-lg max-h-96 overflow-y-auto">
-            {files.length > 0 ? (
-                <ul className="divide-y">{files.map(f => (
-                    <li key={f.id} className="p-3 flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                            <FileTextIcon className="w-6 h-6 text-brand-primary" />
-                            <div>
-                                <p className="font-medium">{f.fileName}</p>
-                                <p className="text-xs text-gray-500">Enviado em: {new Date(f.uploadedAt).toLocaleDateString('pt-BR')}</p>
+const FilesTab: React.FC<{student: Student, files: StudentFile[], onUpdate: () => void}> = ({ student, files, onUpdate }) => {
+    // This tab is now interactive, allowing file uploads.
+    // We pass student and onUpdate to handle the upload logic.
+    return (
+        <div>
+            <h3 className="font-bold text-lg mb-2">Arquivos do Aluno</h3>
+             <div className="border rounded-lg max-h-96 overflow-y-auto">
+                {files.length > 0 ? (
+                    <ul className="divide-y">{files.map(f => (
+                        <li key={f.id} className="p-3 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <FileTextIcon className="w-6 h-6 text-brand-primary" />
+                                <div>
+                                    <p className="font-medium">{f.fileName}</p>
+                                    <p className="text-xs text-gray-500">Enviado em: {new Date(f.uploadedAt).toLocaleDateString('pt-BR')}</p>
+                                </div>
                             </div>
-                        </div>
-                        <a href={f.fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Abrir</a>
-                    </li>
-                ))}</ul>
-            ) : <p className="text-center text-gray-500 p-8">Nenhum arquivo encontrado.</p>}
+                            <a href={f.fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Abrir</a>
+                        </li>
+                    ))}</ul>
+                ) : <p className="text-center text-gray-500 p-8">Nenhum arquivo encontrado.</p>}
+            </div>
         </div>
-    </div>
-);
+    );
+};
+
 
 const ProgressTab: React.FC<{student: Student, photos: ProgressPhoto[], onUpdate: () => void}> = ({ student, photos, onUpdate }) => {
     const [feedback, setFeedback] = useState<{[key: string]: string}>({});
