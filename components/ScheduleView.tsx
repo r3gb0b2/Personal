@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Student } from '../types';
+import { Student, Plan } from '../types';
 
 interface ScheduleViewProps {
   students: Student[];
+  plans: Plan[];
 }
 
 const timeToMinutes = (time: string): number => {
@@ -11,7 +12,7 @@ const timeToMinutes = (time: string): number => {
     return hours * 60 + minutes;
 };
 
-const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
+const ScheduleView: React.FC<ScheduleViewProps> = ({ students, plans }) => {
     const [now, setNow] = useState(new Date());
     const [displayDate, setDisplayDate] = useState(new Date());
     const containerRef = useRef<HTMLDivElement>(null);
@@ -59,22 +60,38 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
 
     const appointments = useMemo(() => {
         const dayMap: { [key: number]: string } = { 0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday' };
-        return weekDates.map((date, index) => {
+        
+        return weekDates.map(date => {
             const dayKey = dayMap[date.getDay()];
-            return {
-                date,
-                dayKey,
-                events: students.flatMap(student => 
-                    (student.schedule || []).filter(item => item.day === dayKey && item.startTime && item.endTime)
+            const dailyEvents = students.flatMap(student => {
+                // Check plan validity for this specific 'date'
+                const plan = plans.find(p => p.id === student.planId);
+                if (plan && plan.type === 'duration' && student.paymentDueDate) {
+                    const expirationDate = new Date(student.paymentDueDate);
+                    // Set hours to the end of the day to include the expiration day itself.
+                    expirationDate.setHours(23, 59, 59, 999);
+                    if (date > expirationDate) {
+                        return []; // This student's plan has expired, so no events for this day.
+                    }
+                }
+
+                // If plan is not duration-based or is still valid, find events for this day
+                return (student.schedule || [])
+                    .filter(item => item.day === dayKey && item.startTime && item.endTime)
                     .map(item => ({
                         studentId: student.id,
                         studentName: student.name,
                         ...item
-                    }))
-                )
+                    }));
+            });
+
+            return {
+                date,
+                dayKey,
+                events: dailyEvents,
             };
         });
-    }, [students, weekDates]);
+    }, [students, weekDates, plans]);
   
     const studentColors = useMemo(() => {
         const colors = [
