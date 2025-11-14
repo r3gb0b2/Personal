@@ -119,7 +119,9 @@ export const sendEmail = functions.https.onRequest((request, response) => {
     const {trainerId, recipients, subject, htmlContent} = request.body;
 
     if (!trainerId || !recipients || !subject || !htmlContent) {
-      response.status(400).json({error: "Dados incompletos na requisição."});
+      response.status(400).json({
+        error: "Dados incompletos na requisição.",
+      });
       return;
     }
 
@@ -129,27 +131,32 @@ export const sendEmail = functions.https.onRequest((request, response) => {
       const settingsSnap = await settingsRef.get();
 
       if (!settingsSnap.exists) {
-        response.status(404).json({error: "Configurações do personal não encontradas."});
+        response.status(404).json({
+          error: "Configurações do personal não encontradas.",
+        });
         return;
       }
-      
       const trainerRef = db.collection("trainers").doc(trainerId);
       const trainerSnap = await trainerRef.get();
       const trainerData = trainerSnap.data();
 
       const settings = settingsSnap.data();
       const apiKey = settings?.brevoApiKey;
+      const trainerName =
+        trainerData?.fullName || trainerData?.username || "Personal Trainer";
       const sender = {
         email: settings?.senderEmail,
-        name: trainerData?.fullName || trainerData?.username || "Personal Trainer",
+        name: trainerName,
       };
       const replyTo = {
         email: settings?.replyToEmail,
-        name: trainerData?.fullName || trainerData?.username || "Personal Trainer",
+        name: trainerName,
       };
 
       if (!apiKey || !sender.email || !replyTo.email) {
-        response.status(400).json({error: "Configurações de e-mail incompletas no perfil do personal."});
+        response.status(400).json({
+          error: "Configurações de e-mail incompletas no perfil do personal.",
+        });
         return;
       }
 
