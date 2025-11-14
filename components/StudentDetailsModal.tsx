@@ -219,7 +219,7 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
         return <div className="text-center p-8">Carregando...</div>;
     }
     switch (activeTab) {
-        case 'workouts': return <WorkoutsTab student={student} workouts={workouts} onUpdate={fetchFeatureData} />;
+        case 'workouts': return <WorkoutsTab student={student} trainer={trainer} workouts={workouts} onUpdate={fetchFeatureData} />;
         case 'files': return <FilesTab student={student} files={studentFiles} onUpdate={fetchFeatureData} />;
         case 'progress': return <ProgressTab student={student} photos={progressPhotos} onUpdate={fetchFeatureData} />;
         case 'details':
@@ -495,7 +495,7 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
     );
 };
 
-const WorkoutsTab: React.FC<{ student: Student, workouts: Workout[], onUpdate: () => void }> = ({ student, workouts, onUpdate }) => {
+const WorkoutsTab: React.FC<{ student: Student, trainer: Trainer, workouts: Workout[], onUpdate: () => void }> = ({ student, trainer, workouts, onUpdate }) => {
     const [isAdding, setIsAdding] = useState(false);
     const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
 
@@ -535,6 +535,7 @@ const WorkoutsTab: React.FC<{ student: Student, workouts: Workout[], onUpdate: (
     if (isAdding || editingWorkout) {
         return <WorkoutEditor 
             workout={editingWorkout} 
+            trainerId={trainer.id}
             onSave={handleSaveWorkout} 
             onCancel={() => { setIsAdding(false); setEditingWorkout(null); }} 
         />
@@ -570,11 +571,26 @@ const WorkoutsTab: React.FC<{ student: Student, workouts: Workout[], onUpdate: (
 
 const WorkoutEditor: React.FC<{
     workout: Workout | null;
+    trainerId: string;
     onSave: (workout: Omit<Workout, 'id' | 'createdAt'> | Workout) => void;
     onCancel: () => void;
-}> = ({ workout, onSave, onCancel }) => {
+}> = ({ workout, trainerId, onSave, onCancel }) => {
     const [title, setTitle] = useState(workout?.title || '');
     const [exercises, setExercises] = useState<Exercise[]>(workout?.exercises || []);
+    const [exerciseLibrary, setExerciseLibrary] = useState<Omit<Exercise, 'id'>[]>([]);
+    const [activeSuggestionBox, setActiveSuggestionBox] = useState<number | null>(null);
+
+    useEffect(() => {
+        const fetchLibrary = async () => {
+            if (!trainerId) return;
+            // A new collection 'trainerExercises' stores presets for each trainer
+            const q = query(collection(db, 'trainerExercises'), where("trainerId", "==", trainerId));
+            const snapshot = await getDocs(q);
+            const lib = snapshot.docs.map(doc => doc.data() as Omit<Exercise, 'id'>);
+            setExerciseLibrary(lib);
+        };
+        fetchLibrary();
+    }, [trainerId]);
     
     const handleExerciseChange = (index: number, field: keyof Exercise, value: string) => {
         const newExercises = [...exercises];
@@ -590,14 +606,52 @@ const WorkoutEditor: React.FC<{
         setExercises(exercises.filter((_, i) => i !== index));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSelectSuggestion = (index: number, suggestion: Omit<Exercise, 'id'>) => {
+        const newExercises = [...exercises];
+        newExercises[index] = {
+            ...newExercises[index], // keep client-side id
+            name: suggestion.name,
+            sets: suggestion.sets,
+            reps: suggestion.reps,
+            rest: suggestion.rest,
+            notes: suggestion.notes,
+            youtubeUrl: suggestion.youtubeUrl,
+        };
+        setExercises(newExercises);
+        setActiveSuggestionBox(null);
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Save any new exercises to the library for future use
+        for (const exercise of exercises) {
+            if (exercise.name) {
+                const isNewToLibrary = !exerciseLibrary.some(libEx => libEx.name.toLowerCase() === exercise.name.toLowerCase());
+                if (isNewToLibrary) {
+                    const { id, ...data } = exercise; // remove client-side id
+                    const newLibraryEntry = { ...data, trainerId };
+                    // Sanitize name to create a consistent doc ID and prevent duplicates
+                    const docId = `${trainerId}-${exercise.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')}`;
+                    await setDoc(doc(db, 'trainerExercises', docId), newLibraryEntry, { merge: true });
+                }
+            }
+        }
+        
         const workoutData = {
             title,
             exercises,
             ...(workout && { id: workout.id, studentId: workout.studentId, trainerId: workout.trainerId })
         };
         onSave(workoutData as any);
+    };
+
+    const filteredSuggestions = (index: number) => {
+        const currentName = exercises[index]?.name;
+        if (activeSuggestionBox !== index || !currentName || currentName.length < 2) {
+            return [];
+        }
+        return exerciseLibrary.filter(ex => ex.name.toLowerCase().includes(currentName.toLowerCase()));
     };
 
     return (
@@ -609,8 +663,33 @@ const WorkoutEditor: React.FC<{
             <div className="space-y-4">
                 {exercises.map((ex, index) => (
                     <div key={ex.id} className="p-4 border rounded-lg bg-gray-50 space-y-2 relative">
-                         <button type="button" onClick={() => removeExercise(index)} className="absolute top-2 right-2 text-gray-400 hover:text-red-600"><TrashIcon className="w-5 h-5"/></button>
-                        <input type="text" value={ex.name} onChange={e => handleExerciseChange(index, 'name', e.target.value)} placeholder="Nome do Exercício" className="text-md font-semibold w-full border-b pb-1 bg-transparent focus:outline-none focus:border-brand-primary"/>
+                        <button type="button" onClick={() => removeExercise(index)} className="absolute top-2 right-2 text-gray-400 hover:text-red-600"><TrashIcon className="w-5 h-5"/></button>
+                        <div className="relative">
+                            <input 
+                                type="text" 
+                                value={ex.name} 
+                                onChange={e => {
+                                    handleExerciseChange(index, 'name', e.target.value);
+                                    setActiveSuggestionBox(index);
+                                }}
+                                onBlur={() => setTimeout(() => setActiveSuggestionBox(null), 200)}
+                                placeholder="Nome do Exercício" 
+                                className="text-md font-semibold w-full border-b pb-1 bg-transparent focus:outline-none focus:border-brand-primary"
+                            />
+                            {filteredSuggestions(index).length > 0 && (
+                                <ul className="absolute z-20 w-full bg-white border rounded-md mt-1 max-h-40 overflow-y-auto shadow-lg">
+                                    {filteredSuggestions(index).map(suggestion => (
+                                        <li
+                                          key={suggestion.name}
+                                          className="p-2 hover:bg-gray-100 cursor-pointer"
+                                          onMouseDown={() => handleSelectSuggestion(index, suggestion)}
+                                        >
+                                          {suggestion.name}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                             <input type="text" value={ex.sets} onChange={e => handleExerciseChange(index, 'sets', e.target.value)} placeholder="Séries" className="text-sm w-full border-gray-300 rounded-md"/>
                             <input type="text" value={ex.reps} onChange={e => handleExerciseChange(index, 'reps', e.target.value)} placeholder="Reps" className="text-sm w-full border-gray-300 rounded-md"/>

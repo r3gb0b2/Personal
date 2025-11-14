@@ -1,55 +1,29 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Workout } from '../../types';
-import { DumbbellIcon, LinkIcon } from '../icons';
-import Modal from '../modals/Modal';
+import { DumbbellIcon } from '../icons';
 
 interface WorkoutPortalProps {
     workouts: Workout[];
     onBack: () => void;
 }
 
-const getYoutubeEmbedUrl = (url: string) => {
+const getYoutubeEmbedUrl = (url: string | undefined): string | null => {
     if (!url) return null;
     try {
         const urlObj = new URL(url);
         let videoId = urlObj.searchParams.get('v');
         if (!videoId) {
+            // Handles short URLs like youtu.be/VIDEOID
             videoId = urlObj.pathname.split('/').pop();
         }
         return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
     } catch (e) {
-        // Handle invalid URLs
+        console.error("Invalid YouTube URL:", e);
         return null;
     }
 }
 
-const VideoModal: React.FC<{ url: string, title: string, isOpen: boolean, onClose: () => void }> = ({ url, title, isOpen, onClose }) => {
-    const embedUrl = getYoutubeEmbedUrl(url);
-
-    return (
-        <Modal title={title} isOpen={isOpen} onClose={onClose} size="xl">
-            {embedUrl ? (
-                <div className="aspect-w-16 aspect-h-9">
-                    <iframe 
-                        className="w-full h-full"
-                        style={{ height: '70vh' }}
-                        src={embedUrl}
-                        title={title} 
-                        frameBorder="0" 
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                        allowFullScreen
-                    ></iframe>
-                </div>
-            ) : (
-                <p>Link do vídeo inválido.</p>
-            )}
-        </Modal>
-    );
-};
-
 const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack }) => {
-    const [selectedVideo, setSelectedVideo] = useState<{ url: string, title: string } | null>(null);
-    
     return (
         <>
             <div className="bg-brand-dark">
@@ -71,10 +45,11 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack }) => {
                             <div key={workout.id} className="bg-white p-6 rounded-lg shadow-md">
                                 <h2 className="text-2xl font-bold text-brand-dark mb-4">{workout.title}</h2>
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
+                                    <table className="w-full min-w-[800px] text-left">
                                         <thead className="bg-brand-light">
                                             <tr>
-                                                <th className="p-3 font-semibold">Exercício</th>
+                                                <th className="p-3 font-semibold w-1/4">Exercício</th>
+                                                <th className="p-3 font-semibold w-1/4">Vídeo</th>
                                                 <th className="p-3 font-semibold">Séries</th>
                                                 <th className="p-3 font-semibold">Reps</th>
                                                 <th className="p-3 font-semibold">Descanso</th>
@@ -82,26 +57,32 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack }) => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {workout.exercises.map(ex => (
-                                                <tr key={ex.id} className="border-t">
-                                                    <td className="p-3 font-medium flex items-center gap-2">
-                                                        <span>{ex.name}</span>
-                                                        {ex.youtubeUrl && (
-                                                            <button 
-                                                                onClick={() => setSelectedVideo({ url: ex.youtubeUrl!, title: ex.name })}
-                                                                className="text-blue-600 hover:text-blue-800"
-                                                                title="Ver vídeo do exercício"
-                                                            >
-                                                                <LinkIcon className="w-5 h-5"/>
-                                                            </button>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3">{ex.sets}</td>
-                                                    <td className="p-3">{ex.reps}</td>
-                                                    <td className="p-3">{ex.rest}</td>
-                                                    <td className="p-3 text-sm text-gray-600">{ex.notes}</td>
-                                                </tr>
-                                            ))}
+                                            {workout.exercises.map(ex => {
+                                                const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
+                                                return (
+                                                    <tr key={ex.id} className="border-t">
+                                                        <td className="p-3 font-medium align-top">{ex.name}</td>
+                                                        <td className="p-3 align-middle">
+                                                            {embedUrl ? (
+                                                                <iframe
+                                                                    className="w-full max-w-[200px] aspect-video rounded-md shadow"
+                                                                    src={embedUrl}
+                                                                    title={ex.name}
+                                                                    frameBorder="0"
+                                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                                    allowFullScreen
+                                                                ></iframe>
+                                                            ) : (
+                                                                <span className="text-gray-400 text-sm">N/A</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-3 align-top">{ex.sets}</td>
+                                                        <td className="p-3 align-top">{ex.reps}</td>
+                                                        <td className="p-3 align-top">{ex.rest}</td>
+                                                        <td className="p-3 text-sm text-gray-600 align-top">{ex.notes}</td>
+                                                    </tr>
+                                                )
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
@@ -116,15 +97,6 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack }) => {
                     </div>
                 )}
             </main>
-
-            {selectedVideo && (
-                <VideoModal
-                    isOpen={!!selectedVideo}
-                    onClose={() => setSelectedVideo(null)}
-                    url={selectedVideo.url}
-                    title={selectedVideo.title}
-                />
-            )}
         </>
     );
 };
