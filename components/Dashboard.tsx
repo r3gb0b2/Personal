@@ -18,6 +18,9 @@ interface DashboardProps {
   trainer: Trainer;
 }
 
+type SortKey = 'name' | 'plan' | 'status';
+type SortDirection = 'asc' | 'desc';
+
 const Loader: React.FC = () => (
     <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-brand-primary"></div>
@@ -184,6 +187,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [isFinancialReportModalOpen, setFinancialReportModalOpen] = useState(false);
   const [isProfileModalOpen, setProfileModalOpen] = useState(false);
   const [isBulkEmailModalOpen, setBulkEmailModalOpen] = useState(false);
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'name', direction: 'asc' });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -418,8 +422,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     }
   };
 
-  const getPlan = (planId: string | null) => plans.find(p => p.id === planId);
-
   const formatSchedule = (schedule: DaySchedule[] | null | undefined): string => {
     if (!schedule || schedule.length === 0) {
         return 'N/A';
@@ -444,7 +446,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     ).join(' | ');
   };
 
-  const getStudentStatus = (student: Student) => {
+  const getPlan = useCallback((planId: string | null) => plans.find(p => p.id === planId), [plans]);
+
+  const getStudentStatus = useCallback((student: Student) => {
       const plan = getPlan(student.planId);
       if (!plan) return { text: 'Sem Plano', color: 'gray', situation: 'N/A' };
 
@@ -484,7 +488,63 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       }
       
       return { text: 'N/A', color: 'gray', situation: 'N/A' };
+  }, [getPlan]);
+
+  const sortedStudents = useMemo(() => {
+    const sortableStudents = [...students];
+    if (sortConfig.key) {
+      sortableStudents.sort((a, b) => {
+        let aValue: string;
+        let bValue: string;
+
+        switch (sortConfig.key) {
+          case 'name':
+            aValue = a.name.toLowerCase();
+            bValue = b.name.toLowerCase();
+            break;
+          case 'plan':
+            aValue = getPlan(a.planId)?.name || 'zzz';
+            bValue = getPlan(b.planId)?.name || 'zzz';
+            break;
+          case 'status':
+            aValue = getStudentStatus(a).text;
+            bValue = getStudentStatus(b).text;
+            break;
+          default:
+            return 0;
+        }
+
+        if (aValue < bValue) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortableStudents;
+  }, [students, sortConfig, getPlan, getStudentStatus]);
+
+  const handleSort = (key: SortKey) => {
+    let direction: SortDirection = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
   };
+  
+  const SortableHeader: React.FC<{ sortKey: SortKey, label: string }> = ({ sortKey, label }) => (
+    <th className="p-4 font-semibold">
+        <button onClick={() => handleSort(sortKey)} className="flex items-center gap-1 hover:text-brand-primary transition-colors">
+            {label}
+            {sortConfig.key === sortKey && (
+                <span className="text-xs">{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+            )}
+        </button>
+    </th>
+  );
+
 
   return (
     <>
@@ -623,15 +683,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                     <table className="w-full text-left">
                         <thead className="bg-brand-light">
                             <tr>
-                                <th className="p-4 font-semibold">Nome</th>
-                                <th className="p-4 font-semibold">Plano</th>
+                                <SortableHeader sortKey="name" label="Nome" />
+                                <SortableHeader sortKey="plan" label="Plano" />
                                 <th className="p-4 font-semibold">Horário</th>
                                 <th className="p-4 font-semibold">Situação</th>
-                                <th className="p-4 font-semibold">Status</th>
+                                <SortableHeader sortKey="status" label="Status" />
                             </tr>
                         </thead>
                         <tbody>
-                            {students.length > 0 ? students.map(student => {
+                            {sortedStudents.length > 0 ? sortedStudents.map(student => {
                                 const status = getStudentStatus(student);
                                 const colorClasses: { [key: string]: string } = {
                                     red: 'text-red-800 bg-red-100',
