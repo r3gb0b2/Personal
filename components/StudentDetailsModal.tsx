@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule } from '../types';
-import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon } from './icons';
+import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer } from '../types';
+import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon } from './icons';
 import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
 import ProfilePictureModal from './modals/ProfilePictureModal';
 import { db, storage } from '../firebase';
 import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { sendEmail } from '../services/emailService';
 
 interface StudentDetailsModalProps {
   student: Student;
   plans: Plan[];
+  trainer: Trainer;
   onClose: () => void;
   onUpdate: (student: Student) => Promise<void>;
   onDelete: (studentId: string) => Promise<void>;
@@ -62,7 +64,7 @@ const checkScheduleConflict = (
     return { hasConflict: false };
 };
 
-const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plans, onClose, onUpdate, onDelete, onAddPayment, allStudents }) => {
+const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plans, trainer, onClose, onUpdate, onDelete, onAddPayment, allStudents }) => {
   const [activeTab, setActiveTab] = useState<Tab>('details');
   const [editableStudent, setEditableStudent] = useState<Student>(student);
   const [isEditing, setIsEditing] = useState(false);
@@ -222,7 +224,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
         case 'progress': return <ProgressTab student={student} photos={progressPhotos} onUpdate={fetchFeatureData} />;
         case 'details':
         default:
-            return <DetailsTab student={student} plans={plans} isEditing={isEditing} setIsEditing={setIsEditing} editableStudent={editableStudent} setEditableStudent={setEditableStudent} handleSave={handleSave} handleDelete={handleDelete} setPictureModalOpen={setPictureModalOpen} setPaymentModalOpen={setPaymentModalOpen} handleAddSession={handleAddSession} handleDeleteSession={handleDeleteSession} onUpdate={onUpdate} />;
+            return <DetailsTab student={student} plans={plans} trainer={trainer} isEditing={isEditing} setIsEditing={setIsEditing} editableStudent={editableStudent} setEditableStudent={setEditableStudent} handleSave={handleSave} handleDelete={handleDelete} setPictureModalOpen={setPictureModalOpen} setPaymentModalOpen={setPaymentModalOpen} handleAddSession={handleAddSession} handleDeleteSession={handleDeleteSession} onUpdate={onUpdate} />;
     }
   };
 
@@ -265,7 +267,9 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
 
 // --- TAB COMPONENTS ---
 
-const DetailsTab: React.FC<any> = ({ student, plans, isEditing, setIsEditing, editableStudent, setEditableStudent, handleSave, handleDelete, setPictureModalOpen, setPaymentModalOpen, handleAddSession, handleDeleteSession, onUpdate }) => {
+const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEditing, editableStudent, setEditableStudent, handleSave, handleDelete, setPictureModalOpen, setPaymentModalOpen, handleAddSession, handleDeleteSession, onUpdate }) => {
+    const [isSendingReminder, setIsSendingReminder] = useState(false);
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setEditableStudent((prev: Student) => ({ ...prev, [name]: value }));
@@ -321,6 +325,70 @@ const DetailsTab: React.FC<any> = ({ student, plans, isEditing, setIsEditing, ed
         const reminderDate = new Date(student.remindersSent[`sessions_${remainingSessions}`]).toLocaleDateString('pt-BR');
         reminderSentMessage = `Lembrete automático enviado em ${reminderDate}.`;
     }
+
+    const handleSendManualReminder = async () => {
+        if (!student.email) {
+            alert("Este aluno não possui um e-mail cadastrado.");
+            return;
+        }
+
+        const plan = plans.find((p: Plan) => p.id === student.planId);
+        if (!plan) {
+            alert("O aluno não possui um plano ativo para enviar um lembrete.");
+            return;
+        }
+
+        let subject = "";
+        let reminderMessage = "";
+
+        if (plan.type === 'duration' && student.paymentDueDate) {
+            subject = "Lembrete de Vencimento do seu Plano";
+            reminderMessage = `Lembramos que seu plano "${plan.name}" vence no dia ${formatDate(student.paymentDueDate)}. Para continuar treinando sem interrupções, por favor, realize a renovação.`;
+        } else if (plan.type === 'session' && student.remainingSessions != null) {
+            subject = "Lembrete sobre suas Aulas";
+            const remaining = student.remainingSessions;
+            if (remaining < 0) {
+                const plural = Math.abs(remaining) !== 1;
+                reminderMessage = `Notamos que você utilizou ${Math.abs(remaining)} aula${plural ? 's' : ''} além do seu pacote. Fale comigo para regularizar e garantir seu próximo pacote de aulas!`;
+            } else {
+                const plural = remaining !== 1;
+                reminderMessage = `Seu pacote de aulas "${plan.name}" está chegando ao fim. Atualmente, você tem ${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}. Fale comigo para garantir seu próximo pacote!`;
+            }
+        } else {
+            alert("Não foi possível gerar uma mensagem de lembrete para o plano atual deste aluno.");
+            return;
+        }
+
+        const confirmation = window.confirm(
+            `Você está prestes a enviar o seguinte lembrete para ${student.name}:\n\n"${reminderMessage}"\n\nDeseja continuar?`
+        );
+
+        if (!confirmation) return;
+
+        setIsSendingReminder(true);
+
+        const htmlContent = `
+            <p>Olá ${student.name},</p>
+            <p>${reminderMessage}</p>
+            <p>Qualquer dúvida, é só responder a este e-mail.</p>
+            <p>Abraços,<br/>${trainer.fullName || trainer.username}</p>
+        `;
+
+        const result = await sendEmail({
+            recipients: [{ email: student.email, name: student.name }],
+            subject,
+            htmlContent,
+            trainer,
+        });
+
+        setIsSendingReminder(false);
+
+        if (result.success) {
+            alert("Lembrete enviado com sucesso!");
+        } else {
+            alert(`Falha ao enviar o lembrete: ${result.error}`);
+        }
+    };
 
 
     return (
@@ -392,7 +460,37 @@ const DetailsTab: React.FC<any> = ({ student, plans, isEditing, setIsEditing, ed
                     </ul>
                 ) : <p className="text-gray-600">Nenhum horário definido</p>}
             </div></div><div className="flex gap-2"><button onClick={() => setIsEditing(true)} className="px-3 py-1 text-sm font-medium text-white bg-brand-secondary rounded-md hover:bg-gray-700">Editar</button><button onClick={handleDelete} className="px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Excluir</button></div></div></div></div>
-            <div className={`p-4 rounded-lg ${(isPaymentDue || areSessionsLow) ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border`}><div className="flex justify-between items-center"><div><h3 className="font-bold text-lg">{studentPlan?.name || 'Sem plano'}</h3><div className="flex flex-col"><div className="flex items-center gap-2 mt-1"><span className={(isPaymentDue || areSessionsLow) ? 'text-red-600' : 'text-green-600'}>{(isPaymentDue || areSessionsLow) ? <ExclamationCircleIcon className="w-5 h-5 text-red-500" /> : <CheckCircleIcon className="w-5 h-5 text-green-500" />}{studentPlan?.type === 'duration' && (student.paymentDueDate ? `Vencimento em ${formatDate(student.paymentDueDate)}` : 'Sem data de vencimento')}{studentPlan?.type === 'session' && (() => {const remaining = student.remainingSessions;if (remaining == null) return "Contagem de aulas não iniciada";if (remaining < 0) {const plural = Math.abs(remaining) > 1;return `${Math.abs(remaining)} aula${plural ? 's' : ''} devendo (a deduzir na renovação)`;}if (remaining === 0) return 'Nenhuma aula restante';const plural = remaining > 1;return `${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}`;})()}{!studentPlan && 'Aluno sem plano ativo'}</span></div> {reminderSentMessage && (<p className="text-xs text-gray-500 mt-1 italic">{reminderSentMessage}</p>)} </div></div>{student.planId && <button onClick={() => setPaymentModalOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Marcar como Pago/Renovar</button>}</div></div>
+            <div className={`p-4 rounded-lg ${(isPaymentDue || areSessionsLow) ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border`}>
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h3 className="font-bold text-lg">{studentPlan?.name || 'Sem plano'}</h3>
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className={(isPaymentDue || areSessionsLow) ? 'text-red-600' : 'text-green-600'}>
+                                    {(isPaymentDue || areSessionsLow) ? <ExclamationCircleIcon className="w-5 h-5 text-red-500" /> : <CheckCircleIcon className="w-5 h-5 text-green-500" />}
+                                    {studentPlan?.type === 'duration' && (student.paymentDueDate ? `Vencimento em ${formatDate(student.paymentDueDate)}` : 'Sem data de vencimento')}
+                                    {studentPlan?.type === 'session' && (() => {const remaining = student.remainingSessions;if (remaining == null) return "Contagem de aulas não iniciada";if (remaining < 0) {const plural = Math.abs(remaining) > 1;return `${Math.abs(remaining)} aula${plural ? 's' : ''} devendo (a deduzir na renovação)`;}if (remaining === 0) return 'Nenhuma aula restante';const plural = remaining > 1;return `${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}`;})()}
+                                    {!studentPlan && 'Aluno sem plano ativo'}
+                                </span>
+                            </div> 
+                            {reminderSentMessage && (<p className="text-xs text-gray-500 mt-1 italic">{reminderSentMessage}</p>)} 
+                        </div>
+                    </div>
+                    {student.planId && <button onClick={() => setPaymentModalOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Marcar como Pago/Renovar</button>}
+                </div>
+                <div className="mt-4 pt-4 border-t border-gray-900 border-opacity-10 flex items-center gap-4">
+                    <button
+                        onClick={handleSendManualReminder}
+                        disabled={isSendingReminder || !student.email || !studentPlan}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        title={!student.email ? "Aluno sem e-mail cadastrado" : !studentPlan ? "Aluno sem plano ativo" : "Enviar lembrete de pagamento/renovação"}
+                    >
+                        <MailIcon className="w-5 h-5"/>
+                        {isSendingReminder ? 'Enviando...' : 'Enviar Lembrete Manual'}
+                    </button>
+                    {!student.email && <p className="text-xs text-gray-500">O aluno não tem e-mail para receber lembretes.</p>}
+                </div>
+            </div>
             <div><div className="flex justify-between items-center mb-2"><h3 className="font-bold text-lg">Histórico de Aulas</h3><div className="flex gap-2"><button onClick={() => handleAddSession('regular')} className="flex items-center gap-2 px-3 py-1 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent"><PlusIcon className="w-4 h-4" /> Aula de Hoje</button><button onClick={() => handleAddSession('extra')} title="Adicionar aula extra gratuita" className="px-3 py-1 text-sm font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600">Extra</button><button onClick={() => handleAddSession('absent')} title="Marcar falta" className="px-3 py-1 text-sm font-medium text-white bg-red-500 rounded-md hover:bg-red-600">Falta</button></div></div><div className="border rounded-lg max-h-48 overflow-y-auto">{student.sessions.length > 0 ? (<ul className="divide-y">{student.sessions.sort((a: ClassSession,b: ClassSession) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((session: ClassSession) => {const sessionInfo = sessionTypeInfo[session.type] || { label: 'Desconhecido', color: 'text-gray-500', bg: 'bg-gray-100' };return (<li key={session.id} className={`p-3 flex justify-between items-center ${sessionInfo.bg}`}><div className="flex items-center gap-3"><CalendarIcon className={`w-5 h-5 ${sessionInfo.color}`} /><div><span className="font-medium">{new Date(session.date).toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'})}</span><span className={`ml-2 text-xs font-semibold ${sessionInfo.color}`}>({sessionInfo.label})</span></div></div><button onClick={() => handleDeleteSession(session.id)} className="text-gray-400 hover:text-red-600"><TrashIcon className="w-5 h-5" /></button></li>)})}</ul>) : (<p className="text-center text-gray-500 p-4">Nenhuma aula registrada.</p>)}</div></div>
             </div>
         )

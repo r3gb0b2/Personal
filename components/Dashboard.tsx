@@ -660,6 +660,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         <StudentDetailsModal
           student={selectedStudent}
           plans={plans}
+          trainer={currentTrainer}
           onClose={() => setSelectedStudent(null)}
           onUpdate={handleUpdateStudent}
           onDelete={handleDeleteStudent}
