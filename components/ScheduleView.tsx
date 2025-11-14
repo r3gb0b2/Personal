@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Student } from '../types';
+import { Student, Plan } from '../types';
 
 interface ScheduleViewProps {
   students: Student[];
+  plans: Plan[];
   onStudentClick: (studentId: string) => void;
 }
 
@@ -24,7 +25,7 @@ const getWeekStart = (date: Date): Date => {
     return new Date(d.setDate(diff));
 };
 
-const ScheduleView: React.FC<ScheduleViewProps> = ({ students, onStudentClick }) => {
+const ScheduleView: React.FC<ScheduleViewProps> = ({ students, plans, onStudentClick }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const days = [
@@ -46,20 +47,57 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students, onStudentClick })
   const appointmentsByDay = useMemo(() => {
     const grouped: { [key: string]: any[] } = {};
     days.forEach(d => grouped[d.key] = []);
+    const weekStart = getWeekStart(currentDate);
 
     students.forEach(student => {
-      (student.schedule || []).forEach(item => {
-        if (item.day && item.startTime && item.endTime && grouped[item.day]) {
-          grouped[item.day].push({
-            studentId: student.id,
-            studentName: student.name,
-            ...item
-          });
-        }
-      });
+        const plan = plans.find(p => p.id === student.planId);
+        if (!plan) return; // Skip students without a plan
+
+        (student.schedule || []).forEach(item => {
+            if (!item.day || !item.startTime || !item.endTime || !grouped[item.day]) {
+                return;
+            }
+
+            const dayIndex = days.findIndex(d => d.key === item.day);
+            if (dayIndex === -1) return;
+            
+            // Determine the actual date of this specific appointment in the current week view
+            const appointmentDate = new Date(weekStart);
+            appointmentDate.setDate(weekStart.getDate() + dayIndex);
+            appointmentDate.setHours(23, 59, 59, 999); // Set to end of day for comparison
+
+            let isValidAppointment = false;
+
+            if (plan.type === 'duration') {
+                if (student.paymentDueDate) {
+                    const dueDate = new Date(student.paymentDueDate);
+                    // The appointment is valid if it occurs on or before the due date
+                    if (appointmentDate <= dueDate) {
+                        isValidAppointment = true;
+                    }
+                } else {
+                    // If no due date, consider it valid (e.g., first month of a new student)
+                    isValidAppointment = true;
+                }
+            } else if (plan.type === 'session') {
+                // For session-based plans, they are active as long as they have sessions left.
+                // The appointment will show for the entire week if they are considered "active".
+                if (student.remainingSessions != null && student.remainingSessions > 0) {
+                    isValidAppointment = true;
+                }
+            }
+
+            if (isValidAppointment) {
+                grouped[item.day].push({
+                    studentId: student.id,
+                    studentName: student.name,
+                    ...item
+                });
+            }
+        });
     });
     return grouped;
-  }, [students]);
+  }, [students, plans, currentDate]);
   
   const studentColors = React.useMemo(() => {
     const colors = [

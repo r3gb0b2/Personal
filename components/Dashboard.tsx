@@ -617,7 +617,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         </div>
 
         {view === 'schedule' ? (
-            <ScheduleView students={activeStudents} onStudentClick={handleSelectStudent} />
+            <ScheduleView students={students} plans={plans} onStudentClick={handleSelectStudent} />
         ) : (
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="p-6 border-b">
