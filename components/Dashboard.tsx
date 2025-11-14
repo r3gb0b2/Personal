@@ -30,10 +30,9 @@ const TrainerProfileModal: React.FC<{
   onClose: () => void;
   trainer: Trainer;
   trainerSettings: TrainerSettings;
-  onUpdateProfile: (updatedProfile: Omit<Trainer, 'id' | 'username' | 'password'>) => Promise<void>;
+  onSave: (profileData: Omit<Trainer, 'id' | 'username' | 'password'>, settingsData: TrainerSettings) => Promise<void>;
   onUpdatePassword: (currentPassword: string, newPassword: string) => Promise<{success: boolean, message: string}>;
-  onUpdateSettings: (settings: TrainerSettings) => Promise<void>;
-}> = ({ isOpen, onClose, trainer, trainerSettings, onUpdateProfile, onUpdatePassword, onUpdateSettings }) => {
+}> = ({ isOpen, onClose, trainer, trainerSettings, onSave, onUpdatePassword }) => {
   const [formData, setFormData] = useState({
     fullName: trainer.fullName || '',
     contactEmail: trainer.contactEmail || '',
@@ -68,9 +67,7 @@ const TrainerProfileModal: React.FC<{
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onUpdateProfile(formData);
-    await onUpdateSettings(settingsData);
-    onClose();
+    await onSave(formData, settingsData);
   };
   
   const handlePasswordSubmit = async (e: React.FormEvent) => {
@@ -254,12 +251,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     fetchData();
   }, [fetchData]);
 
-    const handleUpdateTrainerSettings = async (settings: TrainerSettings) => {
-        const settingsRef = doc(db, 'trainerSettings', trainer.id);
-        await setDoc(settingsRef, settings, { merge: true });
-        setTrainerSettings(settings);
-    };
-
     const checkAndSendReminders = useCallback(async (students: Student[], plans: Plan[], settings: TrainerSettings) => {
         if (!settings.brevoApiKey || !settings.senderEmail || !settings.replyToEmail) {
             return; // Exit if email is not configured
@@ -352,13 +343,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     }, [loading, students, plans, trainerSettings, checkAndSendReminders]);
 
 
-  const handleUpdateTrainerProfile = async (data: Omit<Trainer, 'id' | 'username' | 'password'>) => {
-    const trainerRef = doc(db, 'trainers', trainer.id);
-    await updateDoc(trainerRef, data);
+  const handleSaveProfileAndSettings = async (
+    profileData: Omit<Trainer, 'id' | 'username' | 'password'>,
+    settingsData: TrainerSettings
+  ) => {
+    try {
+        const settingsRef = doc(db, 'trainerSettings', trainer.id);
+        await setDoc(settingsRef, settingsData, { merge: true });
 
-    const updatedTrainer = { ...trainer, ...data };
-    sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(updatedTrainer));
-    window.location.reload();
+        const trainerRef = doc(db, 'trainers', trainer.id);
+        await updateDoc(trainerRef, profileData);
+
+        setTrainerSettings(settingsData);
+        const updatedTrainer = { ...trainer, ...profileData };
+        sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(updatedTrainer));
+
+        window.location.reload();
+    } catch (error) {
+        console.error("Failed to save profile and settings:", error);
+        alert("Ocorreu um erro ao salvar as configurações.");
+    }
   };
   
   const handleUpdateTrainerPassword = async (currentPassword: string, newPassword: string): Promise<{success: boolean, message: string}> => {
@@ -793,9 +797,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             onClose={() => setProfileModalOpen(false)}
             trainer={trainer}
             trainerSettings={trainerSettings}
-            onUpdateProfile={handleUpdateTrainerProfile}
+            onSave={handleSaveProfileAndSettings}
             onUpdatePassword={handleUpdateTrainerPassword}
-            onUpdateSettings={handleUpdateTrainerSettings}
         />
       )}
 
