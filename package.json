@@ -13,7 +13,11 @@
     "react-dom": "^19.2.0",
     "firebase": "^12.5.0",
     "jspdf": "latest",
-    "html2canvas": "latest"
+    "html2canvas": "latest",
+    "firebase-functions": "^7.0.0",
+    "firebase-admin": "^13.6.0",
+    "cors": "^2.8.5",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

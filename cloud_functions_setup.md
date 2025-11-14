@@ -141,21 +141,31 @@ export const sendEmail = functions.https.onRequest((request, response) => {
       const trainerData = trainerSnap.data();
 
       const settings = settingsSnap.data();
-      const apiKey = settings?.brevoApiKey;
+      if (!settings) {
+        response.status(404).json({
+          error: "Dados de configurações do personal não encontrados.",
+        });
+        return;
+      }
+
+      const apiKey = settings.brevoApiKey;
       const trainerName =
-        trainerData?.fullName || trainerData?.username || "Personal Trainer";
+        trainerData?.fullName ||
+        trainerData?.username ||
+        "Personal Trainer";
       const sender = {
-        email: settings?.senderEmail,
+        email: settings.senderEmail,
         name: trainerName,
       };
       const replyTo = {
-        email: settings?.replyToEmail,
+        email: settings.replyToEmail,
         name: trainerName,
       };
 
       if (!apiKey || !sender.email || !replyTo.email) {
         response.status(400).json({
-          error: "Configurações de e-mail incompletas no perfil do personal.",
+          error: "Configurações de e-mail incompletas " +
+            "no perfil do personal.",
         });
         return;
       }
