@@ -20,6 +20,60 @@ interface BrevoConfig {
 }
 
 /**
+ * Creates a branded, responsive HTML email template.
+ * @param title The main heading of the email.
+ * @param bodyContent The main paragraph content of the email. Can contain HTML.
+ * @param trainer The trainer's data for personalization.
+ * @returns A full HTML string for the email body.
+ */
+export const generateEmailTemplate = (title: string, bodyContent: string, trainer: Trainer): string => {
+    const trainerName = trainer.fullName || trainer.username;
+    const footerLinks = [];
+    if (trainer.whatsapp) {
+        footerLinks.push(`<a href="https://wa.me/${trainer.whatsapp}" style="color: #4c9aff; text-decoration: none; margin: 0 10px;">WhatsApp</a>`);
+    }
+    if (trainer.instagram) {
+        footerLinks.push(`<a href="https://instagram.com/${trainer.instagram}" style="color: #4c9aff; text-decoration: none; margin: 0 10px;">Instagram</a>`);
+    }
+
+    return `
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body { margin: 0; padding: 0; background-color: #f4f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol'; }
+            .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border: 1px solid #dfe1e6; border-radius: 8px; overflow: hidden; }
+            .header { background-color: #091e42; color: #ffffff; padding: 24px; text-align: center; }
+            .header h1 { margin: 0; font-size: 24px; }
+            .body-content { padding: 32px; color: #172b4d; line-height: 1.6; }
+            .body-content p { margin: 0 0 16px; }
+            .footer { background-color: #f4f5f7; padding: 24px; text-align: center; font-size: 12px; color: #505f79; }
+            .footer a { color: #0052cc; text-decoration: none; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>${trainerName}</h1>
+            </div>
+            <div class="body-content">
+                <h2>${title}</h2>
+                ${bodyContent}
+            </div>
+            <div class="footer">
+                <p>Esta é uma mensagem automática. Para dúvidas, responda a este e-mail.</p>
+                ${footerLinks.length > 0 ? `<p>${footerLinks.join(' &bull; ')}</p>` : ''}
+            </div>
+        </div>
+    </body>
+    </html>
+    `;
+};
+
+
+/**
  * Busca a configuração segura da API da Brevo no Firestore.
  * @returns A configuração da API ou null se não encontrada.
  */

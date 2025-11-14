@@ -7,7 +7,7 @@ import ProfilePictureModal from './modals/ProfilePictureModal';
 import { db, storage } from '../firebase';
 import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { sendEmail } from '../services/emailService';
+import { sendEmail, generateEmailTemplate } from '../services/emailService';
 
 interface StudentDetailsModalProps {
   student: Student;
@@ -339,40 +339,38 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
         }
 
         let subject = "";
-        let reminderMessage = "";
+        let bodyMessage = "";
+        let greeting = `<p>Olá ${student.name},</p>`;
 
         if (plan.type === 'duration' && student.paymentDueDate) {
             subject = "Lembrete de Vencimento do seu Plano";
-            reminderMessage = `Lembramos que seu plano "${plan.name}" vence no dia ${formatDate(student.paymentDueDate)}. Para continuar treinando sem interrupções, por favor, realize a renovação.`;
+            bodyMessage = `<p>Lembramos que seu plano "${plan.name}" vence no dia ${formatDate(student.paymentDueDate)}. Para continuar treinando sem interrupções, por favor, realize a renovação.</p>`;
         } else if (plan.type === 'session' && student.remainingSessions != null) {
             subject = "Lembrete sobre suas Aulas";
             const remaining = student.remainingSessions;
             if (remaining < 0) {
                 const plural = Math.abs(remaining) !== 1;
-                reminderMessage = `Notamos que você utilizou ${Math.abs(remaining)} aula${plural ? 's' : ''} além do seu pacote. Fale comigo para regularizar e garantir seu próximo pacote de aulas!`;
+                bodyMessage = `<p>Notamos que você utilizou ${Math.abs(remaining)} aula${plural ? 's' : ''} além do seu pacote. Fale comigo para regularizar e garantir seu próximo pacote de aulas!</p>`;
             } else {
                 const plural = remaining !== 1;
-                reminderMessage = `Seu pacote de aulas "${plan.name}" está chegando ao fim. Atualmente, você tem ${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}. Fale comigo para garantir seu próximo pacote!`;
+                bodyMessage = `<p>Seu pacote de aulas "${plan.name}" está chegando ao fim. Atualmente, você tem ${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}. Fale comigo para garantir seu próximo pacote!</p>`;
             }
         } else {
             alert("Não foi possível gerar uma mensagem de lembrete para o plano atual deste aluno.");
             return;
         }
+        
+        const fullBody = `${greeting}${bodyMessage}<p>Qualquer dúvida, é só responder a este e-mail.</p>`;
 
         const confirmation = window.confirm(
-            `Você está prestes a enviar o seguinte lembrete para ${student.name}:\n\n"${reminderMessage}"\n\nDeseja continuar?`
+            `Você está prestes a enviar um lembrete para ${student.name}. Deseja continuar?`
         );
 
         if (!confirmation) return;
 
         setIsSendingReminder(true);
 
-        const htmlContent = `
-            <p>Olá ${student.name},</p>
-            <p>${reminderMessage}</p>
-            <p>Qualquer dúvida, é só responder a este e-mail.</p>
-            <p>Abraços,<br/>${trainer.fullName || trainer.username}</p>
-        `;
+        const htmlContent = generateEmailTemplate(subject, fullBody, trainer);
 
         const result = await sendEmail({
             recipients: [{ email: student.email, name: student.name }],

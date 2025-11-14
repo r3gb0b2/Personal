@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Student, Trainer } from '../../types';
 import Modal from './Modal';
-import { sendEmail, EmailPayload } from '../../services/emailService';
+import { sendEmail, EmailPayload, generateEmailTemplate } from '../../services/emailService';
 import { MailIcon } from '../icons';
 
 interface BulkEmailModalProps {
@@ -36,7 +36,8 @@ const BulkEmailModal: React.FC<BulkEmailModalProps> = ({ isOpen, onClose, studen
     }
 
     try {
-        const htmlContent = `<p>${message.replace(/\n/g, '<br>')}</p><p>Qualquer dúvida, é só responder a este e-mail.</p><p>Abraços,<br/>${trainer.fullName || trainer.username}</p>`;
+        const bodyContent = `<p>Olá,</p><p>${message.replace(/\n/g, '<br>')}</p><p>Qualquer dúvida, é só responder a este e-mail.</p>`;
+        const htmlContent = generateEmailTemplate(subject, bodyContent, trainer);
 
         const payload: EmailPayload = {
             recipients,
@@ -99,7 +100,7 @@ const BulkEmailModal: React.FC<BulkEmailModalProps> = ({ isOpen, onClose, studen
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3"
                 required
             />
-            <p className="text-xs text-gray-500 mt-1">A sua assinatura será adicionada automaticamente.</p>
+            <p className="text-xs text-gray-500 mt-1">Uma saudação genérica e a sua assinatura serão adicionadas automaticamente.</p>
             </div>
 
             {status === 'error' && (
