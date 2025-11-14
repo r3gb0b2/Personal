@@ -64,13 +64,6 @@ export interface Trainer {
     whatsapp?: string; // e.g., '5511999998888'
 }
 
-export interface TrainerSettings {
-    id?: string; // Corresponds to trainerId
-    brevoApiKey?: string;
-    senderEmail?: string;
-    replyToEmail?: string;
-}
-
 export interface Workout {
     id: string;
     studentId: string;
