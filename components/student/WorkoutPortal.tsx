@@ -42,10 +42,59 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack }) => {
                 {workouts.length > 0 ? (
                     <div className="space-y-8">
                         {workouts.map(workout => (
-                            <div key={workout.id} className="bg-white p-6 rounded-lg shadow-md">
+                            <div key={workout.id} className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
                                 <h2 className="text-2xl font-bold text-brand-dark mb-4">{workout.title}</h2>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full min-w-[800px] text-left">
+                                
+                                {/* Mobile View: Card-based layout */}
+                                <div className="space-y-4 md:hidden">
+                                    {workout.exercises.map(ex => {
+                                        const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
+                                        return (
+                                            <div key={ex.id} className="bg-gray-50 p-4 rounded-lg border">
+                                                <h3 className="font-bold text-lg mb-3 text-brand-secondary">{ex.name}</h3>
+                                                
+                                                {embedUrl && (
+                                                    <div className="mb-4">
+                                                        <iframe
+                                                            className="w-full aspect-video rounded-md shadow"
+                                                            src={embedUrl}
+                                                            title={ex.name}
+                                                            frameBorder="0"
+                                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                            allowFullScreen
+                                                        ></iframe>
+                                                    </div>
+                                                )}
+
+                                                <div className="grid grid-cols-3 gap-x-4 gap-y-2 text-center border-t border-b py-3">
+                                                    <div>
+                                                        <p className="text-sm text-gray-500">Séries</p>
+                                                        <p className="font-bold text-lg">{ex.sets || '-'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm text-gray-500">Reps</p>
+                                                        <p className="font-bold text-lg">{ex.reps || '-'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm text-gray-500">Descanso</p>
+                                                        <p className="font-bold text-lg">{ex.rest || '-'}</p>
+                                                    </div>
+                                                </div>
+
+                                                {ex.notes && (
+                                                    <div className="mt-3">
+                                                        <p className="text-sm font-semibold text-gray-600">Observações:</p>
+                                                        <p className="text-sm text-gray-800 whitespace-pre-wrap">{ex.notes}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Desktop View: Table layout */}
+                                <div className="overflow-x-auto hidden md:block">
+                                    <table className="w-full text-left">
                                         <thead className="bg-brand-light">
                                             <tr>
                                                 <th className="p-3 font-semibold w-1/4">Exercício</th>
@@ -81,7 +130,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack }) => {
                                                         <td className="p-3 align-top">{ex.rest}</td>
                                                         <td className="p-3 text-sm text-gray-600 align-top">{ex.notes}</td>
                                                     </tr>
-                                                )
+                                                );
                                             })}
                                         </tbody>
                                     </table>
