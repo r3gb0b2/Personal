@@ -22,7 +22,8 @@ export const sendLowSessionReminders = functions.pubsub
 
     if (!apiKey || !globalSenderEmail) {
       functions.logger.error(
-        "A chave da API ou e-mail remetente da Brevo não estão configurados."
+        "A chave da API ou e-mail remetente da Brevo não estão " +
+        "configurados."
       );
       return null;
     }
@@ -66,8 +67,10 @@ export const sendLowSessionReminders = functions.pubsub
     const trainerSnaps = await Promise.all(trainerPromises);
     const trainerDataMap = new Map<string, admin.firestore.DocumentData>();
     trainerSnaps.forEach((snap) => {
-      if (snap.exists) {
-        trainerDataMap.set(snap.id, snap.data());
+      const data = snap.data();
+      // Safely handle potentially undefined data to fix TypeScript error.
+      if (snap.exists && data) {
+        trainerDataMap.set(snap.id, data);
       }
     });
 
@@ -104,8 +107,8 @@ export const sendLowSessionReminders = functions.pubsub
       const subject = "Suas aulas de personal estão acabando!";
       const htmlContent =
         `<p>Olá ${student.name},</p>` +
-        "<p>Tudo bem? Este é um lembrete amigável de que seu pacote de aulas " +
-        "está chegando ao fim.</p>" +
+        "<p>Tudo bem? Este é um lembrete amigável de que seu pacote de " +
+        "aulas está chegando ao fim.</p>" +
         `<p>Atualmente, você tem <strong>${remaining} aula` +
         `${remaining > 1 ? "s" : ""} restante` +
         `${remaining > 1 ? "s" : ""}</strong>.</p>` +
