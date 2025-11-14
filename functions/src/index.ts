@@ -5,29 +5,29 @@ admin.initializeApp();
 
 const db = admin.firestore();
 
-// Função Agendada para rodar todos os dias às 9:00, horário de São Paulo
+// Scheduled function to run every day at 9:00 AM, São Paulo time.
 export const sendLowSessionReminders = functions.pubsub
   .schedule("every day 09:00")
   .timeZone("America/Sao_Paulo")
-  .onRun(async (context) => {
-    functions.logger.info("Iniciando verificação de lembretes de poucas aulas.");
+  .onRun(async () => {
+    functions.logger.info(
+      "Iniciando verificação de lembretes de poucas aulas."
+    );
 
-    // Fix: The 'config' function on the 'functions' object was not being correctly
-    // typed, leading to a TypeScript error. Casting 'functions.config()' to 'any'
-    // bypasses the incorrect type definition and allows accessing configuration.
+    // This is a known workaround for a typing issue with functions.config().
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const config = functions.config() as any;
     const apiKey = config.brevo?.key;
     const globalSenderEmail = config.brevo?.sender;
 
     if (!apiKey || !globalSenderEmail) {
       functions.logger.error(
-        // Fix: Corrected typo in error message.
         "A chave da API ou e-mail remetente da Brevo não estão configurados."
       );
       return null;
     }
 
-    // 1. Buscar todos os planos do tipo 'session'
+    // 1. Fetch all plans of type 'session'.
     const plansSnapshot = await db
       .collection("plans")
       .where("type", "==", "session")
@@ -39,7 +39,7 @@ export const sendLowSessionReminders = functions.pubsub
       return null;
     }
 
-    // 2. Buscar alunos que têm esses planos e poucas aulas restantes (1, 2 ou 3)
+    // 2. Fetch students with these plans and low remaining sessions.
     const studentsSnapshot = await db
       .collection("students")
       .where("planId", "in", sessionPlanIds)
@@ -51,7 +51,7 @@ export const sendLowSessionReminders = functions.pubsub
       return null;
     }
 
-    // Agrupar alunos por personal para buscar dados do personal uma vez só
+    // Group students by trainer to fetch trainer data only once.
     const trainersToFetch = new Set<string>();
     studentsSnapshot.docs.forEach((doc) => {
       const student = doc.data();
@@ -67,21 +67,22 @@ export const sendLowSessionReminders = functions.pubsub
     const trainerDataMap = new Map<string, admin.firestore.DocumentData>();
     trainerSnaps.forEach((snap) => {
       if (snap.exists) {
-        trainerDataMap.set(snap.id, snap.data()!);
+        trainerDataMap.set(snap.id, snap.data());
       }
     });
 
 
-    // 3. Iterar e enviar e-mails
+    // 3. Iterate and send e-mails.
     const emailPromises = studentsSnapshot.docs.map(async (studentDoc) => {
       const student = studentDoc.data();
-      const studentId = studentDoc.id;
       const remaining = student.remainingSessions;
       const reminderKey = `sessions_${remaining}`;
 
-      // Verificar se o lembrete para esta contagem específica já foi enviado
+      // Check if a reminder for this specific count has already been sent.
       if (student.remindersSent && student.remindersSent[reminderKey]) {
-        functions.logger.info(`Lembrete para ${student.name} (${remaining} aulas) já enviado.`);
+        functions.logger.info(
+          `Lembrete para ${student.name} (${remaining} aulas) já enviado.`
+        );
         return;
       }
 
@@ -89,30 +90,37 @@ export const sendLowSessionReminders = functions.pubsub
         functions.logger.warn(`Aluno ${student.name} não possui e-mail.`);
         return;
       }
-      
+
       const trainer = trainerDataMap.get(student.trainerId);
       if (!trainer) {
-          functions.logger.warn(`Personal do aluno ${student.name} não encontrado.`);
-          return;
+        functions.logger.warn(
+          `Personal do aluno ${student.name} não encontrado.`
+        );
+        return;
       }
-      
+
       const trainerName = trainer.fullName || trainer.username;
 
-      // Montar e-mail
-      const subject = `Suas aulas de personal estão acabando!`;
-      const htmlContent = `
-        <p>Olá ${student.name},</p>
-        <p>Tudo bem? Este é um lembrete amigável de que seu pacote de aulas está chegando ao fim.</p>
-        <p>Atualmente, você tem <strong>${remaining} aula${remaining > 1 ? "s" : ""} restante${remaining > 1 ? "s" : ""}</strong>.</p>
-        <p>Para não interromper sua rotina de treinos, fale com seu personal para garantir a renovação do seu plano.</p>
-        <p>Qualquer dúvida, é só responder a este e-mail.</p>
-        <p>Abraços,<br/>${trainerName}</p>
-      `;
+      const subject = "Suas aulas de personal estão acabando!";
+      const htmlContent =
+        `<p>Olá ${student.name},</p>` +
+        "<p>Tudo bem? Este é um lembrete amigável de que seu pacote de aulas " +
+        "está chegando ao fim.</p>" +
+        `<p>Atualmente, você tem <strong>${remaining} aula` +
+        `${remaining > 1 ? "s" : ""} restante` +
+        `${remaining > 1 ? "s" : ""}</strong>.</p>` +
+        "<p>Para não interromper sua rotina de treinos, fale com seu " +
+        "personal para garantir a renovação do seu plano.</p>" +
+        "<p>Qualquer dúvida, é só responder a este e-mail.</p>" +
+        `<p>Abraços,<br/>${trainerName}</p>`;
 
       const emailPayload = {
         sender: {email: globalSenderEmail, name: trainerName},
         to: [{email: student.email, name: student.name}],
-        replyTo: {email: trainer.contactEmail || globalSenderEmail, name: trainerName},
+        replyTo: {
+          email: trainer.contactEmail || globalSenderEmail,
+          name: trainerName,
+        },
         subject,
         htmlContent,
       };
@@ -129,17 +137,25 @@ export const sendLowSessionReminders = functions.pubsub
         });
 
         if (response.ok) {
-          functions.logger.info(`Email de lembrete enviado para ${student.name}.`);
-          // Marcar lembrete como enviado no Firestore
+          functions.logger.info(
+            `Email de lembrete enviado para ${student.name}.`
+          );
+          // Mark reminder as sent in Firestore.
           await studentDoc.ref.update({
             [`remindersSent.${reminderKey}`]: new Date().toISOString(),
           });
         } else {
           const errorData = await response.json();
-          functions.logger.error(`Falha ao enviar e-mail para ${student.name}`, errorData);
+          functions.logger.error(
+            `Falha ao enviar e-mail para ${student.name}`,
+            errorData
+          );
         }
       } catch (error) {
-        functions.logger.error(`Erro de sistema ao enviar e-mail para ${student.name}`, error);
+        functions.logger.error(
+          `Erro de sistema ao enviar e-mail para ${student.name}`,
+          error
+        );
       }
     });
 
