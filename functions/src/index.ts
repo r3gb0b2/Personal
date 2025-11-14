@@ -11,8 +11,11 @@ admin.initializeApp();
 
 const corsHandler = cors({origin: true});
 
+// Fix: Explicitly type request and response to ensure TypeScript uses the correct v1 signatures.
+// This resolves errors where properties like `method`, `body`, and `status` were not found,
+// and ensures compatibility with the `cors` middleware.
 export const sendEmail = functions.https.onRequest(
-  (request, response) => {
+  (request: functions.https.Request, response: functions.Response) => {
     corsHandler(request, response, async () => {
       if (request.method !== "POST") {
         response.status(405).send("Method Not Allowed");

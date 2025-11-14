@@ -39,10 +39,10 @@ const BulkEmailModal: React.FC<BulkEmailModalProps> = ({ isOpen, onClose, studen
         const htmlContent = `<p>${message.replace(/\n/g, '<br>')}</p><p>Qualquer dúvida, é só responder a este e-mail.</p><p>Abraços,<br/>${trainer.fullName || trainer.username}</p>`;
 
         const payload: EmailPayload = {
-            trainerId: trainer.id,
             recipients,
             subject,
             htmlContent,
+            trainer,
         };
 
         const result = await sendEmail(payload);

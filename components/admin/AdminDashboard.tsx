@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../firebase';
-import { collection, getDocs, addDoc, doc, deleteDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, deleteDoc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { Trainer } from '../../types';
 import { LogoutIcon, PlusIcon, UserIcon, TrashIcon, SettingsIcon } from '../icons';
 import Modal from '../modals/Modal';
@@ -68,12 +67,82 @@ const AdminPasswordModal: React.FC<{
     );
 }
 
+const EmailSettingsModal: React.FC<{
+    isOpen: boolean,
+    onClose: () => void,
+}> = ({ isOpen, onClose }) => {
+    const [settings, setSettings] = useState({ apiKey: '', senderEmail: '' });
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        if (isOpen) {
+            const fetchSettings = async () => {
+                setIsLoading(true);
+                const settingsRef = doc(db, 'settings', 'brevoConfig');
+                const docSnap = await getDoc(settingsRef);
+                if (docSnap.exists()) {
+                    setSettings(docSnap.data() as any);
+                }
+                setIsLoading(false);
+            };
+            fetchSettings();
+        }
+    }, [isOpen]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setSettings(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSaving(true);
+        try {
+            const settingsRef = doc(db, 'settings', 'brevoConfig');
+            await setDoc(settingsRef, settings, { merge: true });
+            alert("Configurações salvas com sucesso!");
+            onClose();
+        } catch (error) {
+            console.error("Failed to save email settings:", error);
+            alert("Erro ao salvar as configurações.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Modal title="Configurações Globais de E-mail" isOpen={isOpen} onClose={onClose}>
+            {isLoading ? <p>Carregando...</p> : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700">Chave da API da Brevo (v3)</label>
+                    <input type="password" name="apiKey" value={settings.apiKey} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">E-mail Remetente Global</label>
+                    <input type="email" name="senderEmail" value={settings.senderEmail} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required />
+                     <p className="text-xs text-gray-500 mt-1">Este e-mail aparecerá como remetente para todos os alunos.</p>
+                </div>
+                <div className="flex justify-end gap-4 pt-4">
+                    <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Cancelar</button>
+                    <button type="submit" disabled={isSaving} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent disabled:bg-gray-400">
+                        {isSaving ? 'Salvando...' : 'Salvar Configurações'}
+                    </button>
+                </div>
+            </form>
+            )}
+        </Modal>
+    );
+};
+
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddModalOpen, setAddModalOpen] = useState(false);
   const [isPasswordModalOpen, setPasswordModalOpen] = useState(false);
+  const [isEmailModalOpen, setEmailModalOpen] = useState(false);
   const [newTrainer, setNewTrainer] = useState({ username: '', password: '' });
 
   const fetchTrainers = useCallback(async () => {
@@ -164,8 +233,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
         <div className="flex justify-between items-center mb-8">
-          <h2 className="text-xl font-bold">Gerenciar Acessos</h2>
+          <h2 className="text-xl font-bold">Gerenciar Sistema</h2>
           <div className="flex gap-4">
+             <button onClick={() => setEmailModalOpen(true)} className="flex items-center gap-2 bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors shadow">
+                <SettingsIcon className="w-5 h-5" /> Configurar E-mail
+            </button>
             <button onClick={() => setAddModalOpen(true)} className="flex items-center gap-2 bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-accent transition-colors shadow">
                 <PlusIcon className="w-5 h-5" /> Adicionar Personal
             </button>
@@ -239,6 +311,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             onClose={() => setPasswordModalOpen(false)}
             onPasswordUpdate={handleUpdateAdminPassword}
         />
+      )}
+
+      {isEmailModalOpen && (
+          <EmailSettingsModal
+            isOpen={isEmailModalOpen}
+            onClose={() => setEmailModalOpen(false)}
+          />
       )}
     </>
   );

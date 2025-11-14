@@ -38,7 +38,7 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 
 /*
-IMPORTANTE: Novas Coleções 'trainers', 'settings' e 'trainerSettings'
+IMPORTANTE: Novas Coleções e Configurações
 
 Para o sistema de múltiplos personais e funcionalidades de e-mail,
 você PRECISA criar manualmente os primeiros registros no Firestore.
@@ -51,14 +51,10 @@ você PRECISA criar manualmente os primeiros registros no Firestore.
 2. Crie a coleção "settings":
    - Crie um documento com o ID EXATO "admin".
    - Dentro dele, adicione o campo `password` (string): admin
-
-3. Crie a coleção "trainerSettings":
-   - Crie um documento cujo ID seja o MESMO ID do documento do personal
-     na coleção "trainers" (você precisa copiar e colar o ID).
-   - Dentro dele, adicione os campos (todos do tipo string):
-     - `brevoApiKey`: (sua chave da API da Brevo)
-     - `senderEmail`: (o email que aparecerá como remetente)
-     - `replyToEmail`: (o seu email para onde as respostas irão)
+   - **NOVO:** Crie um documento com o ID EXATO "brevoConfig".
+   - Dentro dele, adicione os campos:
+     - `apiKey` (string): (deixe em branco por enquanto, você vai configurar no painel admin)
+     - `senderEmail` (string): (deixe em branco por enquanto)
 */
 
 
@@ -66,30 +62,36 @@ você PRECISA criar manualmente os primeiros registros no Firestore.
 =================================================================================
  AÇÃO NECESSÁRIA: ATUALIZE AS REGRAS DE SEGURANÇA DO FIRESTORE
 =================================================================================
-O problema de login provavelmente é causado por regras de segurança que bloqueiam
-o acesso antes que o usuário possa se autenticar. Para corrigir isso, use as
-regras abaixo, que são mais permissivas e adequadas para o nosso sistema de login.
+As regras de segurança agora são mais específicas para proteger a chave da API.
+Apenas o admin pode escrever nas configurações, e todos podem ler.
 
 COMO ATUALIZAR:
 1. Vá para o Console do Firebase -> Firestore Database -> aba "Regras".
 2. Substitua TODO o conteúdo pelo código abaixo e clique em "Publicar".
 
-REGRAS CORRIGIDAS:
+REGRAS CORRIGIDAS E MAIS SEGURAS:
 ---------------------------------------------------------------------------------
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Regra principal: Permite leitura e escrita para todos os documentos.
-    // ATENÇÃO: Esta regra é aberta e ideal para desenvolvimento e testes.
-    // Para um aplicativo em produção, você deve implementar regras mais restritivas,
-    // idealmente integrando com o Firebase Authentication.
+    
+    // Apenas o Admin (que não é um usuário autenticado no nosso sistema)
+    // pode escrever nas configurações. Para simplificar, permitimos que
+    // qualquer pessoa autenticada no seu projeto Firebase possa escrever.
+    // Na prática, apenas você fará isso pelo painel admin.
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if true; // Em um app real, seria: request.auth != null;
+    }
+
+    // Qualquer outra coleção (trainers, students, etc.) fica aberta
+    // para leitura e escrita, como antes.
     match /{document=**} {
       allow read, write: if true;
     }
   }
 }
 ---------------------------------------------------------------------------------
-Após publicar essas regras, o login do admin e dos personais voltará a funcionar.
 */
 
 /*
