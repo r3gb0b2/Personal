@@ -14,7 +14,8 @@ const getYoutubeEmbedUrl = (url: string | undefined): string | null => {
         let videoId = urlObj.searchParams.get('v');
         if (!videoId) {
             // Handles short URLs like youtu.be/VIDEOID
-            videoId = urlObj.pathname.split('/').pop();
+            const pathParts = urlObj.pathname.split('/');
+            videoId = pathParts[pathParts.length - 1];
         }
         return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
     } catch (e) {
@@ -128,7 +129,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack }) => {
                                                         <td className="p-3 align-top">{ex.sets}</td>
                                                         <td className="p-3 align-top">{ex.reps}</td>
                                                         <td className="p-3 align-top">{ex.rest}</td>
-                                                        <td className="p-3 text-sm text-gray-600 align-top">{ex.notes}</td>
+                                                        <td className="p-3 text-sm text-gray-600 align-top whitespace-pre-wrap">{ex.notes}</td>
                                                     </tr>
                                                 );
                                             })}
