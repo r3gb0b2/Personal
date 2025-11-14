@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer } from '../types';
-import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon } from './icons';
+import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer, Exercise } from '../types';
+import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon } from './icons';
 import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
 import ProfilePictureModal from './modals/ProfilePictureModal';
 import { db, storage } from '../firebase';
-import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc, Timestamp, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { sendEmail, generateEmailTemplate } from '../services/emailService';
 
@@ -91,7 +91,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
 
         const photosQuery = query(collection(db, 'progressPhotos'), where("studentId", "==", student.id), orderBy("uploadedAt", "desc"));
         const photosSnapshot = await getDocs(photosQuery);
-        setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploadedAt: toISO(d.data().uploadedAt) } as ProgressPhoto)));
+setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploadedAt: toISO(d.data().uploadedAt) } as ProgressPhoto)));
 
     } catch (e) {
         console.error("Error fetching student feature data:", e);
@@ -234,7 +234,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
     <Modal title={isEditing ? `Editando ${student.name}` : student.name} isOpen={true} onClose={onClose} size="xl">
         <div className="flex border-b">
             <TabButton tab="details" label="Detalhes" Icon={UserIcon} />
-            <TabButton tab="workouts" label="Treinos" Icon={BriefcaseIcon} />
+            <TabButton tab="workouts" label="Treinos" Icon={DumbbellIcon} />
             <TabButton tab="files" label="Arquivos" Icon={FileTextIcon} />
             <TabButton tab="progress" label="Progresso" Icon={ImageIcon} />
         </div>
@@ -495,75 +495,143 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
     );
 };
 
-const WorkoutsTab: React.FC<{student: Student, workouts: Workout[], onUpdate: () => void}> = ({ student, workouts, onUpdate }) => {
-    const [newWorkout, setNewWorkout] = useState({ title: '', description: '', youtubeUrl: '' });
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        setNewWorkout(prev => ({...prev, [e.target.name]: e.target.value}));
-    };
-    const handleAddWorkout = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newWorkout.title.trim()) {
-            alert("O título do treino é obrigatório.");
-            return;
-        }
+const WorkoutsTab: React.FC<{ student: Student, workouts: Workout[], onUpdate: () => void }> = ({ student, workouts, onUpdate }) => {
+    const [isAdding, setIsAdding] = useState(false);
+    const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
+
+    const handleSaveWorkout = async (workout: Omit<Workout, 'id' | 'createdAt'> | Workout) => {
         try {
-            await addDoc(collection(db, 'workouts'), {
-                ...newWorkout,
-                studentId: student.id,
-                trainerId: student.trainerId,
-                createdAt: Timestamp.now(),
-            });
-            setNewWorkout({ title: '', description: '', youtubeUrl: '' });
-            onUpdate();
-        } catch (error: any) {
-            console.error("Error adding workout:", error);
-            alert(`Não foi possível adicionar o treino. Verifique as regras de segurança do Firestore. Erro: ${error.message}`);
+            if ('id' in workout) {
+                // Updating existing workout
+                const workoutRef = doc(db, 'workouts', workout.id);
+                const dataToSave = { ...workout };
+                delete (dataToSave as any).id; // Don't save id field inside document
+                await updateDoc(workoutRef, dataToSave);
+            } else {
+                // Adding new workout
+                await addDoc(collection(db, 'workouts'), {
+                    ...workout,
+                    studentId: student.id,
+                    trainerId: student.trainerId,
+                    createdAt: Timestamp.now(),
+                });
+            }
+            onUpdate(); // Refresh the list
+            setIsAdding(false);
+            setEditingWorkout(null);
+        } catch (error) {
+            console.error("Error saving workout:", error);
+            alert("Não foi possível salvar o treino.");
         }
     };
+
     const handleDeleteWorkout = async (id: string) => {
-        if (window.confirm("Tem certeza que deseja excluir este treino?")) {
+        if (window.confirm("Tem certeza que deseja excluir esta planilha de treino?")) {
             await deleteDoc(doc(db, "workouts", id));
             onUpdate();
         }
     };
+
+    if (isAdding || editingWorkout) {
+        return <WorkoutEditor 
+            workout={editingWorkout} 
+            onSave={handleSaveWorkout} 
+            onCancel={() => { setIsAdding(false); setEditingWorkout(null); }} 
+        />
+    }
+
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[60vh] overflow-y-auto">
-            <div>
-                <h3 className="font-bold text-lg mb-2">Adicionar Novo Treino</h3>
-                <form onSubmit={handleAddWorkout} className="space-y-3 p-4 border rounded-md bg-gray-50">
-                    <div>
-                        <label htmlFor="workout-title" className="block text-sm font-medium text-gray-700">Título do Treino</label>
-                        <input id="workout-title" type="text" name="title" placeholder="Ex: Treino A - Peito e Tríceps" value={newWorkout.title} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" required />
-                    </div>
-                    <div>
-                        <label htmlFor="workout-description" className="block text-sm font-medium text-gray-700">Descrição</label>
-                        <textarea id="workout-description" name="description" placeholder="Descrição e exercícios..." value={newWorkout.description} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" rows={5}></textarea>
-                    </div>
-                    <div>
-                        <label htmlFor="workout-youtube" className="block text-sm font-medium text-gray-700">Link do YouTube (Opcional)</label>
-                        <input id="workout-youtube" type="url" name="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." value={newWorkout.youtubeUrl} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
-                    </div>
-                    <button type="submit" className="w-full px-4 py-2 font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Adicionar Treino</button>
-                </form>
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto p-1">
+            <div className="flex justify-between items-center">
+                <h3 className="font-bold text-lg">Planilhas de Treino</h3>
+                <button onClick={() => setIsAdding(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">
+                    <PlusIcon className="w-5 h-5" /> Nova Planilha
+                </button>
             </div>
-            <div>
-                 <h3 className="font-bold text-lg mb-2">Treinos Atribuídos</h3>
-                 <div className="space-y-3">
-                    {workouts.length > 0 ? workouts.map(w => (
-                        <div key={w.id} className="p-3 border rounded-md bg-white">
-                            <div className="flex justify-between items-start">
-                                <p className="font-semibold">{w.title}</p>
-                                <button onClick={() => handleDeleteWorkout(w.id)} className="text-gray-400 hover:text-red-500"><TrashIcon className="w-4 h-4"/></button>
+            <div className="space-y-3">
+                {workouts.length > 0 ? workouts.map(w => (
+                    <div key={w.id} className="p-4 border rounded-lg bg-white shadow-sm">
+                        <div className="flex justify-between items-start">
+                            <p className="font-bold text-lg text-brand-dark">{w.title}</p>
+                            <div className="flex gap-3">
+                                <button onClick={() => setEditingWorkout(w)} className="text-gray-500 hover:text-blue-600"><PencilIcon className="w-5 h-5"/></button>
+                                <button onClick={() => handleDeleteWorkout(w.id)} className="text-gray-400 hover:text-red-500"><TrashIcon className="w-5 h-5"/></button>
                             </div>
-                            <p className="text-sm text-gray-600 whitespace-pre-wrap">{w.description}</p>
-                            {w.youtubeUrl && <a href={w.youtubeUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex items-center gap-1 mt-2"><LinkIcon className="w-4 h-4"/>Ver Vídeo</a>}
                         </div>
-                    )) : <p className="text-center text-gray-500 p-4">Nenhum treino atribuído.</p>}
-                 </div>
+                        <div className="mt-2">
+                           <p className="text-sm text-gray-500">{w.exercises?.length || 0} exercícios</p>
+                        </div>
+                    </div>
+                )) : <p className="text-center text-gray-500 p-8">Nenhuma planilha de treino criada.</p>}
             </div>
         </div>
     );
 };
+
+const WorkoutEditor: React.FC<{
+    workout: Workout | null;
+    onSave: (workout: Omit<Workout, 'id' | 'createdAt'> | Workout) => void;
+    onCancel: () => void;
+}> = ({ workout, onSave, onCancel }) => {
+    const [title, setTitle] = useState(workout?.title || '');
+    const [exercises, setExercises] = useState<Exercise[]>(workout?.exercises || []);
+    
+    const handleExerciseChange = (index: number, field: keyof Exercise, value: string) => {
+        const newExercises = [...exercises];
+        newExercises[index] = { ...newExercises[index], [field]: value };
+        setExercises(newExercises);
+    };
+
+    const addExercise = () => {
+        setExercises([...exercises, { id: `${Date.now()}`, name: '', sets: '', reps: '', rest: '', notes: '', youtubeUrl: '' }]);
+    };
+    
+    const removeExercise = (index: number) => {
+        setExercises(exercises.filter((_, i) => i !== index));
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const workoutData = {
+            title,
+            exercises,
+            ...(workout && { id: workout.id, studentId: workout.studentId, trainerId: workout.trainerId })
+        };
+        onSave(workoutData as any);
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-6 p-2 max-h-[65vh] overflow-y-auto">
+            <div>
+                <label className="block text-sm font-bold text-gray-700">Título da Planilha</label>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex: Treino A - Foco em Peito" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required />
+            </div>
+            <div className="space-y-4">
+                {exercises.map((ex, index) => (
+                    <div key={ex.id} className="p-4 border rounded-lg bg-gray-50 space-y-2 relative">
+                         <button type="button" onClick={() => removeExercise(index)} className="absolute top-2 right-2 text-gray-400 hover:text-red-600"><TrashIcon className="w-5 h-5"/></button>
+                        <input type="text" value={ex.name} onChange={e => handleExerciseChange(index, 'name', e.target.value)} placeholder="Nome do Exercício" className="text-md font-semibold w-full border-b pb-1 bg-transparent focus:outline-none focus:border-brand-primary"/>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            <input type="text" value={ex.sets} onChange={e => handleExerciseChange(index, 'sets', e.target.value)} placeholder="Séries" className="text-sm w-full border-gray-300 rounded-md"/>
+                            <input type="text" value={ex.reps} onChange={e => handleExerciseChange(index, 'reps', e.target.value)} placeholder="Reps" className="text-sm w-full border-gray-300 rounded-md"/>
+                            <input type="text" value={ex.rest} onChange={e => handleExerciseChange(index, 'rest', e.target.value)} placeholder="Descanso" className="text-sm w-full border-gray-300 rounded-md"/>
+                             <input type="text" value={ex.youtubeUrl} onChange={e => handleExerciseChange(index, 'youtubeUrl', e.target.value)} placeholder="Link YouTube (Opcional)" className="text-sm w-full border-gray-300 rounded-md"/>
+                        </div>
+                        <textarea value={ex.notes} onChange={e => handleExerciseChange(index, 'notes', e.target.value)} placeholder="Observações (ex: cadência, técnica)" className="text-sm w-full border-gray-300 rounded-md mt-1" rows={1}></textarea>
+                    </div>
+                ))}
+                <button type="button" onClick={addExercise} className="w-full flex items-center justify-center gap-2 py-2 text-sm font-medium text-brand-primary border-2 border-dashed border-gray-300 rounded-md hover:bg-gray-100">
+                    <PlusIcon className="w-4 h-4"/> Adicionar Exercício
+                </button>
+            </div>
+            <div className="flex justify-end gap-4 pt-4 sticky bottom-0 bg-white py-2">
+                <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Cancelar</button>
+                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Salvar Planilha</button>
+            </div>
+        </form>
+    );
+};
+
 
 const FilesTab: React.FC<{student: Student, files: StudentFile[], onUpdate: () => void}> = ({ student, files, onUpdate }) => {
     // This tab is now interactive, allowing file uploads.

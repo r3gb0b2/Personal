@@ -162,3 +162,9 @@ export const ClockIcon: React.FC<{ className?: string }> = ({ className }) => (
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
 );
+
+export const DumbbellIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 6.75l-4.5 4.5m-3-3l-4.5 4.5M12 12l6.75 6.75M3 17.25L7.5 12.75m3-3l4.5-4.5m-1.5 9l-1.5 1.5M6 6l1.5 1.5m9 9l1.5 1.5M6 18l-1.5-1.5M18 6l1.5-1.5" />
+    </svg>
+);

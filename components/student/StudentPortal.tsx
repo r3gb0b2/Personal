@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Student, Plan, Payment, Workout, StudentFile, ProgressPhoto, Trainer } from '../../types';
-// Fix: Add CameraIcon to the import list.
-import { UserIcon, LogoutIcon, CalendarIcon, DollarSignIcon, BriefcaseIcon, CheckCircleIcon, ExclamationCircleIcon, InstagramIcon, WhatsAppIcon, LinkIcon, FileTextIcon, ImageIcon, UploadCloudIcon, SendIcon, CameraIcon } from '../icons';
+import { UserIcon, LogoutIcon, CalendarIcon, DollarSignIcon, BriefcaseIcon, CheckCircleIcon, ExclamationCircleIcon, InstagramIcon, WhatsAppIcon, LinkIcon, FileTextIcon, ImageIcon, UploadCloudIcon, SendIcon, CameraIcon, DumbbellIcon } from '../icons';
 import { db, storage } from '../../firebase';
 import { collection, addDoc, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import WorkoutPortal from './WorkoutPortal';
 
 interface StudentPortalProps {
     studentData: {
@@ -22,6 +22,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
     const [studentFiles, setStudentFiles] = useState<StudentFile[]>([]);
     const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [view, setView] = useState<'dashboard' | 'workouts'>('dashboard');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const photoInputRef = useRef<HTMLInputElement>(null);
@@ -126,9 +127,9 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
     };
 
     const status = getStatusInfo();
-    const getYoutubeEmbedUrl = (url: string) => {
-        const videoId = url.split('v=')[1]?.split('&')[0] || url.split('/').pop();
-        return videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+    
+    if (view === 'workouts') {
+        return <WorkoutPortal workouts={workouts} onBack={() => setView('dashboard')} />;
     }
 
     return (
@@ -152,6 +153,17 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
                     </div>
                 </div>
 
+                 <div className="mb-8">
+                    <button 
+                        onClick={() => setView('workouts')} 
+                        className="w-full flex items-center justify-center gap-3 py-4 px-6 text-lg font-bold text-white bg-brand-primary rounded-lg shadow-lg hover:bg-brand-accent transition-transform transform hover:scale-105"
+                    >
+                        <DumbbellIcon className="w-8 h-8"/>
+                        Acessar Minha Ficha de Treino
+                    </button>
+                </div>
+
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {/* Column 1 */}
                     <div className="space-y-8 lg:col-span-2">
@@ -174,20 +186,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
                                 </div>
                             )}
                         </div>
-                        <div className="bg-white p-6 rounded-lg shadow-md">
-                            <h3 className="text-xl font-bold text-brand-dark mb-4 flex items-center gap-2"><BriefcaseIcon className="w-6 h-6" /> Meus Treinos</h3>
-                            <div className="max-h-96 overflow-y-auto space-y-4 pr-2">
-                                {isLoading ? <p>Carregando treinos...</p> : workouts.length > 0 ? workouts.map(w => (
-                                    <div key={w.id} className="p-4 border rounded-lg">
-                                        <h4 className="font-bold">{w.title}</h4>
-                                        <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{w.description}</p>
-                                        {w.youtubeUrl && getYoutubeEmbedUrl(w.youtubeUrl) && (
-                                            <div className="mt-3 aspect-video"><iframe className="w-full h-full rounded-md" src={getYoutubeEmbedUrl(w.youtubeUrl) as string} title={w.title} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe></div>
-                                        )}
-                                    </div>
-                                )) : <p className="text-center text-gray-500 py-4">Nenhum treino atribuído.</p>}
-                            </div>
-                        </div>
+                        
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                              <div className="bg-white p-6 rounded-lg shadow-md">
                                 <h3 className="text-xl font-bold text-brand-dark mb-4 flex items-center gap-2"><FileTextIcon className="w-6 h-6"/> Meus Arquivos</h3>

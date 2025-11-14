@@ -64,15 +64,25 @@ export interface Trainer {
     whatsapp?: string; // e.g., '5511999998888'
 }
 
+export interface Exercise {
+    id: string;
+    name: string;
+    sets: string;
+    reps: string;
+    rest: string;
+    notes: string;
+    youtubeUrl?: string;
+}
+
 export interface Workout {
     id: string;
     studentId: string;
     trainerId: string;
     title: string;
-    description: string;
-    youtubeUrl?: string;
+    exercises: Exercise[];
     createdAt: string; // ISO string
 }
+
 
 export interface StudentFile {
     id: string;
