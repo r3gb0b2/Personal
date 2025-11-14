@@ -34,20 +34,37 @@ const TrainerProfileModal: React.FC<{
   onUpdatePassword: (currentPassword: string, newPassword: string) => Promise<{success: boolean, message: string}>;
 }> = ({ isOpen, onClose, trainer, trainerSettings, onSave, onUpdatePassword }) => {
   const [formData, setFormData] = useState({
-    fullName: trainer.fullName || '',
-    contactEmail: trainer.contactEmail || '',
-    instagram: trainer.instagram || '',
-    whatsapp: trainer.whatsapp || '',
+    fullName: '',
+    contactEmail: '',
+    instagram: '',
+    whatsapp: '',
   });
   
   const [settingsData, setSettingsData] = useState<TrainerSettings>({
-      brevoApiKey: trainerSettings?.brevoApiKey || '',
-      senderEmail: trainerSettings?.senderEmail || '',
-      replyToEmail: trainerSettings?.replyToEmail || '',
+      brevoApiKey: '',
+      senderEmail: '',
+      replyToEmail: '',
   });
 
   const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: ''});
   const [passwordMessage, setPasswordMessage] = useState({type: '', text: ''});
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+        setFormData({
+            fullName: trainer.fullName || '',
+            contactEmail: trainer.contactEmail || '',
+            instagram: trainer.instagram || '',
+            whatsapp: trainer.whatsapp || '',
+        });
+        setSettingsData({
+            brevoApiKey: trainerSettings?.brevoApiKey || '',
+            senderEmail: trainerSettings?.senderEmail || '',
+            replyToEmail: trainerSettings?.replyToEmail || '',
+        });
+    }
+  }, [trainer, trainerSettings, isOpen]);
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,7 +84,14 @@ const TrainerProfileModal: React.FC<{
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSave(formData, settingsData);
+    setIsSaving(true);
+    try {
+        await onSave(formData, settingsData);
+    } catch (err) {
+        // Error is alerted to user in the onSave function
+    } finally {
+        setIsSaving(false);
+    }
   };
   
   const handlePasswordSubmit = async (e: React.FormEvent) => {
@@ -129,7 +153,9 @@ const TrainerProfileModal: React.FC<{
         </div>
 
         <div className="flex justify-end gap-4 pt-4">
-          <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Salvar Perfil e Configurações</button>
+          <button type="submit" disabled={isSaving} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent disabled:bg-gray-400 disabled:cursor-wait">
+            {isSaving ? 'Salvando...' : 'Salvar Perfil e Configurações'}
+          </button>
         </div>
       </form>
       
@@ -359,21 +385,31 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         const trainerRef = doc(db, 'trainers', trainer.id);
         const settingsRef = doc(db, 'trainerSettings', trainer.id);
 
-        // Run both updates
         await Promise.all([
           updateDoc(trainerRef, profileData),
           setDoc(settingsRef, settingsData, { merge: true })
         ]);
 
+        // Update local state for immediate UI feedback without a page reload
         setTrainerSettings(settingsData);
-        const updatedTrainer = { ...trainer, ...profileData };
-        sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(updatedTrainer));
+        
+        // Update session storage so a future refresh still has the data
+        const sessionAuth = sessionStorage.getItem(AUTH_SESSION_KEY);
+        if (sessionAuth) {
+            const parsedUser = JSON.parse(sessionAuth);
+            const updatedTrainerSession = { ...parsedUser, ...profileData };
+            // Although the trainer prop won't update without a reload, this keeps session consistent
+            sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(updatedTrainerSession));
+        }
+        
         alert("Perfil e configurações salvos com sucesso!");
-        window.location.reload();
+        setProfileModalOpen(false); // Close the modal on success
 
     } catch (error) {
         console.error("Failed to save profile and settings:", error);
         alert("Ocorreu um erro ao salvar as configurações.");
+        // Re-throw to be caught by modal's finally block if needed
+        throw error;
     }
   };
   
