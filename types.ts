@@ -72,6 +72,7 @@ export interface Exercise {
     rest: string;
     notes: string;
     youtubeUrl?: string;
+    isHidden?: boolean;
 }
 
 export interface Workout {
