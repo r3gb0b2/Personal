@@ -121,27 +121,53 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
 
     const studentPlan = plans.find(p => p.id === student.planId);
     const formatDate = (dateString: string | null) => dateString ? new Date(dateString).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A';
+    
     const getStatusInfo = () => {
-        if (!studentPlan) return { text: 'Aluno sem plano ativo', Icon: ExclamationCircleIcon, color: 'text-red-600' };
+        if (!studentPlan) return { text: 'Aluno sem plano ativo', Icon: ExclamationCircleIcon, color: 'text-red-600', isActive: false };
+        
         if (studentPlan.type === 'duration') {
-            if (!student.paymentDueDate) return { text: 'Status do plano não definido', Icon: ExclamationCircleIcon, color: 'text-yellow-600' };
+            if (!student.paymentDueDate) return { text: 'Status do plano não definido', Icon: ExclamationCircleIcon, color: 'text-yellow-600', isActive: false };
             const isExpired = new Date(student.paymentDueDate) < new Date();
-            return { text: `Seu plano vence em ${formatDate(student.paymentDueDate)}`, Icon: isExpired ? ExclamationCircleIcon : CheckCircleIcon, color: isExpired ? 'text-red-600' : 'text-green-600' };
+            return { 
+                text: `Seu plano vence em ${formatDate(student.paymentDueDate)}`, 
+                Icon: isExpired ? ExclamationCircleIcon : CheckCircleIcon, 
+                color: isExpired ? 'text-red-600' : 'text-green-600',
+                isActive: !isExpired 
+            };
         }
+        
         if (studentPlan.type === 'session') {
             const remaining = student.remainingSessions;
-            if (remaining == null) return { text: "Contagem de aulas não iniciada", Icon: ExclamationCircleIcon, color: 'text-yellow-600' };
-            if (remaining < 0) { const plural = Math.abs(remaining) > 1; return { text: `Você deve ${Math.abs(remaining)} aula${plural ? 's' : ''}`, Icon: ExclamationCircleIcon, color: 'text-red-600' }; }
-            if (remaining === 0) return { text: 'Você não tem mais aulas restantes', Icon: ExclamationCircleIcon, color: 'text-red-600' };
-            const plural = remaining > 1; return { text: `Você tem ${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}`, Icon: CheckCircleIcon, color: 'text-green-600' };
+            if (remaining == null) return { text: "Contagem de aulas não iniciada", Icon: ExclamationCircleIcon, color: 'text-yellow-600', isActive: false };
+            
+            const isDepleted = remaining <= 0;
+            let statusText = '';
+            if (remaining < 0) {
+                const plural = Math.abs(remaining) > 1;
+                statusText = `Você deve ${Math.abs(remaining)} aula${plural ? 's' : ''}`;
+            } else if (remaining === 0) {
+                statusText = 'Você não tem mais aulas restantes';
+            } else {
+                const plural = remaining > 1;
+                statusText = `Você tem ${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}`;
+            }
+
+            return { 
+                text: statusText, 
+                Icon: isDepleted ? ExclamationCircleIcon : CheckCircleIcon, 
+                color: isDepleted ? 'text-red-600' : 'text-green-600',
+                isActive: !isDepleted
+            };
         }
-        return { text: 'Status indisponível', Icon: ExclamationCircleIcon, color: 'text-gray-600' };
+
+        return { text: 'Status indisponível', Icon: ExclamationCircleIcon, color: 'text-gray-600', isActive: false };
     };
 
     const status = getStatusInfo();
+    const isPlanActive = status.isActive;
     
     if (view === 'workouts') {
-        return <WorkoutPortal workouts={workouts} onBack={() => setView('dashboard')} />;
+        return <WorkoutPortal workouts={workouts} onBack={() => setView('dashboard')} isPlanActive={isPlanActive} />;
     }
 
     return (
@@ -166,13 +192,26 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
                 </div>
 
                  <div className="mb-8">
-                    <button 
-                        onClick={() => setView('workouts')} 
-                        className="w-full flex items-center justify-center gap-3 py-4 px-6 text-lg font-bold text-white bg-brand-primary rounded-lg shadow-lg hover:bg-brand-accent transition-transform transform hover:scale-105"
-                    >
-                        <DumbbellIcon className="w-8 h-8"/>
-                        Acessar Minha Ficha de Treino
-                    </button>
+                    {isPlanActive ? (
+                        <button 
+                            onClick={() => setView('workouts')} 
+                            className="w-full flex items-center justify-center gap-3 py-4 px-6 text-lg font-bold text-white bg-brand-primary rounded-lg shadow-lg hover:bg-brand-accent transition-transform transform hover:scale-105"
+                        >
+                            <DumbbellIcon className="w-8 h-8"/>
+                            Acessar Minha Ficha de Treino
+                        </button>
+                    ) : (
+                        <div className="w-full flex flex-col items-center justify-center text-center gap-2 py-4 px-6 bg-gray-400 rounded-lg shadow-inner cursor-not-allowed">
+                            <div className="flex items-center gap-3 text-lg font-bold text-white">
+                                <DumbbellIcon className="w-8 h-8"/>
+                                <span>Acessar Minha Ficha de Treino</span>
+                            </div>
+                            <p className="text-sm font-medium text-gray-100">
+                                Seu acesso está bloqueado. Motivo: <span className="font-bold">{status.text}</span>.
+                            </p>
+                            <p className="text-xs text-gray-200">Fale com seu personal para regularizar a situação.</p>
+                        </div>
+                    )}
                 </div>
 
 
