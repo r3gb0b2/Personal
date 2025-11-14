@@ -107,14 +107,28 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                 {/* Mobile View: Card-based layout */}
                                 <div className="space-y-4 md:hidden">
                                     {visibleExercises.map(ex => {
-                                        const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
                                         const isHidden = hiddenExercises.includes(ex.id);
+                                        
+                                        if (isHidden) {
+                                            return (
+                                                <div key={ex.id} className="bg-gray-100 p-3 rounded-lg flex justify-between items-center border shadow-sm">
+                                                    <p className="text-gray-500 line-through">{ex.name}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">Concluído</span>
+                                                        <button onClick={() => toggleExerciseVisibility(ex.id)} className="text-gray-400 hover:text-brand-primary">
+                                                            <EyeOffIcon className="w-5 h-5"/>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+
+                                        const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
                                         return (
-                                            <div key={ex.id} className={`bg-gray-50 p-4 rounded-lg border relative transition-opacity ${isHidden ? 'opacity-40' : ''}`}>
+                                            <div key={ex.id} className="bg-gray-50 p-4 rounded-lg border relative transition-opacity">
                                                 <div className="absolute top-3 right-3 flex items-center gap-2">
-                                                    {isHidden && <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">Concluído</span>}
                                                     <button onClick={() => toggleExerciseVisibility(ex.id)} className="text-gray-400 hover:text-brand-primary">
-                                                        {isHidden ? <EyeOffIcon className="w-5 h-5"/> : <EyeIcon className="w-5 h-5"/>}
+                                                        <EyeIcon className="w-5 h-5"/>
                                                     </button>
                                                 </div>
 
@@ -201,17 +215,17 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                             {visibleExercises.map(ex => {
                                                 const isHidden = hiddenExercises.includes(ex.id);
                                                 return (
-                                                    <tr key={ex.id} className={`border-t transition-opacity ${isHidden ? 'opacity-40' : ''}`}>
+                                                    <tr key={ex.id} className={`border-t transition-opacity ${isHidden ? 'opacity-40 bg-gray-50' : ''}`}>
                                                         <td className="p-3 font-medium align-top">
-                                                            {ex.name}
+                                                            <span className={isHidden ? 'line-through text-gray-500' : ''}>{ex.name}</span>
                                                             {isHidden && <span className="ml-2 text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">Concluído</span>}
                                                         </td>
-                                                        <td className="p-3 align-top">{ex.sets}</td>
-                                                        <td className="p-3 align-top">{ex.reps}</td>
-                                                        <td className="p-3 align-top">{ex.rest}</td>
-                                                        <td className="p-3 text-sm text-gray-600 align-top whitespace-pre-wrap">{ex.notes}</td>
+                                                        <td className="p-3 align-top">{isHidden ? '-' : ex.sets}</td>
+                                                        <td className="p-3 align-top">{isHidden ? '-' : ex.reps}</td>
+                                                        <td className="p-3 align-top">{isHidden ? '-' : ex.rest}</td>
+                                                        <td className="p-3 text-sm text-gray-600 align-top whitespace-pre-wrap">{isHidden ? '-' : ex.notes}</td>
                                                         <td className="p-3 align-top">
-                                                             {ex.studentFeedback ? (
+                                                             {isHidden ? <span className="text-xs text-gray-500">Concluído</span> : ex.studentFeedback ? (
                                                                 <p className="text-sm italic text-gray-500 bg-gray-100 p-2 rounded-md">"Enviado: {ex.studentFeedback}"</p>
                                                              ) : (
                                                                 <div className="flex items-center gap-1">
