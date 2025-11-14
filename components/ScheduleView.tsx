@@ -4,6 +4,7 @@ import { Student, Plan } from '../types';
 interface ScheduleViewProps {
   students: Student[];
   plans: Plan[];
+  onSelectStudent: (studentId: string) => void;
 }
 
 const timeToMinutes = (time: string): number => {
@@ -12,7 +13,7 @@ const timeToMinutes = (time: string): number => {
     return hours * 60 + minutes;
 };
 
-const ScheduleView: React.FC<ScheduleViewProps> = ({ students, plans }) => {
+const ScheduleView: React.FC<ScheduleViewProps> = ({ students, plans, onSelectStudent }) => {
     const [now, setNow] = useState(new Date());
     const [displayDate, setDisplayDate] = useState(new Date());
     const containerRef = useRef<HTMLDivElement>(null);
@@ -213,7 +214,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students, plans }) => {
                                     return (
                                         <div
                                             key={`${appt.studentId}-${index}`}
-                                            className={`absolute left-1 right-1 p-2 rounded-lg border text-xs overflow-hidden ${color}`}
+                                            onClick={() => onSelectStudent(appt.studentId)}
+                                            className={`absolute left-1 right-1 p-2 rounded-lg border text-xs overflow-hidden ${color} cursor-pointer hover:opacity-80 transition-opacity`}
                                             style={{
                                                 top: `${top}rem`,
                                                 height: `${height}rem`,

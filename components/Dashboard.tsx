@@ -428,6 +428,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       return { text: 'N/A', color: 'gray', situation: 'N/A' };
   };
 
+  const handleSelectStudentFromSchedule = (studentId: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (student) {
+        setSelectedStudent(student);
+    }
+  };
+
   return (
     <>
       <div className="bg-brand-dark">
@@ -486,7 +493,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         </div>
 
         {view === 'schedule' ? (
-            <ScheduleView students={students} plans={plans} />
+            <ScheduleView 
+                students={students} 
+                plans={plans} 
+                onSelectStudent={handleSelectStudentFromSchedule} 
+            />
         ) : (
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="p-6 border-b">
