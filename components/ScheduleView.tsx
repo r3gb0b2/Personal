@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Student } from '../types';
 
 interface ScheduleViewProps {
@@ -14,8 +14,18 @@ const timeToMinutes = (time: string): number => {
     return hours * 60 + minutes;
 };
 
+// Helper function to get the start of the week (Sunday) for a given date
+const getWeekStart = (date: Date): Date => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0); // Normalize time
+    const day = d.getDay(); // Sunday - 0, Monday - 1, ...
+    const diff = d.getDate() - day;
+    return new Date(d.setDate(diff));
+};
 
 const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
+  const [currentDate, setCurrentDate] = useState(new Date());
+
   const days = [
     { key: 'sunday', name: 'Domingo' },
     { key: 'monday', name: 'Segunda' },
@@ -34,6 +44,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
 
   const appointments = students.flatMap(student => 
     (student.schedule || []).map(item => ({
+      studentId: student.id,
       studentName: student.name,
       ...item
     }))
@@ -51,8 +62,10 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
       'bg-teal-200 border-teal-400 text-teal-800',
     ];
     const map = new Map<string, string>();
+    // Sort students by name to ensure consistent color assignment
+    const sortedStudents = [...students].sort((a, b) => a.name.localeCompare(b.name));
     let colorIndex = 0;
-    students.forEach(student => {
+    sortedStudents.forEach(student => {
       if (!map.has(student.id)) {
         map.set(student.id, colors[colorIndex % colors.length]);
         colorIndex++;
@@ -61,10 +74,49 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
     return map;
   }, [students]);
 
+  const handlePrevWeek = () => {
+    setCurrentDate(prev => new Date(prev.setDate(prev.getDate() - 7)));
+  };
+
+  const handleNextWeek = () => {
+    setCurrentDate(prev => new Date(prev.setDate(prev.getDate() + 7)));
+  };
+
+  const handleToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  const formatDateRange = (start: Date, end: Date): string => {
+    const startDay = start.getDate();
+    const endDay = end.getDate();
+    const startMonth = start.toLocaleString('pt-BR', { month: 'long' });
+    const endMonth = end.toLocaleString('pt-BR', { month: 'long' });
+    const year = start.getFullYear();
+
+    if (startMonth !== endMonth) {
+      return `${startDay} de ${startMonth} - ${endDay} de ${endMonth} de ${year}`;
+    }
+    return `${startDay} - ${endDay} de ${startMonth} de ${year}`;
+  };
+
+  const weekStart = getWeekStart(currentDate);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  const displayRange = formatDateRange(weekStart, weekEnd);
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
-       <h2 className="text-xl font-bold mb-4">Agenda da Semana</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold">Agenda da Semana</h2>
+        <div className="flex items-center gap-4">
+            <span className="font-semibold text-brand-dark">{displayRange}</span>
+            <div className="flex items-center gap-2">
+                <button onClick={handlePrevWeek} className="p-2 rounded-full hover:bg-gray-100">&lt;</button>
+                <button onClick={handleToday} className="px-3 py-1 text-sm font-medium rounded-md border hover:bg-gray-50">Hoje</button>
+                <button onClick={handleNextWeek} className="p-2 rounded-full hover:bg-gray-100">&gt;</button>
+            </div>
+        </div>
+      </div>
       <div className="grid grid-cols-[auto,1fr,1fr,1fr,1fr,1fr,1fr,1fr] gap-x-2 text-sm text-center font-semibold text-gray-600">
         <div className="sticky top-0 bg-white z-10"></div> {/* Empty corner */}
         {days.map(day => (
@@ -91,7 +143,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
         ))}
         
         {/* Appointments */}
-        <div className="col-start-2 col-end-9 row-start-1 row-end-[-1] grid grid-cols-7 grid-rows-[repeat(32,3rem)]">
+        <div className="col-start-2 col-end-9 row-start-1 row-end-[-1] grid grid-cols-7">
           {appointments.map((appt, index) => {
             const dayIndex = days.findIndex(d => d.key === appt.day);
             if (dayIndex === -1) return null;
@@ -99,15 +151,19 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
             const startMinutes = timeToMinutes(appt.startTime);
             const endMinutes = timeToMinutes(appt.endTime);
             const durationMinutes = endMinutes - startMinutes;
-            const topOffset = ((startMinutes - (6 * 60)) / 60) * 3; // 3rem per hour
-            const height = (durationMinutes / 60) * 3; // 3rem per hour
+
+            // CORRECTED: The grid row for a half-hour is 3rem (h-12), so an hour is 6rem.
+            // The multiplier must be 6 to scale correctly.
+            const remsPerHour = 6;
+            const topOffset = ((startMinutes - (6 * 60)) / 60) * remsPerHour;
+            const height = (durationMinutes / 60) * remsPerHour;
             
-            const color = studentColors.get(students.find(s => s.name === appt.studentName)?.id || '') || 'bg-gray-200 border-gray-400';
+            const color = studentColors.get(appt.studentId) || 'bg-gray-200 border-gray-400 text-gray-800';
 
             return (
               <div
                 key={index}
-                className="absolute w-full p-2 overflow-hidden rounded-lg border text-xs"
+                className="absolute w-full p-1"
                 style={{
                   left: `${(100/7) * dayIndex}%`,
                   width: `${100/7}%`,
@@ -115,7 +171,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
                   height: `${height}rem`,
                 }}
               >
-                <div className={`h-full w-full ${color} p-1 rounded`}>
+                <div className={`h-full w-full ${color} p-1 rounded-lg shadow-sm text-xs overflow-hidden`}>
                    <p className="font-bold truncate">{appt.studentName}</p>
                    <p className="truncate">{appt.startTime} - {appt.endTime}</p>
                 </div>
