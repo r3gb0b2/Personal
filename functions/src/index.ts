@@ -1,7 +1,5 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-// Fix: Use ES module import syntax for node-fetch.
-import fetch from "node-fetch";
 import cors from "cors";
 
 admin.initializeApp();
