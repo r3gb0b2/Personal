@@ -100,7 +100,7 @@ Este é o coração da nossa função. Abra este arquivo e substitua **todo o se
 ```typescript
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import fetch from "node-fetch";
+import fetch = require("node-fetch");
 import cors from "cors";
 
 admin.initializeApp();
