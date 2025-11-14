@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Student } from '../types';
 
 interface ScheduleViewProps {
@@ -42,13 +42,23 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
   });
 
-  const appointments = students.flatMap(student => 
-    (student.schedule || []).map(item => ({
-      studentId: student.id,
-      studentName: student.name,
-      ...item
-    }))
-  ).filter(item => item.startTime && item.endTime);
+  const appointmentsByDay = useMemo(() => {
+    const grouped: { [key: string]: any[] } = {};
+    days.forEach(d => grouped[d.key] = []);
+
+    students.forEach(student => {
+      (student.schedule || []).forEach(item => {
+        if (item.day && item.startTime && item.endTime && grouped[item.day]) {
+          grouped[item.day].push({
+            studentId: student.id,
+            studentName: student.name,
+            ...item
+          });
+        }
+      });
+    });
+    return grouped;
+  }, [students]);
   
   const studentColors = React.useMemo(() => {
     const colors = [
@@ -133,52 +143,46 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
           ))}
         </div>
 
-        {/* Vertical lines for days */}
-        {days.map((day, index) => (
-          <div key={day.key} className={`col-start-${index + 2} col-end-${index + 3} row-start-1 row-end-[-1] border-r border-gray-100`}>
-             {timeSlots.map((_, slotIndex) => (
-                <div key={slotIndex} className="h-12 border-t border-gray-100"></div>
-            ))}
-          </div>
+        {/* Day columns with appointments */}
+        {days.map((day, dayIndex) => (
+            <div key={day.key} className={`relative col-start-${dayIndex + 2} col-end-${dayIndex + 3} row-start-1 row-end-[-1] border-r border-gray-100`}>
+                {/* Background grid cells */}
+                {timeSlots.map((_, slotIndex) => (
+                    <div key={slotIndex} className="h-12 border-t border-gray-100"></div>
+                ))}
+                
+                {/* Render appointments for this day */}
+                {appointmentsByDay[day.key].map((appt, index) => {
+                    const startMinutes = timeToMinutes(appt.startTime);
+                    const endMinutes = timeToMinutes(appt.endTime);
+                    const durationMinutes = endMinutes - startMinutes;
+
+                    if (durationMinutes <= 0) return null;
+
+                    const remsPerHour = 6;
+                    const topOffset = ((startMinutes - (6 * 60)) / 60) * remsPerHour;
+                    const height = (durationMinutes / 60) * remsPerHour;
+                    
+                    const color = studentColors.get(appt.studentId) || 'bg-gray-200 border-gray-400 text-gray-800';
+
+                    return (
+                        <div
+                            key={`${appt.studentId}-${index}`}
+                            className="absolute w-full p-1"
+                            style={{
+                                top: `${topOffset}rem`,
+                                height: `${height}rem`,
+                            }}
+                        >
+                            <div className={`h-full w-full ${color} p-1 rounded-lg shadow-sm text-xs overflow-hidden`}>
+                                <p className="font-bold truncate">{appt.studentName}</p>
+                                <p className="truncate">{appt.startTime} - {appt.endTime}</p>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
         ))}
-        
-        {/* Appointments */}
-        <div className="col-start-2 col-end-9 row-start-1 row-end-[-1] grid grid-cols-7">
-          {appointments.map((appt, index) => {
-            const dayIndex = days.findIndex(d => d.key === appt.day);
-            if (dayIndex === -1) return null;
-
-            const startMinutes = timeToMinutes(appt.startTime);
-            const endMinutes = timeToMinutes(appt.endTime);
-            const durationMinutes = endMinutes - startMinutes;
-
-            // CORRECTED: The grid row for a half-hour is 3rem (h-12), so an hour is 6rem.
-            // The multiplier must be 6 to scale correctly.
-            const remsPerHour = 6;
-            const topOffset = ((startMinutes - (6 * 60)) / 60) * remsPerHour;
-            const height = (durationMinutes / 60) * remsPerHour;
-            
-            const color = studentColors.get(appt.studentId) || 'bg-gray-200 border-gray-400 text-gray-800';
-
-            return (
-              <div
-                key={index}
-                className="absolute w-full p-1"
-                style={{
-                  left: `${(100/7) * dayIndex}%`,
-                  width: `${100/7}%`,
-                  top: `${topOffset}rem`,
-                  height: `${height}rem`,
-                }}
-              >
-                <div className={`h-full w-full ${color} p-1 rounded-lg shadow-sm text-xs overflow-hidden`}>
-                   <p className="font-bold truncate">{appt.studentName}</p>
-                   <p className="truncate">{appt.startTime} - {appt.endTime}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );
