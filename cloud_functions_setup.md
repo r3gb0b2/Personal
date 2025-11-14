@@ -55,7 +55,7 @@ Agora, vamos substituir os arquivos de exemplo pelos nossos.
 
 #### 1. Arquivo `functions/package.json`
 
-Abra este arquivo e substitua **todo o seu conteúdo** pelo código abaixo. Isso adiciona as dependências que nossa função precisa (`cors` e `node-fetch`).
+Abra este arquivo e substitua **todo o seu conteúdo** pelo código abaixo. Isso adiciona as dependências que nossa função precisa (`cors` e `node-fetch`) e também as definições de tipo para o TypeScript.
 
 ```json
 {
@@ -80,6 +80,8 @@ Abra este arquivo e substitua **todo o seu conteúdo** pelo código abaixo. Isso
     "node-fetch": "^2.6.11"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.13",
+    "@types/node-fetch": "^2.6.4",
     "@typescript-eslint/eslint-plugin": "^5.12.0",
     "@typescript-eslint/parser": "^5.12.0",
     "eslint": "^8.9.0",
@@ -99,7 +101,7 @@ Este é o coração da nossa função. Abra este arquivo e substitua **todo o se
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import fetch from "node-fetch";
-import * as cors from "cors";
+import cors from "cors";
 
 admin.initializeApp();
 const db = admin.firestore();
