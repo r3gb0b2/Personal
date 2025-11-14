@@ -1,6 +1,6 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-// Fix: Use ES module import syntax for node-fetch.
+// Fix: Use an ES module-style import for 'node-fetch' as the project targets ECMAScript modules.
 import fetch from "node-fetch";
 import cors from "cors";
 
