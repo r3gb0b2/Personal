@@ -7,12 +7,11 @@ interface ScheduleViewProps {
 
 const timeToMinutes = (time: string): number => {
     if (!time || !time.includes(':')) return 0;
-    // By creating a date object from a time string like "HH:mm", the browser
-    // correctly interprets it in the user's local timezone. This prevents
-    // issues where the time might be misinterpreted as UTC, causing shifts
-    // in the schedule display.
-    const date = new Date(`1970-01-01T${time}`);
-    return date.getHours() * 60 + date.getMinutes();
+    // Manually parse the time string to avoid timezone interpretation issues
+    // that occur with `new Date()`. This ensures "12:00" is always treated as
+    // 12 hours, regardless of the user's local timezone.
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
 };
 
 
