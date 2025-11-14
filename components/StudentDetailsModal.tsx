@@ -561,6 +561,11 @@ const WorkoutsTab: React.FC<{ student: Student, trainer: Trainer, workouts: Work
                         </div>
                         <div className="mt-2">
                            <p className="text-sm text-gray-500">{w.exercises?.length || 0} exercícios</p>
+                           {w.exercises.some(ex => ex.studentFeedback) && (
+                               <div className="mt-2 text-sm text-blue-600 font-semibold bg-blue-50 p-2 rounded-md">
+                                   <p>🔔 Um ou mais exercícios têm feedback do aluno!</p>
+                               </div>
+                           )}
                         </div>
                     </div>
                 )) : <p className="text-center text-gray-500 p-8">Nenhuma planilha de treino criada.</p>}
@@ -715,6 +720,12 @@ const WorkoutEditor: React.FC<{
                                 <input type="text" value={ex.youtubeUrl} onChange={e => handleExerciseChange(index, 'youtubeUrl', e.target.value)} placeholder="Link YouTube (Opcional)" className="text-sm w-full border-gray-300 rounded-md"/>
                             </div>
                             <textarea value={ex.notes} onChange={e => handleExerciseChange(index, 'notes', e.target.value)} placeholder="Observações (ex: cadência, técnica)" className="text-sm w-full border-gray-300 rounded-md mt-1" rows={1}></textarea>
+                             {ex.studentFeedback && (
+                                <div className="mt-2 p-2 bg-yellow-50 border-l-4 border-yellow-300">
+                                    <p className="text-xs font-bold text-yellow-800">Feedback do Aluno:</p>
+                                    <p className="text-sm text-yellow-900 italic">"{ex.studentFeedback}"</p>
+                                </div>
+                            )}
                         </div>
                     )
                 })}

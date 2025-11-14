@@ -47,7 +47,7 @@ export interface Payment {
     studentId: string;
     studentName: string; // Denormalized for easier display
     planId: string;
-    planName: string; // Denormalized for easier display
+    planName: string; // Denormalized for a easier display
     amount: number;
     paymentDate: string; // ISO string format
     paymentMethod: PaymentMethod;
@@ -73,6 +73,7 @@ export interface Exercise {
     notes: string;
     youtubeUrl?: string;
     isHidden?: boolean;
+    studentFeedback?: string;
 }
 
 export interface Workout {

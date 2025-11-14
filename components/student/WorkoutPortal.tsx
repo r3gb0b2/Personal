@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Workout } from '../../types';
-import { DumbbellIcon, ExclamationCircleIcon } from '../icons';
+import { DumbbellIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, SendIcon } from '../icons';
+import { db } from '../../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 
 interface WorkoutPortalProps {
     workouts: Workout[];
@@ -26,6 +28,52 @@ const getYoutubeEmbedUrl = (url: string | undefined): string | null => {
 }
 
 const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanActive }) => {
+    const [hiddenExercises, setHiddenExercises] = useState<string[]>([]);
+    const [feedback, setFeedback] = useState<{ [exerciseId: string]: string }>({});
+    const [isSubmittingFeedback, setIsSubmittingFeedback] = useState<string | null>(null);
+
+    const toggleExerciseVisibility = (exerciseId: string) => {
+        setHiddenExercises(prev => 
+            prev.includes(exerciseId) 
+            ? prev.filter(id => id !== exerciseId)
+            : [...prev, exerciseId]
+        );
+    };
+
+    const restoreAllExercises = () => {
+        setHiddenExercises([]);
+    };
+    
+    const handleFeedbackChange = (exerciseId: string, text: string) => {
+        setFeedback(prev => ({...prev, [exerciseId]: text}));
+    };
+    
+    const handleSendFeedback = async (workoutId: string, exerciseId: string) => {
+        const feedbackText = feedback[exerciseId];
+        if (!feedbackText || !feedbackText.trim()) return;
+
+        setIsSubmittingFeedback(exerciseId);
+        try {
+            const workoutRef = doc(db, 'workouts', workoutId);
+            const workout = workouts.find(w => w.id === workoutId);
+            if (!workout) throw new Error("Workout not found");
+
+            const updatedExercises = workout.exercises.map(ex => 
+                ex.id === exerciseId ? { ...ex, studentFeedback: feedbackText } : ex
+            );
+
+            await updateDoc(workoutRef, { exercises: updatedExercises });
+            alert("Feedback enviado com sucesso!");
+            setFeedback(prev => ({...prev, [exerciseId]: ''}));
+
+        } catch (error) {
+            console.error("Error sending feedback:", error);
+            alert("Não foi possível enviar o feedback. Tente novamente.");
+        } finally {
+            setIsSubmittingFeedback(null);
+        }
+    };
+
 
     const renderContent = () => {
         if (!isPlanActive) {
@@ -41,6 +89,13 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
         if (workouts.length > 0) {
             return (
                  <div className="space-y-8">
+                    {hiddenExercises.length > 0 && (
+                        <div className="text-center">
+                            <button onClick={restoreAllExercises} className="px-4 py-2 bg-brand-secondary text-white font-semibold rounded-lg shadow hover:bg-gray-700">
+                                Restaurar Exercícios
+                            </button>
+                        </div>
+                    )}
                     {workouts.map(workout => {
                         const visibleExercises = workout.exercises.filter(ex => !ex.isHidden);
                         if (visibleExercises.length === 0) return null;
@@ -53,8 +108,16 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                 <div className="space-y-4 md:hidden">
                                     {visibleExercises.map(ex => {
                                         const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
+                                        const isHidden = hiddenExercises.includes(ex.id);
                                         return (
-                                            <div key={ex.id} className="bg-gray-50 p-4 rounded-lg border">
+                                            <div key={ex.id} className={`bg-gray-50 p-4 rounded-lg border relative transition-opacity ${isHidden ? 'opacity-40' : ''}`}>
+                                                <div className="absolute top-3 right-3 flex items-center gap-2">
+                                                    {isHidden && <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">Concluído</span>}
+                                                    <button onClick={() => toggleExerciseVisibility(ex.id)} className="text-gray-400 hover:text-brand-primary">
+                                                        {isHidden ? <EyeOffIcon className="w-5 h-5"/> : <EyeIcon className="w-5 h-5"/>}
+                                                    </button>
+                                                </div>
+
                                                 <h3 className="font-bold text-lg mb-3 text-brand-secondary">{ex.name}</h3>
                                                 
                                                 {embedUrl && (
@@ -91,6 +154,30 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                                         <p className="text-sm text-gray-800 whitespace-pre-wrap">{ex.notes}</p>
                                                     </div>
                                                 )}
+
+                                                <div className="mt-4 pt-4 border-t">
+                                                     <p className="text-sm font-semibold text-gray-600 mb-1">Feedback para o Personal:</p>
+                                                     {ex.studentFeedback ? (
+                                                        <p className="text-sm italic text-gray-500 bg-gray-100 p-2 rounded-md">"Enviado: {ex.studentFeedback}"</p>
+                                                     ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <input 
+                                                                type="text" 
+                                                                placeholder="Opcional: como foi o exercício?" 
+                                                                className="flex-grow text-sm border-gray-300 rounded-md shadow-sm"
+                                                                value={feedback[ex.id] || ''}
+                                                                onChange={(e) => handleFeedbackChange(ex.id, e.target.value)}
+                                                            />
+                                                            <button 
+                                                                onClick={() => handleSendFeedback(workout.id, ex.id)} 
+                                                                disabled={isSubmittingFeedback === ex.id}
+                                                                className="p-2 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400"
+                                                            >
+                                                                <SendIcon className="w-4 h-4"/>
+                                                            </button>
+                                                        </div>
+                                                     )}
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -102,37 +189,55 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                         <thead className="bg-brand-light">
                                             <tr>
                                                 <th className="p-3 font-semibold w-1/4">Exercício</th>
-                                                <th className="p-3 font-semibold w-1/4">Vídeo</th>
                                                 <th className="p-3 font-semibold">Séries</th>
                                                 <th className="p-3 font-semibold">Reps</th>
                                                 <th className="p-3 font-semibold">Descanso</th>
                                                 <th className="p-3 font-semibold">Observações</th>
+                                                <th className="p-3 font-semibold w-1/4">Feedback</th>
+                                                <th className="p-3 font-semibold text-center">Ação</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {visibleExercises.map(ex => {
-                                                const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
+                                                const isHidden = hiddenExercises.includes(ex.id);
                                                 return (
-                                                    <tr key={ex.id} className="border-t">
-                                                        <td className="p-3 font-medium align-top">{ex.name}</td>
-                                                        <td className="p-3 align-middle">
-                                                            {embedUrl ? (
-                                                                <iframe
-                                                                    className="w-full max-w-[200px] aspect-video rounded-md shadow"
-                                                                    src={embedUrl}
-                                                                    title={ex.name}
-                                                                    frameBorder="0"
-                                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                                    allowFullScreen
-                                                                ></iframe>
-                                                            ) : (
-                                                                <span className="text-gray-400 text-sm">N/A</span>
-                                                            )}
+                                                    <tr key={ex.id} className={`border-t transition-opacity ${isHidden ? 'opacity-40' : ''}`}>
+                                                        <td className="p-3 font-medium align-top">
+                                                            {ex.name}
+                                                            {isHidden && <span className="ml-2 text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">Concluído</span>}
                                                         </td>
                                                         <td className="p-3 align-top">{ex.sets}</td>
                                                         <td className="p-3 align-top">{ex.reps}</td>
                                                         <td className="p-3 align-top">{ex.rest}</td>
                                                         <td className="p-3 text-sm text-gray-600 align-top whitespace-pre-wrap">{ex.notes}</td>
+                                                        <td className="p-3 align-top">
+                                                             {ex.studentFeedback ? (
+                                                                <p className="text-sm italic text-gray-500 bg-gray-100 p-2 rounded-md">"Enviado: {ex.studentFeedback}"</p>
+                                                             ) : (
+                                                                <div className="flex items-center gap-1">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="Como foi?" 
+                                                                        className="flex-grow text-sm border-gray-300 rounded-md shadow-sm w-full"
+                                                                        value={feedback[ex.id] || ''}
+                                                                        onChange={(e) => handleFeedbackChange(ex.id, e.target.value)}
+                                                                    />
+                                                                    <button 
+                                                                        onClick={() => handleSendFeedback(workout.id, ex.id)}
+                                                                        disabled={isSubmittingFeedback === ex.id}
+                                                                        className="p-2 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400"
+                                                                        title="Enviar Feedback"
+                                                                    >
+                                                                        <SendIcon className="w-4 h-4"/>
+                                                                    </button>
+                                                                </div>
+                                                             )}
+                                                        </td>
+                                                        <td className="p-3 align-top text-center">
+                                                            <button onClick={() => toggleExerciseVisibility(ex.id)} className="text-gray-400 hover:text-brand-primary">
+                                                                {isHidden ? <EyeOffIcon className="w-6 h-6"/> : <EyeIcon className="w-6 h-6"/>}
+                                                            </button>
+                                                        </td>
                                                     </tr>
                                                 );
                                             })}
