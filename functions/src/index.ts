@@ -7,7 +7,8 @@ admin.initializeApp();
 
 const corsHandler = cors({origin: true});
 
-export const sendEmail = functions.https.onRequest((request, response) => {
+// Fix: Explicitly type request and response to ensure correct type inference from firebase-functions, which resolves errors with accessing properties like 'method', 'body', and 'status'.
+export const sendEmail = functions.https.onRequest((request: functions.https.Request, response: functions.Response) => {
   corsHandler(request, response, async () => {
     if (request.method !== "POST") {
       response.status(405).send("Method Not Allowed");
@@ -44,9 +45,8 @@ export const sendEmail = functions.https.onRequest((request, response) => {
         return;
       }
       const trainerData = trainerSnap.data() || {};
-      const trainerName = trainerData.fullName ||
-        trainerData.username ||
-        "Personal Trainer";
+      const trainerName =
+        trainerData.fullName || trainerData.username || "Personal Trainer";
 
       // The email will be sent FROM the global sender
       const sender = {
@@ -80,7 +80,8 @@ export const sendEmail = functions.https.onRequest((request, response) => {
       if (!brevoResponse.ok) {
         const errorData = await brevoResponse.json();
         functions.logger.error("Brevo API Error:", errorData);
-        throw new Error(`Falha no envio via Brevo: ${JSON.stringify(errorData)}`);
+        const errMessage = `Falha no envio: ${JSON.stringify(errorData)}`;
+        throw new Error(errMessage);
       }
 
       // 4. Return success

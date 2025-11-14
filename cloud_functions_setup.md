@@ -91,7 +91,7 @@ Abra este arquivo e substitua **todo o seu conteúdo** pelo código abaixo. Ele 
 Este é o coração da nossa função. Abra este arquivo e substitua **todo o seu conteúdo** pelo código abaixo.
 
 ```typescript
-import {https, logger, config} from "firebase-functions";
+import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import cors from "cors";
 
@@ -99,7 +99,7 @@ admin.initializeApp();
 
 const corsHandler = cors({origin: true});
 
-export const sendEmail = https.onRequest((request, response) => {
+export const sendEmail = functions.https.onRequest((request, response) => {
   corsHandler(request, response, async () => {
     if (request.method !== "POST") {
       response.status(405).send("Method Not Allowed");
@@ -107,11 +107,11 @@ export const sendEmail = https.onRequest((request, response) => {
     }
 
     // 1. Get API Key and Global Sender from secure environment configuration
-    const apiKey = config().brevo?.key;
-    const globalSenderEmail = config().brevo?.sender;
+    const apiKey = functions.config().brevo?.key;
+    const globalSenderEmail = functions.config().brevo?.sender;
 
     if (!apiKey || !globalSenderEmail) {
-      logger.error(
+      functions.logger.error(
           "Brevo API key or sender email is not configured in Firebase.",
       );
       response.status(500).json({
@@ -136,9 +136,8 @@ export const sendEmail = https.onRequest((request, response) => {
         return;
       }
       const trainerData = trainerSnap.data() || {};
-      const trainerName = trainerData.fullName ||
-        trainerData.username ||
-        "Personal Trainer";
+      const trainerName =
+        trainerData.fullName || trainerData.username || "Personal Trainer";
 
       // The email will be sent FROM the global sender
       const sender = {
@@ -171,14 +170,15 @@ export const sendEmail = https.onRequest((request, response) => {
 
       if (!brevoResponse.ok) {
         const errorData = await brevoResponse.json();
-        logger.error("Brevo API Error:", errorData);
-        throw new Error(`Falha no envio via Brevo: ${JSON.stringify(errorData)}`);
+        functions.logger.error("Brevo API Error:", errorData);
+        const errMessage = `Falha no envio: ${JSON.stringify(errorData)}`;
+        throw new Error(errMessage);
       }
 
       // 4. Return success
       response.status(200).json({success: true});
     } catch (error) {
-      logger.error("Error in sendEmail function:", error);
+      functions.logger.error("Error in sendEmail function:", error);
       const message = error instanceof Error ?
         error.message : "Ocorreu um erro interno.";
       response.status(500).json({error: message});
