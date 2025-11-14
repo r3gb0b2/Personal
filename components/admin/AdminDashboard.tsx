@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../firebase';
 import { collection, getDocs, addDoc, doc, deleteDoc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { Trainer } from '../../types';
-import { LogoutIcon, PlusIcon, UserIcon, TrashIcon, SettingsIcon } from '../icons';
+import { LogoutIcon, PlusIcon, UserIcon, TrashIcon, SettingsIcon, ClockIcon } from '../icons';
 import Modal from '../modals/Modal';
+import AutomationSettingsModal from './AutomationSettingsModal';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -143,6 +144,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [isAddModalOpen, setAddModalOpen] = useState(false);
   const [isPasswordModalOpen, setPasswordModalOpen] = useState(false);
   const [isEmailModalOpen, setEmailModalOpen] = useState(false);
+  const [isAutomationModalOpen, setAutomationModalOpen] = useState(false);
   const [newTrainer, setNewTrainer] = useState({ username: '', password: '' });
 
   const fetchTrainers = useCallback(async () => {
@@ -234,7 +236,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-xl font-bold">Gerenciar Sistema</h2>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4">
+             <button onClick={() => setAutomationModalOpen(true)} className="flex items-center gap-2 bg-teal-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-700 transition-colors shadow">
+                <ClockIcon className="w-5 h-5" /> Lembretes Automáticos
+            </button>
              <button onClick={() => setEmailModalOpen(true)} className="flex items-center gap-2 bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors shadow">
                 <SettingsIcon className="w-5 h-5" /> Configurar E-mail
             </button>
@@ -318,6 +323,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             isOpen={isEmailModalOpen}
             onClose={() => setEmailModalOpen(false)}
           />
+      )}
+
+      {isAutomationModalOpen && (
+        <AutomationSettingsModal
+            isOpen={isAutomationModalOpen}
+            onClose={() => setAutomationModalOpen(false)}
+        />
       )}
     </>
   );

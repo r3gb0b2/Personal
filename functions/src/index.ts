@@ -1,10 +1,16 @@
-
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 
 admin.initializeApp();
-
 const db = admin.firestore();
+
+// A helper type to avoid using `any` for the config object.
+interface BrevoConfig {
+  brevo?: {
+    key: string;
+    sender: string;
+  };
+}
 
 /**
  * Checks daily for students with low session counts and sends reminders.
@@ -16,14 +22,17 @@ export const sendLowSessionReminders = functions.pubsub
   .onRun(async () => {
     functions.logger.info("Starting low session reminder check.");
 
-    // The 'any' type is a workaround for functions.config() typing.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const config = functions.config() as any;
+    const config = functions.config() as BrevoConfig;
     const apiKey = config.brevo?.key;
     const sender = config.brevo?.sender;
 
     if (!apiKey || !sender) {
-      functions.logger.error("Brevo API key or sender not configured.");
+      const errorMsg =
+        "Brevo API key or sender email is not configured in Firebase " +
+        "Functions environment variables. Please run " +
+        "`firebase functions:config:set brevo.key='...'` and " +
+        "`firebase functions:config:set brevo.sender='...'`";
+      functions.logger.error(errorMsg);
       return null;
     }
 
@@ -49,24 +58,18 @@ export const sendLowSessionReminders = functions.pubsub
       return null;
     }
 
-    // Batch fetch trainer data to avoid multiple reads.
-    const trainerIds = new Set<string>();
-    studentsSnap.docs.forEach((doc) => {
-      const student = doc.data();
-      if (student.trainerId) {
-        trainerIds.add(student.trainerId);
-      }
-    });
+    const trainerIds =
+      new Set(studentsSnap.docs.map((d) => d.data().trainerId).filter(Boolean));
 
-    const trainerPromises = Array.from(trainerIds)
-      .map((id) => db.collection("trainers").doc(id).get());
-    const trainerSnaps = await Promise.all(trainerPromises);
+    const trainerSnaps = await Promise.all(
+      Array.from(trainerIds).map((id) => db.collection("trainers").doc(id).get())
+    );
 
-    const trainers = new Map<string, admin.firestore.DocumentData>();
+    const trainerDataMap = new Map<string, admin.firestore.DocumentData>();
     trainerSnaps.forEach((snap) => {
       const data = snap.data();
       if (snap.exists && data) {
-        trainers.set(snap.id, data);
+        trainerDataMap.set(snap.id, data);
       }
     });
 
@@ -76,32 +79,32 @@ export const sendLowSessionReminders = functions.pubsub
       const reminderKey = `sessions_${remaining}`;
 
       if (student.remindersSent?.[reminderKey]) {
-        const msg = `Reminder for ${student.name} already sent.`;
-        functions.logger.info(msg);
-        return;
+        return; // Reminder already sent for this threshold
+      }
+      if (!student.email || !student.trainerId) {
+        return; // Cannot send email without an address or trainer
       }
 
-      if (!student.email) {
-        functions.logger.warn(`Student ${student.name} has no email.`);
-        return;
-      }
-
-      const trainer = trainers.get(student.trainerId);
+      const trainer = trainerDataMap.get(student.trainerId);
       if (!trainer) {
-        functions.logger.warn(`Trainer for ${student.name} not found.`);
-        return;
+        return; // Trainer not found
       }
 
       const trainerName = trainer.fullName || trainer.username;
       const subject = "Suas aulas de personal estão acabando!";
       const htmlContent = `
-        <p>Olá ${student.name},</p>
-        <p>Lembrete: seu pacote de aulas está no fim.</p>
-        <p>Restam <strong>${remaining} aula${remaining > 1 ? "s" : ""}
-        </strong>.</p>
-        <p>Fale com seu personal para renovar o plano e não parar.</p>
-        <p>Abraços,<br/>${trainerName}</p>
-      `.trim();
+          <p>Olá ${student.name},</p>
+          <p>Este é um lembrete de que seu pacote de aulas está no fim.</p>
+          <p>
+            Restam <strong>${remaining} aula${remaining > 1 ? "s" : ""}
+            </strong>.
+          </p>
+          <p>
+            Fale com seu personal para renovar o plano e não interromper
+            seus treinos.
+          </p>
+          <p>Abraços,<br/>${trainerName}</p>
+        `.trim();
 
       const payload = {
         sender: {email: sender, name: trainerName},
@@ -130,12 +133,16 @@ export const sendLowSessionReminders = functions.pubsub
           await studentDoc.ref.update(updateData);
         } else {
           const errorData = await response.json();
-          const errorMsg = `Failed to send email to ${student.name}`;
-          functions.logger.error(errorMsg, errorData);
+          functions.logger.error(
+            `Failed to send email to ${student.name}`,
+            errorData,
+          );
         }
       } catch (error) {
-        const errorMsg = `System error sending email to ${student.name}`;
-        functions.logger.error(errorMsg, error);
+        functions.logger.error(
+          `System error sending email to ${student.name}`,
+          error,
+        );
       }
     });
 
