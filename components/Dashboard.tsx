@@ -460,7 +460,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
 
       if (plan.type === 'session') {
           const remaining = student.remainingSessions;
-          if (remaining == null) {
+          if (remaining == null || isNaN(remaining)) {
               return { text: 'Ativo', color: 'green', situation: 'Sessões não monitoradas' };
           }
           if (remaining < 0) {

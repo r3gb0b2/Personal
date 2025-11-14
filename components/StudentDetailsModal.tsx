@@ -185,18 +185,24 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
         const today = new Date();
         const currentDueDate = editableStudent.paymentDueDate ? new Date(editableStudent.paymentDueDate) : today;
         
-        // The new period starts from the end of the current one if it's in the future,
-        // otherwise it starts from today. This prevents students from losing days if they renew early.
         const baseDate = currentDueDate > today ? currentDueDate : today;
         
         const newDueDate = new Date(baseDate);
         newDueDate.setDate(newDueDate.getDate() + plan.durationInDays);
         updatedStudent.paymentDueDate = newDueDate.toISOString();
-    } else if (plan.type === 'session' && plan.numberOfSessions) {
+        // Clear session count when renewing a duration-based plan to avoid data conflicts
+        updatedStudent.remainingSessions = null;
+
+    } else if (plan.type === 'session') {
+        if (!plan.numberOfSessions || plan.numberOfSessions <= 0) {
+            alert("Erro: Este plano de sessão não tem um número de aulas válido configurado. Por favor, edite o plano em 'Gerenciar Planos' antes de registrar o pagamento.");
+            setPaymentModalOpen(false); // Close modal to prevent further action
+            return; // Stop execution to prevent data corruption
+        }
+        
         const currentBalance = updatedStudent.remainingSessions ?? 0;
         updatedStudent.remainingSessions = currentBalance + plan.numberOfSessions;
         updatedStudent.paymentDueDate = null;
-        // Reset reminders for the new session package
         updatedStudent.remindersSent = {};
     }
     

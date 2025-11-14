@@ -126,7 +126,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
         if (!studentPlan) return { text: 'Aluno sem plano ativo', Icon: ExclamationCircleIcon, color: 'text-red-600', isActive: false };
         
         if (studentPlan.type === 'duration') {
-            if (!student.paymentDueDate) return { text: 'Status do plano não definido', Icon: ExclamationCircleIcon, color: 'text-yellow-600', isActive: false };
+            if (!student.paymentDueDate) return { text: 'Status do plano não definido', Icon: ExclamationCircleIcon, color: 'text-yellow-600', isActive: true }; // Allow access even without due date
             const isExpired = new Date(student.paymentDueDate) < new Date();
             return { 
                 text: `Seu plano vence em ${formatDate(student.paymentDueDate)}`, 
@@ -138,8 +138,11 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
         
         if (studentPlan.type === 'session') {
             const remaining = student.remainingSessions;
-            if (remaining == null) return { text: "Contagem de aulas não iniciada", Icon: ExclamationCircleIcon, color: 'text-yellow-600', isActive: false };
-            
+             // Grant access if sessions are untracked or data is invalid (NaN)
+            if (remaining == null || isNaN(remaining)) {
+                return { text: "Contagem de aulas não iniciada", Icon: CheckCircleIcon, color: 'text-yellow-600', isActive: true };
+            }
+
             const isDepleted = remaining <= 0;
             let statusText = '';
             if (remaining < 0) {
