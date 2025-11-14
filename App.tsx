@@ -6,7 +6,7 @@ import Dashboard from './components/Dashboard';
 import StudentLogin from './components/student/StudentLogin';
 import StudentPortal from './components/student/StudentPortal';
 import AdminDashboard from './components/admin/AdminDashboard';
-import { AUTH_SESSION_KEY } from './constants';
+import { AUTH_SESSION_KEY, STUDENT_AUTH_SESSION_KEY } from './constants';
 import { Student, Plan, Payment, Trainer } from './types';
 
 type View = 'trainerLogin' | 'dashboard' | 'studentLogin' | 'studentPortal' | 'adminDashboard';
@@ -18,23 +18,110 @@ const App: React.FC = () => {
   const [currentStudentData, setCurrentStudentData] = useState<{ student: Student; payments: Payment[]; trainer: Trainer | null } | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  useEffect(() => {
+  const handleStudentLogin = useCallback(async (email: string): Promise<{ success: boolean; message?: string }> => {
+    setIsLoading(true);
     try {
-        const sessionAuth = sessionStorage.getItem(AUTH_SESSION_KEY);
-        if (sessionAuth) {
-            const parsedUser = JSON.parse(sessionAuth);
-            setCurrentUser(parsedUser);
-            if (parsedUser.id === 'admin') {
-                setView('adminDashboard');
-            } else {
-                setView('dashboard');
-            }
+      // Fetch all students to perform a case-insensitive email check on the client-side.
+      const studentsCollection = collection(db, 'students');
+      const studentsSnapshot = await getDocs(studentsCollection);
+      
+      const normalizedEmail = email.trim().toLowerCase();
+      const studentDoc = studentsSnapshot.docs.find(doc => {
+          const studentData = doc.data();
+          // Ensure studentData.email exists and is a string before calling toLowerCase
+          return typeof studentData.email === 'string' && studentData.email.toLowerCase() === normalizedEmail;
+      });
+
+      if (!studentDoc) {
+        console.log("No student found with that email after client-side check.");
+        return { success: false, message: 'Nenhum aluno encontrado com este email. Verifique o email digitado.' };
+      }
+      
+      const toISO = (ts: any) => ts && ts.toDate ? ts.toDate().toISOString() : null;
+      const studentData = studentDoc.data();
+      const student: Student = {
+          id: studentDoc.id,
+          ...studentData,
+          startDate: toISO(studentData.startDate) || new Date().toISOString(),
+          paymentDueDate: toISO(studentData.paymentDueDate),
+          sessions: (studentData.sessions || []).filter(Boolean).map((s: any) => ({ ...s, date: toISO(s.date) })),
+      } as Student;
+
+      const paymentsQuery = query(collection(db, 'payments'), where("studentId", "==", student.id), orderBy("paymentDate", "desc"));
+      const paymentsSnapshot = await getDocs(paymentsQuery);
+      const payments = paymentsSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+              id: doc.id,
+              ...data,
+              paymentDate: toISO(data.paymentDate),
+          } as Payment;
+      });
+
+      let trainer: Trainer | null = null;
+      let trainerIdToFetch = student.trainerId;
+
+      // For legacy students without a trainerId, default to 'bruno'.
+      if (!trainerIdToFetch) {
+        const q = query(collection(db, 'trainers'), where("username", "==", "bruno"));
+        const brunoSnapshot = await getDocs(q);
+        if (!brunoSnapshot.empty) {
+            trainerIdToFetch = brunoSnapshot.docs[0].id;
+            // FIX: Ensure the student object itself is updated with the new trainerId
+            student.trainerId = trainerIdToFetch;
         }
-    } catch (e) {
-        // Corrupted session data, clear it
-        sessionStorage.removeItem(AUTH_SESSION_KEY);
+      }
+
+      if (trainerIdToFetch) {
+          const trainerRef = doc(db, 'trainers', trainerIdToFetch);
+          const trainerSnap = await getDoc(trainerRef);
+          if (trainerSnap.exists()) {
+              trainer = { id: trainerSnap.id, ...trainerSnap.data() } as Trainer;
+              delete trainer.password;
+          }
+      }
+      
+      setCurrentStudentData({ student, payments, trainer });
+      setView('studentPortal');
+      sessionStorage.setItem(STUDENT_AUTH_SESSION_KEY, student.email);
+      return { success: true };
+
+    } catch (error) {
+      console.error("Firebase Connection Error Details:", error);
+      return { 
+          success: false, 
+          message: "CONNECTION_ERROR"
+      };
+    } finally {
+        setIsLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    const restoreSession = async () => {
+        try {
+            const sessionAuth = sessionStorage.getItem(AUTH_SESSION_KEY);
+            const studentSessionAuth = sessionStorage.getItem(STUDENT_AUTH_SESSION_KEY);
+
+            if (sessionAuth) {
+                const parsedUser = JSON.parse(sessionAuth);
+                setCurrentUser(parsedUser);
+                if (parsedUser.id === 'admin') {
+                    setView('adminDashboard');
+                } else {
+                    setView('dashboard');
+                }
+            } else if (studentSessionAuth) {
+                await handleStudentLogin(studentSessionAuth);
+            }
+        } catch (e) {
+            // Corrupted session data, clear it
+            sessionStorage.removeItem(AUTH_SESSION_KEY);
+            sessionStorage.removeItem(STUDENT_AUTH_SESSION_KEY);
+        }
+    };
+    restoreSession();
+  }, [handleStudentLogin]);
   
   const fetchPlansForStudentPortal = useCallback(async () => {
     try {
@@ -119,85 +206,8 @@ const App: React.FC = () => {
     setView('trainerLogin');
   };
 
-  const handleStudentLogin = async (email: string): Promise<{ success: boolean; message?: string }> => {
-    setIsLoading(true);
-    try {
-      // Fetch all students to perform a case-insensitive email check on the client-side.
-      const studentsCollection = collection(db, 'students');
-      const studentsSnapshot = await getDocs(studentsCollection);
-      
-      const normalizedEmail = email.trim().toLowerCase();
-      const studentDoc = studentsSnapshot.docs.find(doc => {
-          const studentData = doc.data();
-          // Ensure studentData.email exists and is a string before calling toLowerCase
-          return typeof studentData.email === 'string' && studentData.email.toLowerCase() === normalizedEmail;
-      });
-
-      if (!studentDoc) {
-        console.log("No student found with that email after client-side check.");
-        return { success: false, message: 'Nenhum aluno encontrado com este email. Verifique o email digitado.' };
-      }
-      
-      const toISO = (ts: any) => ts && ts.toDate ? ts.toDate().toISOString() : null;
-      const studentData = studentDoc.data();
-      const student: Student = {
-          id: studentDoc.id,
-          ...studentData,
-          startDate: toISO(studentData.startDate) || new Date().toISOString(),
-          paymentDueDate: toISO(studentData.paymentDueDate),
-          sessions: (studentData.sessions || []).filter(Boolean).map((s: any) => ({ ...s, date: toISO(s.date) })),
-      } as Student;
-
-      const paymentsQuery = query(collection(db, 'payments'), where("studentId", "==", student.id), orderBy("paymentDate", "desc"));
-      const paymentsSnapshot = await getDocs(paymentsQuery);
-      const payments = paymentsSnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-              id: doc.id,
-              ...data,
-              paymentDate: toISO(data.paymentDate),
-          } as Payment;
-      });
-
-      let trainer: Trainer | null = null;
-      let trainerIdToFetch = student.trainerId;
-
-      // For legacy students without a trainerId, default to 'bruno'.
-      if (!trainerIdToFetch) {
-        const q = query(collection(db, 'trainers'), where("username", "==", "bruno"));
-        const brunoSnapshot = await getDocs(q);
-        if (!brunoSnapshot.empty) {
-            trainerIdToFetch = brunoSnapshot.docs[0].id;
-            // FIX: Ensure the student object itself is updated with the new trainerId
-            student.trainerId = trainerIdToFetch;
-        }
-      }
-
-      if (trainerIdToFetch) {
-          const trainerRef = doc(db, 'trainers', trainerIdToFetch);
-          const trainerSnap = await getDoc(trainerRef);
-          if (trainerSnap.exists()) {
-              trainer = { id: trainerSnap.id, ...trainerSnap.data() } as Trainer;
-              delete trainer.password;
-          }
-      }
-      
-      setCurrentStudentData({ student, payments, trainer });
-      setView('studentPortal');
-      return { success: true };
-
-    } catch (error) {
-      console.error("Firebase Connection Error Details:", error);
-      return { 
-          success: false, 
-          message: "CONNECTION_ERROR"
-      };
-    } finally {
-        setIsLoading(false);
-    }
-  };
-
   const handleStudentLogout = () => {
+      sessionStorage.removeItem(STUDENT_AUTH_SESSION_KEY);
       setCurrentStudentData(null);
       setView('studentLogin');
   }
