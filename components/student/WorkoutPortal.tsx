@@ -127,7 +127,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                         return (
                                             <div key={ex.id} className="bg-gray-50 p-4 rounded-lg border relative transition-opacity">
                                                 <div className="absolute top-3 right-3 flex items-center gap-2">
-                                                    <button onClick={() => toggleExerciseVisibility(ex.id)} className="text-gray-400 hover:text-brand-primary">
+                                                    <button onClick={() => toggleExerciseVisibility(ex.id)} className="text-gray-400 hover:text-brand-primary" title="Marcar como concluído">
                                                         <EyeIcon className="w-5 h-5"/>
                                                     </button>
                                                 </div>
@@ -214,18 +214,37 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                         <tbody>
                                             {visibleExercises.map(ex => {
                                                 const isHidden = hiddenExercises.includes(ex.id);
+                                                
+                                                if (isHidden) {
+                                                    return (
+                                                        <tr key={ex.id} className="border-t">
+                                                            <td className="p-3">
+                                                                <div className="flex justify-between items-center">
+                                                                    <p className="text-gray-500 line-through">{ex.name}</p>
+                                                                    <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">Concluído</span>
+                                                                </div>
+                                                            </td>
+                                                            <td colSpan={5} className="p-3 text-center text-gray-400">—</td>
+                                                            <td className="p-3 align-top text-center">
+                                                                <button onClick={() => toggleExerciseVisibility(ex.id)} className="text-gray-400 hover:text-brand-primary" title="Restaurar exercício">
+                                                                    <EyeOffIcon className="w-6 h-6"/>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                }
+
                                                 return (
-                                                    <tr key={ex.id} className={`border-t transition-opacity ${isHidden ? 'opacity-40 bg-gray-50' : ''}`}>
+                                                    <tr key={ex.id} className="border-t">
                                                         <td className="p-3 font-medium align-top">
-                                                            <span className={isHidden ? 'line-through text-gray-500' : ''}>{ex.name}</span>
-                                                            {isHidden && <span className="ml-2 text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">Concluído</span>}
+                                                            {ex.name}
                                                         </td>
-                                                        <td className="p-3 align-top">{isHidden ? '-' : ex.sets}</td>
-                                                        <td className="p-3 align-top">{isHidden ? '-' : ex.reps}</td>
-                                                        <td className="p-3 align-top">{isHidden ? '-' : ex.rest}</td>
-                                                        <td className="p-3 text-sm text-gray-600 align-top whitespace-pre-wrap">{isHidden ? '-' : ex.notes}</td>
+                                                        <td className="p-3 align-top">{ex.sets}</td>
+                                                        <td className="p-3 align-top">{ex.reps}</td>
+                                                        <td className="p-3 align-top">{ex.rest}</td>
+                                                        <td className="p-3 text-sm text-gray-600 align-top whitespace-pre-wrap">{ex.notes}</td>
                                                         <td className="p-3 align-top">
-                                                             {isHidden ? <span className="text-xs text-gray-500">Concluído</span> : ex.studentFeedback ? (
+                                                             {ex.studentFeedback ? (
                                                                 <p className="text-sm italic text-gray-500 bg-gray-100 p-2 rounded-md">"Enviado: {ex.studentFeedback}"</p>
                                                              ) : (
                                                                 <div className="flex items-center gap-1">
@@ -248,8 +267,8 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                                              )}
                                                         </td>
                                                         <td className="p-3 align-top text-center">
-                                                            <button onClick={() => toggleExerciseVisibility(ex.id)} className="text-gray-400 hover:text-brand-primary">
-                                                                {isHidden ? <EyeOffIcon className="w-6 h-6"/> : <EyeIcon className="w-6 h-6"/>}
+                                                            <button onClick={() => toggleExerciseVisibility(ex.id)} className="text-gray-400 hover:text-brand-primary" title="Marcar como concluído">
+                                                                <EyeIcon className="w-6 h-6"/>
                                                             </button>
                                                         </td>
                                                     </tr>
