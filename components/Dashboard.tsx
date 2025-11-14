@@ -445,6 +445,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         `${dayMap[item.day] || item.day} ${item.startTime}-${item.endTime}`
     ).join(' | ');
   };
+  
+  const handleSelectStudent = (studentId: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (student) {
+        setSelectedStudent(student);
+    }
+  };
 
   const getPlan = useCallback((planId: string | null) => plans.find(p => p.id === planId), [plans]);
 
@@ -610,7 +617,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         </div>
 
         {view === 'schedule' ? (
-            <ScheduleView students={students} />
+            <ScheduleView students={activeStudents} onStudentClick={handleSelectStudent} />
         ) : (
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="p-6 border-b">

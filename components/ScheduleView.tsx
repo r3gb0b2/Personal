@@ -3,6 +3,7 @@ import { Student } from '../types';
 
 interface ScheduleViewProps {
   students: Student[];
+  onStudentClick: (studentId: string) => void;
 }
 
 const timeToMinutes = (time: string): number => {
@@ -23,7 +24,7 @@ const getWeekStart = (date: Date): Date => {
     return new Date(d.setDate(diff));
 };
 
-const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
+const ScheduleView: React.FC<ScheduleViewProps> = ({ students, onStudentClick }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const days = [
@@ -174,10 +175,13 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students }) => {
                                 height: `${height}rem`,
                             }}
                         >
-                            <div className={`h-full w-full ${color} p-1 rounded-lg shadow-sm text-xs overflow-hidden`}>
+                            <button
+                                onClick={() => onStudentClick(appt.studentId)}
+                                className={`h-full w-full ${color} p-1 rounded-lg shadow-sm text-xs overflow-hidden text-left focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-brand-primary cursor-pointer`}
+                            >
                                 <p className="font-bold truncate">{appt.studentName}</p>
                                 <p className="truncate">{appt.startTime} - {appt.endTime}</p>
-                            </div>
+                            </button>
                         </div>
                     );
                 })}
