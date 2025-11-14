@@ -5,6 +5,7 @@ import { db, storage } from '../../firebase';
 import { collection, addDoc, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import WorkoutPortal from './WorkoutPortal';
+import { STUDENT_PORTAL_VIEW_KEY } from '../../constants';
 
 interface StudentPortalProps {
     studentData: {
@@ -22,13 +23,24 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
     const [studentFiles, setStudentFiles] = useState<StudentFile[]>([]);
     const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [view, setView] = useState<'dashboard' | 'workouts'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'workouts'>(() => {
+        const savedView = sessionStorage.getItem(STUDENT_PORTAL_VIEW_KEY);
+        // Ensure that only valid values are used from sessionStorage
+        if (savedView === 'workouts') {
+            return 'workouts';
+        }
+        return 'dashboard';
+    });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const photoInputRef = useRef<HTMLInputElement>(null);
     const [uploadingFile, setUploadingFile] = useState(false);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [photoNotes, setPhotoNotes] = useState('');
+
+    useEffect(() => {
+        sessionStorage.setItem(STUDENT_PORTAL_VIEW_KEY, view);
+    }, [view]);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
