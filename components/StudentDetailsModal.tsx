@@ -182,7 +182,14 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
 
     let updatedStudent = { ...editableStudent };
     if (plan.type === 'duration' && plan.durationInDays) {
-        const newDueDate = new Date();
+        const today = new Date();
+        const currentDueDate = editableStudent.paymentDueDate ? new Date(editableStudent.paymentDueDate) : today;
+        
+        // The new period starts from the end of the current one if it's in the future,
+        // otherwise it starts from today. This prevents students from losing days if they renew early.
+        const baseDate = currentDueDate > today ? currentDueDate : today;
+        
+        const newDueDate = new Date(baseDate);
         newDueDate.setDate(newDueDate.getDate() + plan.durationInDays);
         updatedStudent.paymentDueDate = newDueDate.toISOString();
     } else if (plan.type === 'session' && plan.numberOfSessions) {

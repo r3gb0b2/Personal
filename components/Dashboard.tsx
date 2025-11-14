@@ -367,10 +367,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
 
   const handleUpdatePlan = async (updatedPlan: Plan) => {
       const planRef = doc(db, 'plans', updatedPlan.id);
-      const dataToUpdate = { ...updatedPlan };
+      // Ensure trainerId is always set to the current trainer. This prevents errors when updating
+      // legacy plans that might not have a trainerId, which would cause Firestore to reject
+      // an 'undefined' value. It also correctly assigns ownership.
+      const dataToUpdate = { 
+          ...updatedPlan,
+          trainerId: currentTrainer.id 
+      };
       delete (dataToUpdate as any).id;
       await setDoc(planRef, dataToUpdate);
-      setPlans(prev => prev.map(p => p.id === updatedPlan.id ? updatedPlan : p));
+
+      // Create a final version of the plan with the correct trainerId for local state update
+      const finalUpdatedPlan = { ...updatedPlan, trainerId: currentTrainer.id };
+      setPlans(prev => prev.map(p => p.id === updatedPlan.id ? finalUpdatedPlan : p));
   }
 
   const handleDeletePlan = async (planId: string) => {
