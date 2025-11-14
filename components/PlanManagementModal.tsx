@@ -54,7 +54,6 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
             let planToUpdate: Plan;
             // Re-construct the object to avoid sending old/conflicting fields to Firestore
             if (planType === 'duration') {
-                // Fix: Add the missing 'trainerId' property.
                 planToUpdate = {
                     id: editingPlan.id,
                     name: formState.name.trim(),
@@ -64,7 +63,6 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
                     trainerId: editingPlan.trainerId,
                 };
             } else {
-                 // Fix: Add the missing 'trainerId' property.
                  planToUpdate = {
                     id: editingPlan.id,
                     name: formState.name.trim(),
@@ -79,22 +77,20 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
         } else {
             let planToAdd: Omit<Plan, 'id'>;
             if (planType === 'duration') {
-                // Fix: Add a placeholder 'trainerId' to satisfy the type. It will be overwritten by the parent component.
                 planToAdd = {
                     name: formState.name.trim(),
                     price: parseFloat(formState.price),
                     type: 'duration',
                     durationInDays: parseInt(formState.durationInDays, 10),
-                    trainerId: '',
+                    trainerId: '', // trainerId is set by the parent component
                 };
             } else {
-                // Fix: Add a placeholder 'trainerId' to satisfy the type. It will be overwritten by the parent component.
                 planToAdd = {
                     name: formState.name.trim(),
                     price: parseFloat(formState.price),
                     type: 'session',
                     numberOfSessions: parseInt(formState.numberOfSessions, 10),
-                    trainerId: '',
+                    trainerId: '', // trainerId is set by the parent component
                 };
             }
             await onAddPlan(planToAdd);

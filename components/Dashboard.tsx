@@ -182,6 +182,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [isProfileModalOpen, setProfileModalOpen] = useState(false);
   const [isBulkEmailModalOpen, setBulkEmailModalOpen] = useState(false);
 
+  const isEmailConfigured = useMemo(() => 
+    !!(trainerSettings.brevoApiKey && trainerSettings.senderEmail && trainerSettings.replyToEmail),
+    [trainerSettings]
+  );
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -468,7 +473,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
 
   const handleUpdatePlan = async (updatedPlan: Plan) => {
       const planRef = doc(db, 'plans', updatedPlan.id);
-      const dataToUpdate = { ...updatedPlan, trainerId: trainer.id };
+      const dataToUpdate = { ...updatedPlan };
       delete (dataToUpdate as any).id;
       await setDoc(planRef, dataToUpdate);
       setPlans(prev => prev.map(p => p.id === updatedPlan.id ? updatedPlan : p));
@@ -585,6 +590,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       </div>
 
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+        {!isEmailConfigured && !loading && (
+            <div className="mb-8 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 rounded-r-lg">
+                <div className="flex">
+                    <div className="py-1"><ExclamationCircleIcon className="h-6 w-6 text-yellow-500 mr-3"/></div>
+                    <div>
+                        <p className="font-bold">Ação Necessária: Configurar E-mail</p>
+                        <p className="text-sm">As funções de envio de e-mail e lembretes automáticos estão desativadas. Por favor, adicione sua Chave da API da Brevo e e-mails em <button onClick={() => setProfileModalOpen(true)} className="font-bold underline hover:text-yellow-900">Meu Perfil</button>.</p>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="bg-white p-6 rounded-lg shadow-md flex items-center gap-4">
@@ -627,8 +644,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             <button onClick={() => setFinancialReportModalOpen(true)} className="flex items-center gap-2 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors shadow">
                 <ChartBarIcon className="w-5 h-5" /> Controle Financeiro
             </button>
-            <button onClick={() => setProfileModalOpen(true)} className="flex items-center gap-2 bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors shadow">
+            <button onClick={() => setProfileModalOpen(true)} className="relative flex items-center gap-2 bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors shadow">
                 <SettingsIcon className="w-5 h-5" /> Meu Perfil
+                {!isEmailConfigured && !loading && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </span>
+                )}
             </button>
         </div>
 

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule } from '../types';
-// Fix: Add BriefcaseIcon to the import list.
 import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon } from './icons';
 import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
@@ -219,7 +218,6 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
     }
     switch (activeTab) {
         case 'workouts': return <WorkoutsTab student={student} workouts={workouts} onUpdate={fetchFeatureData} />;
-        // Fix: Remove the 'student' prop as it's not defined in FilesTab's props.
         case 'files': return <FilesTab files={studentFiles} />;
         case 'progress': return <ProgressTab student={student} photos={progressPhotos} onUpdate={fetchFeatureData} />;
         case 'details':
