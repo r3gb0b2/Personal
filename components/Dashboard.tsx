@@ -11,7 +11,7 @@ import FinancialReportModal from './modals/FinancialReportModal';
 import Modal from './modals/Modal';
 import ScheduleView from './ScheduleView';
 import BulkEmailModal from './modals/BulkEmailModal';
-import { sendEmail, EmailParams } from '../../services/emailService';
+import { sendEmail, EmailParams } from '../services/emailService';
 
 interface DashboardProps {
   onLogout: () => void;

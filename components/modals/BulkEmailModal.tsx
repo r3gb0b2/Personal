@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Student, Trainer, TrainerSettings } from '../../types';
 import Modal from './Modal';
-import { sendEmail, EmailParams } from '../../../services/emailService';
+import { sendEmail, EmailParams } from '../../services/emailService';
 import { MailIcon } from '../icons';
 
 interface BulkEmailModalProps {
