@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Student, Trainer, TrainerSettings } from '../../types';
 import Modal from './Modal';
-import { sendEmail, EmailParams } from '../../services/emailService';
+import { sendEmail, EmailPayload } from '../../services/emailService';
 import { MailIcon } from '../icons';
 
 interface BulkEmailModalProps {
@@ -17,6 +17,9 @@ const BulkEmailModal: React.FC<BulkEmailModalProps> = ({ isOpen, onClose, studen
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Fix: Calculate recipients in the component scope so it's available for the render method.
+  const recipients = useMemo(() => students.filter(s => s.email).map(s => ({ email: s.email, name: s.name })), [students]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,8 +37,6 @@ const BulkEmailModal: React.FC<BulkEmailModalProps> = ({ isOpen, onClose, studen
     setStatus('sending');
     setErrorMessage('');
 
-    const recipients = students.filter(s => s.email).map(s => ({ email: s.email, name: s.name }));
-
     if (recipients.length === 0) {
         setErrorMessage("Nenhum aluno com e-mail cadastrado para enviar.");
         setStatus('error');
@@ -43,21 +44,23 @@ const BulkEmailModal: React.FC<BulkEmailModalProps> = ({ isOpen, onClose, studen
     }
 
     try {
-        const emailParams: EmailParams = {
-            apiKey: trainerSettings.brevoApiKey,
-            to: recipients,
-            sender: { email: trainerSettings.senderEmail, name: trainer.fullName || trainer.username },
-            replyTo: { email: trainerSettings.replyToEmail, name: trainer.fullName || trainer.username },
+        const htmlContent = `<p>${message.replace(/\n/g, '<br>')}</p><p>Qualquer dúvida, é só responder a este e-mail.</p><p>Abraços,<br/>${trainer.fullName || trainer.username}</p>`;
+
+        const payload: EmailPayload = {
+            trainerId: trainer.id,
+            recipients,
             subject,
-            htmlContent: `<p>${message.replace(/\n/g, '<br>')}</p><p>Qualquer dúvida, é só responder a este e-mail.</p><p>Abraços,<br/>${trainer.fullName || trainer.username}</p>`,
+            htmlContent,
         };
 
-        const result = await sendEmail(emailParams);
+        const result = await sendEmail(payload);
 
         if (result.success) {
             setStatus('success');
             setTimeout(() => {
                 onClose();
+                setSubject('');
+                setMessage('');
                 setStatus('idle');
             }, 2000);
         } else {
@@ -113,7 +116,7 @@ const BulkEmailModal: React.FC<BulkEmailModalProps> = ({ isOpen, onClose, studen
             </button>
             <button type="submit" disabled={status === 'sending'} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent disabled:bg-gray-400">
                 <MailIcon className="w-5 h-5"/>
-                {status === 'sending' ? 'Enviando...' : `Enviar para ${students.length} Aluno(s)`}
+                {status === 'sending' ? 'Enviando...' : `Enviar para ${recipients.length} Aluno(s)`}
             </button>
             </div>
         </form>

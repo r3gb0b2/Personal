@@ -11,7 +11,7 @@ import FinancialReportModal from './modals/FinancialReportModal';
 import Modal from './modals/Modal';
 import ScheduleView from './ScheduleView';
 import BulkEmailModal from './modals/BulkEmailModal';
-import { sendEmail, EmailParams } from '../services/emailService';
+import { sendEmail, EmailPayload } from '../services/emailService';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -309,15 +309,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             if (reminderToSend) {
                 try {
                     console.log(`Sending reminder '${reminderToSend.type}' to ${student.name}`);
-                    const emailParams: EmailParams = {
-                        apiKey: settings.brevoApiKey,
-                        to: [{ email: student.email, name: student.name }],
-                        sender: { email: settings.senderEmail, name: trainer.fullName || trainer.username },
-                        replyTo: { email: settings.replyToEmail, name: trainer.fullName || trainer.username },
+                     const htmlContent = `<p>${reminderToSend.message}</p><p>Qualquer dúvida, é só responder a este e-mail.</p><p>Abraços,<br/>${trainer.fullName || trainer.username}</p>`;
+                     const payload: EmailPayload = {
+                        trainerId: trainer.id,
+                        recipients: [{ email: student.email, name: student.name }],
                         subject: reminderToSend.subject,
-                        htmlContent: `<p>${reminderToSend.message}</p><p>Qualquer dúvida, é só responder a este e-mail.</p><p>Abraços,<br/>${trainer.fullName || trainer.username}</p>`,
+                        htmlContent,
                     };
-                    await sendEmail(emailParams);
+                    const result = await sendEmail(payload);
+
+                    if (!result.success) {
+                        throw new Error(result.error);
+                    }
                     
                     // Update student doc in Firestore to mark reminder as sent
                     const studentRef = doc(db, 'students', student.id);
@@ -333,7 +336,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                 }
             }
         }
-    }, [trainer.fullName, trainer.username]);
+    }, [trainer.id, trainer.fullName, trainer.username]);
 
     // Run reminder check after data is loaded
     useEffect(() => {
@@ -348,17 +351,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     settingsData: TrainerSettings
   ) => {
     try {
-        const settingsRef = doc(db, 'trainerSettings', trainer.id);
-        await setDoc(settingsRef, settingsData, { merge: true });
-
         const trainerRef = doc(db, 'trainers', trainer.id);
-        await updateDoc(trainerRef, profileData);
+        const settingsRef = doc(db, 'trainerSettings', trainer.id);
+
+        // Run both updates
+        await Promise.all([
+          updateDoc(trainerRef, profileData),
+          setDoc(settingsRef, settingsData, { merge: true })
+        ]);
 
         setTrainerSettings(settingsData);
         const updatedTrainer = { ...trainer, ...profileData };
         sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(updatedTrainer));
-
+        alert("Perfil e configurações salvos com sucesso!");
         window.location.reload();
+
     } catch (error) {
         console.error("Failed to save profile and settings:", error);
         alert("Ocorreu um erro ao salvar as configurações.");

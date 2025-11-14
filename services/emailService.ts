@@ -1,62 +1,49 @@
-/**
- * NOTE: This email service is designed to be run in a secure, server-side environment
- * like a Firebase Cloud Function. Running this code directly on the client-side
- * will expose your Brevo API key, which is a significant security risk.
- *
- * For development purposes, this will work, but for a production application,
- * you MUST move this logic to a backend service.
- */
+import { CLOUD_FUNCTION_URL } from '../constants';
 
 interface EmailRecipient {
     email: string;
     name?: string;
 }
 
-export interface EmailParams {
-    apiKey: string;
-    sender: EmailRecipient;
-    to: EmailRecipient[];
-    replyTo: EmailRecipient;
+export interface EmailPayload {
+    trainerId: string;
+    recipients: EmailRecipient[];
     subject: string;
     htmlContent: string;
 }
 
-export const sendEmail = async (params: EmailParams): Promise<{ success: boolean; error?: string }> => {
-    const { apiKey, sender, to, replyTo, subject, htmlContent } = params;
-
-    const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
-
-    if (!apiKey) {
-        return { success: false, error: "Brevo API Key is missing." };
+/**
+ * Envia um payload de e-mail para uma Firebase Cloud Function que, por sua vez,
+ * processará o envio através de um serviço como a Brevo.
+ * @param payload Os dados do e-mail a serem enviados.
+ * @returns Um objeto indicando sucesso ou falha.
+ */
+export const sendEmail = async (payload: EmailPayload): Promise<{ success: boolean; error?: string }> => {
+    // Verifica se a URL da função foi configurada pelo usuário.
+    if (CLOUD_FUNCTION_URL.includes('your-project-id') || !CLOUD_FUNCTION_URL) {
+        const errorMessage = "A URL da Cloud Function não foi configurada. Siga as instruções em cloud_functions_setup.md e atualize a constante CLOUD_FUNCTION_URL em constants.ts";
+        console.error(errorMessage);
+        return { success: false, error: errorMessage };
     }
-
+    
     try {
-        const response = await fetch(BREVO_API_URL, {
+        const response = await fetch(CLOUD_FUNCTION_URL, {
             method: 'POST',
-            headers: {
-                'accept': 'application/json',
-                'api-key': apiKey,
-                'content-type': 'application/json'
-            },
-            body: JSON.stringify({
-                sender,
-                to,
-                replyTo,
-                subject,
-                htmlContent,
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
         });
 
+        const result = await response.json();
+
         if (!response.ok) {
-            const errorData = await response.json();
-            console.error('Brevo API Error:', errorData);
-            throw new Error(errorData.message || 'Failed to send email via Brevo API');
+            // Se a função retornar um erro (ex: 4xx, 5xx), ele será capturado aqui.
+            throw new Error(result.error || `A Cloud Function retornou um status de erro: ${response.status}`);
         }
 
         return { success: true };
 
     } catch (error) {
-        console.error('Error in sendEmail service:', error);
-        return { success: false, error: error instanceof Error ? error.message : String(error) };
+        console.error('Error calling sendEmail Cloud Function:', error);
+        return { success: false, error: error instanceof Error ? error.message : "Erro de comunicação com a Cloud Function." };
     }
 };
