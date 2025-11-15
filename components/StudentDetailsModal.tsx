@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer, Exercise, WorkoutTemplate, StudentGroup } from '../types';
-import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon, EyeIcon, EyeOffIcon, CloneIcon, UsersIcon, PrintIcon } from './icons';
+import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon, EyeIcon, EyeOffIcon, CloneIcon, UsersIcon, PrintIcon, DollarSignIcon } from './icons';
 import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
 import ProfilePictureModal from './modals/ProfilePictureModal';
@@ -13,6 +13,7 @@ import CloneWorkoutModal from './modals/CloneWorkoutModal';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import WorkoutPDFLayout from './pdf/WorkoutPDFLayout';
+import FinancialTab from './FinancialTab';
 
 interface StudentDetailsModalProps {
   student: Student;
@@ -27,7 +28,7 @@ interface StudentDetailsModalProps {
   allStudents: Student[];
 }
 
-type Tab = 'details' | 'workouts' | 'files' | 'progress';
+type Tab = 'details' | 'workouts' | 'files' | 'progress' | 'financeiro';
 
 const timeToMinutes = (time: string): number => {
     const [hours, minutes] = time.split(':').map(Number);
@@ -82,6 +83,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [studentFiles, setStudentFiles] = useState<StudentFile[]>([]);
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
+  const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
   const [isLoadingFeatures, setIsLoadingFeatures] = useState(true);
 
   const [workoutToPrint, setWorkoutToPrint] = useState<Workout | null>(null);
@@ -103,7 +105,12 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
 
         const photosQuery = query(collection(db, 'progressPhotos'), where("studentId", "==", student.id), orderBy("uploadedAt", "desc"));
         const photosSnapshot = await getDocs(photosQuery);
-setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploadedAt: toISO(d.data().uploadedAt) } as ProgressPhoto)));
+        setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploadedAt: toISO(d.data().uploadedAt) } as ProgressPhoto)));
+        
+        const paymentsQuery = query(collection(db, 'payments'), where("studentId", "==", student.id), orderBy("paymentDate", "desc"));
+        const paymentsSnapshot = await getDocs(paymentsQuery);
+        setPaymentHistory(paymentsSnapshot.docs.map(d => ({ id: d.id, ...d.data(), paymentDate: toISO(d.data().paymentDate) } as Payment)));
+
 
     } catch (e) {
         console.error("Error fetching student feature data:", e);
@@ -221,6 +228,10 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
         trainerId: student.trainerId,
     };
     await onAddPayment(paymentRecord);
+    
+    // Also update local history for immediate UI feedback in financial tab
+    setPaymentHistory(prev => [{ ...paymentRecord, id: `temp-${Date.now()}` }, ...prev]);
+
 
     let updatedStudent = { ...editableStudent };
     if (plan.type === 'duration' && plan.durationInDays) {
@@ -308,6 +319,7 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
         case 'workouts': return <WorkoutsTab student={student} trainer={trainer} workouts={workouts} templates={workoutTemplates} onUpdate={fetchFeatureData} onCloneRequest={(workout) => setWorkoutToClone(workout)} onPrintRequest={(workout) => setWorkoutToPrint(workout)} />;
         case 'files': return <FilesTab student={student} files={studentFiles} onUpdate={fetchFeatureData} />;
         case 'progress': return <ProgressTab student={student} photos={progressPhotos} onUpdate={fetchFeatureData} />;
+        case 'financeiro': return <FinancialTab student={editableStudent} payments={paymentHistory} plans={plans} />;
         case 'details':
         default:
             return <DetailsTab student={student} plans={plans} trainer={trainer} groups={groups} isEditing={isEditing} setIsEditing={setIsEditing} editableStudent={editableStudent} setEditableStudent={setEditableStudent} handleSave={handleSave} handleDelete={handleDelete} setPictureModalOpen={setPictureModalOpen} setPaymentModalOpen={setPaymentModalOpen} handleAddSession={handleAddSession} handleDeleteSession={handleDeleteSession} onUpdate={onUpdate} />;
@@ -321,6 +333,7 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
         <div className="flex border-b">
             <TabButton tab="details" label="Detalhes" Icon={UserIcon} />
             <TabButton tab="workouts" label="Treinos" Icon={DumbbellIcon} />
+            <TabButton tab="financeiro" label="Financeiro" Icon={DollarSignIcon} />
             <TabButton tab="files" label="Arquivos" Icon={FileTextIcon} />
             <TabButton tab="progress" label="Progresso" Icon={ImageIcon} />
         </div>

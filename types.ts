@@ -132,3 +132,14 @@ export interface PendingStudent {
   status: 'pending' | 'approved' | 'rejected';
   submittedAt: string; // ISO string format
 }
+
+export type InvoiceStatus = 'Paga' | 'Em Aberto' | 'Vencida';
+
+export interface Invoice {
+  id: string;
+  description: string;
+  amount: number;
+  dueDate: string; // ISO string
+  paidDate?: string | null; // ISO string
+  status: InvoiceStatus;
+}
