@@ -1,9 +1,11 @@
 
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Student } from '../../types';
 import Modal from './Modal';
 import { storage } from '../../firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+// FIX: Changed firebase import path to use the scoped package '@firebase/storage' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
+import { ref, uploadBytes, getDownloadURL } from '@firebase/storage';
 import { CameraIcon } from '../icons';
 
 interface ProfilePictureModalProps {

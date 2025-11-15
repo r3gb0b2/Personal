@@ -1,6 +1,8 @@
+
 import React, { useState } from 'react';
 import { db } from '../../firebase';
-import { collection, addDoc, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
+// FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
+import { collection, addDoc, doc, updateDoc, deleteDoc, Timestamp } from '@firebase/firestore';
 import { WorkoutTemplate, Exercise, Student, StudentGroup } from '../../types';
 import Modal from './Modal';
 import WorkoutEditor from '../WorkoutEditor';

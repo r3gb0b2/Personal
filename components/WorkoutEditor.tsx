@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, query, where, Timestamp, addDoc } from 'firebase/firestore';
+// FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
+import { collection, getDocs, query, where, Timestamp, addDoc } from '@firebase/firestore';
 import { Workout, WorkoutTemplate, Exercise, LibraryExercise, TrainerSuggestion, ExerciseSet, ExerciseSetType, EXERCISE_CATEGORIES, MUSCLE_GROUPS, ExerciseCategory, MuscleGroup } from '../types';
 import { PlusIcon, TrashIcon, EyeIcon, EyeOffIcon } from './icons';
 import ExerciseLibraryModal from './modals/ExerciseLibraryModal';
@@ -159,9 +161,9 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
         await Promise.all(suggestionPromises);
         
         const dataToSave: any = { title, exercises };
-        if (!isTemplateMode && studentId && initialData) {
-            dataToSave.id = initialData.id;
-        } else if (initialData) {
+        
+        // CRITICAL FIX: Preserve the ID if we are editing an existing workout
+        if (initialData && 'id' in initialData && initialData.id) {
             dataToSave.id = initialData.id;
         }
         

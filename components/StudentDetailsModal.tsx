@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer, Exercise, WorkoutTemplate, StudentGroup } from '../types';
 import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon, EyeIcon, EyeOffIcon, CloneIcon, UsersIcon, PrintIcon, DollarSignIcon } from './icons';
@@ -5,8 +6,10 @@ import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
 import ProfilePictureModal from './modals/ProfilePictureModal';
 import { db, storage } from '../firebase';
-import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc, Timestamp, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+// FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
+import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc, Timestamp, setDoc } from '@firebase/firestore';
+// FIX: Changed firebase import path to use the scoped package '@firebase/storage' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
+import { ref, uploadBytes, getDownloadURL } from '@firebase/storage';
 import { sendEmail, generateEmailTemplate } from '../services/emailService';
 import WorkoutEditor from './WorkoutEditor';
 import CloneWorkoutModal from './modals/CloneWorkoutModal';
@@ -31,6 +34,7 @@ interface StudentDetailsModalProps {
 type Tab = 'details' | 'workouts' | 'files' | 'progress' | 'financeiro';
 
 const timeToMinutes = (time: string): number => {
+    if (!time) return 0;
     const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + minutes;
 };
@@ -657,22 +661,25 @@ const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Work
     const [creationMode, setCreationMode] = useState<'idle' | 'choice' | 'editing'>('idle');
     const [newWorkoutData, setNewWorkoutData] = useState<Workout | null>(null);
 
-    const handleSaveWorkout = async (workout: Omit<Workout, 'id' | 'createdAt'> | Workout) => {
+    const handleSaveWorkout = async (workoutData: Workout | Omit<Workout, 'id'>) => {
         try {
-            if ('id' in workout && workout.id) {
-                const workoutRef = doc(db, 'workouts', workout.id);
-                const dataToSave = { ...workout };
-                delete (dataToSave as any).id;
-                await updateDoc(workoutRef, dataToSave);
+            const isExisting = 'id' in workoutData && workoutData.id;
+
+            if (isExisting) {
+                const workoutRef = doc(db, 'workouts', workoutData.id);
+                // Create a shallow copy and remove the id for the update payload
+                const dataToUpdate = { ...workoutData };
+                delete (dataToUpdate as Partial<Workout>).id;
+                await updateDoc(workoutRef, dataToUpdate);
             } else {
                 await addDoc(collection(db, 'workouts'), {
-                    ...workout,
+                    ...workoutData,
                     studentId: student.id,
                     trainerId: student.trainerId,
                     createdAt: Timestamp.now(),
                 });
             }
-            onUpdate();
+            onUpdate(); // Refreshes the workout list
             setCreationMode('idle');
             setEditingWorkout(null);
             setNewWorkoutData(null);
@@ -683,9 +690,18 @@ const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Work
     };
 
     const handleDeleteWorkout = async (id: string) => {
+        if (!id) {
+            alert("Erro: ID do treino inválido. Não é possível excluir.");
+            return;
+        }
         if (window.confirm("Tem certeza que deseja excluir esta planilha de treino?")) {
-            await deleteDoc(doc(db, "workouts", id));
-            onUpdate();
+            try {
+                await deleteDoc(doc(db, "workouts", id));
+                onUpdate();
+            } catch (error) {
+                console.error("Error deleting workout:", error);
+                alert("Não foi possível excluir o treino. Verifique o console para mais detalhes.");
+            }
         }
     };
 
@@ -750,7 +766,7 @@ const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Work
     if (creationMode === 'editing' || editingWorkout) {
         return <WorkoutEditor 
             initialData={editingWorkout || newWorkoutData}
-            onSave={handleSaveWorkout} 
+            onSave={handleSaveWorkout as any} 
             onCancel={handleCancelCreation} 
             trainerId={trainer.id}
             studentId={student.id}

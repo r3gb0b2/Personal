@@ -1,9 +1,12 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Student, Plan, Payment, Workout, StudentFile, ProgressPhoto, Trainer } from '../../types';
 import { UserIcon, LogoutIcon, CalendarIcon, DollarSignIcon, BriefcaseIcon, CheckCircleIcon, ExclamationCircleIcon, InstagramIcon, WhatsAppIcon, LinkIcon, FileTextIcon, ImageIcon, UploadCloudIcon, SendIcon, CameraIcon, DumbbellIcon } from '../icons';
 import { db, storage } from '../../firebase';
-import { collection, addDoc, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+// FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
+import { collection, addDoc, getDocs, query, where, orderBy, Timestamp } from '@firebase/firestore';
+// FIX: Changed firebase import path to use the scoped package '@firebase/storage' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
+import { ref, uploadBytes, getDownloadURL } from '@firebase/storage';
 import WorkoutPortal from './WorkoutPortal';
 import { STUDENT_PORTAL_VIEW_KEY } from '../../constants';
 

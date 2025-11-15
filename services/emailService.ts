@@ -1,5 +1,7 @@
+
 import { db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+// FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
+import { doc, getDoc } from '@firebase/firestore';
 import { Trainer } from '../types';
 
 interface EmailRecipient {

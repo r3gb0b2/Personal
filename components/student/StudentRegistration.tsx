@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../../firebase';
-import { doc, getDoc, addDoc, collection, Timestamp, getDocs } from 'firebase/firestore';
+// FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
+import { doc, getDoc, addDoc, collection, Timestamp, getDocs } from '@firebase/firestore';
 import { Trainer, PendingStudent } from '../../types';
 
 interface StudentRegistrationProps {

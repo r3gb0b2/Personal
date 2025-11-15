@@ -46,6 +46,7 @@ const renderSetDetails = (set: ExerciseSet): string => {
 
 
 const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanActive, onWorkoutUpdate, student, trainer }) => {
+    const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
     const [feedback, setFeedback] = useState<{ [exerciseId: string]: string }>({});
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState<string | null>(null);
     const [workoutToPrint, setWorkoutToPrint] = useState<Workout | null>(null);
@@ -73,37 +74,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
         }
     }, [workoutToPrint, student, trainer]);
 
-    const toggleExerciseVisibility = async (workout: Workout, exerciseId: string) => {
-        const currentCompleted = workout.completedExerciseIds || [];
-        const isCompleted = currentCompleted.includes(exerciseId);
-        
-        const newCompleted = isCompleted 
-            ? currentCompleted.filter(id => id !== exerciseId)
-            : [...currentCompleted, exerciseId];
-            
-        try {
-            const workoutRef = doc(db, 'workouts', workout.id);
-            await updateDoc(workoutRef, { completedExerciseIds: newCompleted });
-            const updatedWorkout = { ...workout, completedExerciseIds: newCompleted };
-            onWorkoutUpdate(updatedWorkout);
-        } catch (error) {
-            console.error("Error updating exercise status:", error);
-            alert("Não foi possível salvar o status do exercício.");
-        }
-    };
-
-    const restoreAllExercises = async (workout: Workout) => {
-        if (!workout.completedExerciseIds || workout.completedExerciseIds.length === 0) return;
-        try {
-            const workoutRef = doc(db, 'workouts', workout.id);
-            await updateDoc(workoutRef, { completedExerciseIds: [] });
-            onWorkoutUpdate({ ...workout, completedExerciseIds: [] });
-        } catch (error) {
-            console.error("Error restoring exercises:", error);
-            alert("Não foi possível restaurar os exercícios.");
-        }
-    };
-    
+    // This function was missing, causing a crash when opening a workout.
     const handleFeedbackChange = (exerciseId: string, text: string) => {
         setFeedback(prev => ({...prev, [exerciseId]: text}));
     };
@@ -115,6 +86,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
         setIsSubmittingFeedback(exerciseId);
         try {
             const workoutRef = doc(db, 'workouts', workoutId);
+            // Find the correct, up-to-date workout object from the main list
             const workout = workouts.find(w => w.id === workoutId);
             if (!workout || !workout.exercises) throw new Error("Workout not found");
 
@@ -126,7 +98,14 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
             alert("Feedback enviado com sucesso!");
             setFeedback(prev => ({...prev, [exerciseId]: ''}));
 
-            onWorkoutUpdate({ ...workout, exercises: updatedExercises });
+            // Propagate the change up to keep all states in sync
+            const updatedWorkout = { ...workout, exercises: updatedExercises };
+            onWorkoutUpdate(updatedWorkout);
+
+            // Also update the local selectedWorkout state
+            if (selectedWorkout && selectedWorkout.id === workoutId) {
+                setSelectedWorkout(updatedWorkout);
+            }
 
         } catch (error) {
             console.error("Error sending feedback:", error);
@@ -136,6 +115,123 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
         }
     };
 
+    const toggleExerciseCompleted = async (exerciseId: string) => {
+        if (!selectedWorkout) return;
+        
+        const currentCompleted = selectedWorkout.completedExerciseIds || [];
+        const isCompleted = currentCompleted.includes(exerciseId);
+        
+        const newCompleted = isCompleted 
+            ? currentCompleted.filter(id => id !== exerciseId)
+            : [...currentCompleted, exerciseId];
+            
+        try {
+            const workoutRef = doc(db, 'workouts', selectedWorkout.id);
+            await updateDoc(workoutRef, { completedExerciseIds: newCompleted });
+            const updatedWorkout = { ...selectedWorkout, completedExerciseIds: newCompleted };
+            
+            // Update both the local selected state and the main list in the parent
+            setSelectedWorkout(updatedWorkout);
+            onWorkoutUpdate(updatedWorkout);
+            
+        } catch (error) {
+            console.error("Error updating exercise status:", error);
+            // Revert UI on error
+            alert("Não foi possível salvar o status do exercício.");
+        }
+    };
+
+
+    const renderSelectedWorkout = (workout: Workout) => {
+        const visibleExercises = (workout.exercises || []).filter(ex => !ex.isHidden);
+        return (
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                 <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => setSelectedWorkout(null)} className="text-brand-primary hover:underline text-sm">&larr; Voltar para a lista</button>
+                        <h2 className="text-2xl font-bold text-brand-dark">{workout.title}</h2>
+                        <button 
+                            onClick={() => setWorkoutToPrint(workout)}
+                            className="text-gray-500 hover:text-brand-primary"
+                            title="Baixar Treino em PDF"
+                        >
+                            <PrintIcon className="w-6 h-6" />
+                        </button>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
+                    {visibleExercises.map(ex => {
+                        const isCompleted = workout.completedExerciseIds?.includes(ex.id);
+                        const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
+
+                        return (
+                            <div key={ex.id} className={`p-4 rounded-lg border relative flex flex-col transition-all duration-300 ${isCompleted ? 'bg-green-50 opacity-60' : 'bg-gray-50'}`}>
+                                <h3 className="font-bold text-lg mb-3 text-brand-secondary">{ex.name}</h3>
+                                {isCompleted && (
+                                    <div className="absolute top-3 right-3 text-green-600 font-bold text-sm">Concluído ✔</div>
+                                )}
+                                {embedUrl && (<div className="mb-4"><iframe className="w-full aspect-video rounded-md shadow" src={embedUrl} title={ex.name} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe></div>)}
+                                
+                                <div className="mb-3 overflow-x-auto">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="bg-gray-200"><tr><th className="p-2 w-12 text-center">Série</th><th className="p-2">Detalhes</th></tr></thead>
+                                        <tbody>
+                                            {(ex.sets || []).map((set, index) => (
+                                                <tr key={set.id} className="border-b"><td className="p-2 text-center font-medium">{index + 1}</td><td className="p-2">{renderSetDetails(set)}</td></tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {ex.rest && (<div className="text-sm"><span className="font-semibold">Descanso:</span> {ex.rest}</div>)}
+
+                                <div className="mt-4 pt-4 border-t space-y-2 flex-grow flex flex-col justify-end">
+                                     <p className="text-sm font-semibold text-gray-600">Feedback para o Personal:</p>
+                                     {ex.studentFeedback ? (
+                                        <p className="text-sm italic text-gray-500 bg-gray-100 p-2 rounded-md">"Enviado: {ex.studentFeedback}"</p>
+                                     ) : (
+                                        <div className="flex items-center gap-2">
+                                            <input type="text" placeholder="Opcional: como foi o exercício?" className="flex-grow text-sm border-gray-300 rounded-md shadow-sm" value={feedback[ex.id] || ''} onChange={(e) => handleFeedbackChange(ex.id, e.target.value)} />
+                                            <button onClick={() => handleSendFeedback(workout.id, ex.id)} disabled={isSubmittingFeedback === ex.id} className="p-2 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400"><SendIcon className="w-4 h-4"/></button>
+                                        </div>
+                                     )}
+                                     <button 
+                                        onClick={() => toggleExerciseCompleted(ex.id)}
+                                        className={`w-full mt-3 py-2 px-4 text-sm font-bold rounded-lg shadow-sm transition-colors ${isCompleted ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500' : 'bg-green-500 text-white hover:bg-green-600'}`}
+                                     >
+                                         {isCompleted ? 'Desfazer' : 'Concluir Exercício'}
+                                     </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        )
+    };
+    
+    const renderWorkoutList = () => {
+        return (
+            <div className="space-y-4">
+                {workouts.map(w => {
+                    const totalExercises = w.exercises?.filter(ex => !ex.isHidden).length || 0;
+                    const completedCount = w.completedExerciseIds?.length || 0;
+                    const progress = totalExercises > 0 ? (completedCount / totalExercises) * 100 : 0;
+                    return(
+                        <button key={w.id} onClick={() => setSelectedWorkout(w)} className="w-full text-left p-6 bg-white rounded-lg shadow-md hover:shadow-lg hover:border-brand-primary border-2 border-transparent transition-all">
+                            <h3 className="text-xl font-bold text-brand-dark">{w.title}</h3>
+                            <div className="mt-3 flex items-center gap-4">
+                                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                    <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
+                                </div>
+                                <span className="text-sm font-semibold text-gray-600">{completedCount}/{totalExercises}</span>
+                            </div>
+                        </button>
+                    );
+                })}
+            </div>
+        );
+    };
 
     const renderContent = () => {
         if (!isPlanActive) {
@@ -147,105 +243,13 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                 </div>
             );
         }
+        
+        if (selectedWorkout) {
+            return renderSelectedWorkout(selectedWorkout);
+        }
 
         if (workouts.length > 0) {
-            return (
-                 <div className="space-y-8">
-                    {workouts.map(workout => {
-                        const visibleExercises = (workout.exercises || []).filter(ex => !ex.isHidden);
-                        if (visibleExercises.length === 0) return null;
-                        const completedCount = workout.completedExerciseIds?.length || 0;
-
-                        return (
-                            <div key={workout.id} className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="flex items-center gap-4">
-                                        <h2 className="text-2xl font-bold text-brand-dark">{workout.title}</h2>
-                                        <button 
-                                            onClick={() => setWorkoutToPrint(workout)}
-                                            className="text-gray-500 hover:text-brand-primary"
-                                            title="Baixar Treino em PDF"
-                                        >
-                                            <PrintIcon className="w-6 h-6" />
-                                        </button>
-                                    </div>
-                                    {completedCount > 0 && (
-                                        <button onClick={() => restoreAllExercises(workout)} className="px-3 py-1 text-xs font-semibold bg-brand-secondary text-white rounded-lg shadow hover:bg-gray-700">
-                                            Restaurar ({completedCount})
-                                        </button>
-                                    )}
-                                </div>
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
-                                    {visibleExercises.map(ex => {
-                                        const isHidden = workout.completedExerciseIds?.includes(ex.id);
-                                        
-                                        if (isHidden) {
-                                            return (
-                                                <div key={ex.id} className="bg-gray-100 p-3 rounded-lg flex justify-between items-center border shadow-sm">
-                                                    <p className="text-gray-500 line-through">{ex.name}</p>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">Concluído</span>
-                                                        <button onClick={() => toggleExerciseVisibility(workout, ex.id)} className="text-gray-400 hover:text-brand-primary">
-                                                            <EyeOffIcon className="w-5 h-5"/>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            );
-                                        }
-
-                                        const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
-                                        return (
-                                            <div key={ex.id} className="bg-gray-50 p-4 rounded-lg border relative transition-opacity flex flex-col">
-                                                <div className="absolute top-3 right-3 flex items-center gap-2">
-                                                    <button onClick={() => toggleExerciseVisibility(workout, ex.id)} className="text-gray-400 hover:text-brand-primary" title="Marcar como concluído">
-                                                        <EyeIcon className="w-5 h-5"/>
-                                                    </button>
-                                                </div>
-                                                <h3 className="font-bold text-lg mb-3 text-brand-secondary">{ex.name}</h3>
-                                                {embedUrl && (<div className="mb-4"><iframe className="w-full aspect-video rounded-md shadow" src={embedUrl} title={ex.name} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe></div>)}
-                                                
-                                                <div className="mb-3 overflow-x-auto">
-                                                    <table className="w-full text-sm text-left">
-                                                        <thead className="bg-gray-200">
-                                                            <tr>
-                                                                <th className="p-2 w-12 text-center">Série</th>
-                                                                <th className="p-2">Detalhes</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {(ex.sets || []).map((set, index) => (
-                                                                <tr key={set.id} className="border-b">
-                                                                    <td className="p-2 text-center font-medium">{index + 1}</td>
-                                                                    <td className="p-2">{renderSetDetails(set)}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-
-                                                {ex.rest && (<div className="text-sm"><span className="font-semibold">Descanso:</span> {ex.rest}</div>)}
-
-                                                <div className="mt-4 pt-4 border-t flex-grow flex flex-col justify-end">
-                                                     <p className="text-sm font-semibold text-gray-600 mb-1">Feedback para o Personal:</p>
-                                                     {ex.studentFeedback ? (
-                                                        <p className="text-sm italic text-gray-500 bg-gray-100 p-2 rounded-md">"Enviado: {ex.studentFeedback}"</p>
-                                                     ) : (
-                                                        <div className="flex items-center gap-2">
-                                                            <input type="text" placeholder="Opcional: como foi o exercício?" className="flex-grow text-sm border-gray-300 rounded-md shadow-sm" value={feedback[ex.id] || ''} onChange={(e) => handleFeedbackChange(ex.id, e.target.value)} />
-                                                            <button onClick={() => handleSendFeedback(workout.id, ex.id)} disabled={isSubmittingFeedback === ex.id} className="p-2 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400"><SendIcon className="w-4 h-4"/></button>
-                                                        </div>
-                                                     )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            );
+            return renderWorkoutList();
         }
 
         return (

@@ -1,6 +1,8 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+
+// FIX: Changed firebase import paths to use scoped packages ('@firebase/app', etc.) to resolve a potential module loading issue.
+import { initializeApp } from "@firebase/app";
+import { getFirestore } from "@firebase/firestore";
+import { getStorage } from "@firebase/storage";
 
 // =================================================================================
 // AÇÃO CRÍTICA NECESSÁRIA - LEIA COM ATENÇÃO

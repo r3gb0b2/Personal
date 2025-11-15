@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from './firebase';
-import { collection, getDocs, query, where, orderBy, Timestamp, doc, getDoc } from 'firebase/firestore';
+// FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
+import { collection, getDocs, query, where, orderBy, Timestamp, doc, getDoc } from '@firebase/firestore';
 import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
 import StudentLogin from './components/student/StudentLogin';
