@@ -8,6 +8,7 @@ interface WorkoutPortalProps {
     workouts: Workout[];
     onBack: () => void;
     isPlanActive: boolean;
+    onWorkoutUpdate: (updatedWorkout: Workout) => void;
 }
 
 const getYoutubeEmbedUrl = (url: string | undefined): string | null => {
@@ -27,21 +28,39 @@ const getYoutubeEmbedUrl = (url: string | undefined): string | null => {
     }
 }
 
-const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanActive }) => {
-    const [hiddenExercises, setHiddenExercises] = useState<string[]>([]);
+const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanActive, onWorkoutUpdate }) => {
     const [feedback, setFeedback] = useState<{ [exerciseId: string]: string }>({});
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState<string | null>(null);
 
-    const toggleExerciseVisibility = (exerciseId: string) => {
-        setHiddenExercises(prev => 
-            prev.includes(exerciseId) 
-            ? prev.filter(id => id !== exerciseId)
-            : [...prev, exerciseId]
-        );
+    const toggleExerciseVisibility = async (workout: Workout, exerciseId: string) => {
+        const currentCompleted = workout.completedExerciseIds || [];
+        const isCompleted = currentCompleted.includes(exerciseId);
+        
+        const newCompleted = isCompleted 
+            ? currentCompleted.filter(id => id !== exerciseId)
+            : [...currentCompleted, exerciseId];
+            
+        try {
+            const workoutRef = doc(db, 'workouts', workout.id);
+            await updateDoc(workoutRef, { completedExerciseIds: newCompleted });
+            const updatedWorkout = { ...workout, completedExerciseIds: newCompleted };
+            onWorkoutUpdate(updatedWorkout);
+        } catch (error) {
+            console.error("Error updating exercise status:", error);
+            alert("Não foi possível salvar o status do exercício.");
+        }
     };
 
-    const restoreAllExercises = () => {
-        setHiddenExercises([]);
+    const restoreAllExercises = async (workout: Workout) => {
+        if (!workout.completedExerciseIds || workout.completedExerciseIds.length === 0) return;
+        try {
+            const workoutRef = doc(db, 'workouts', workout.id);
+            await updateDoc(workoutRef, { completedExerciseIds: [] });
+            onWorkoutUpdate({ ...workout, completedExerciseIds: [] });
+        } catch (error) {
+            console.error("Error restoring exercises:", error);
+            alert("Não foi possível restaurar os exercícios.");
+        }
     };
     
     const handleFeedbackChange = (exerciseId: string, text: string) => {
@@ -66,6 +85,8 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
             alert("Feedback enviado com sucesso!");
             setFeedback(prev => ({...prev, [exerciseId]: ''}));
 
+            onWorkoutUpdate({ ...workout, exercises: updatedExercises });
+
         } catch (error) {
             console.error("Error sending feedback:", error);
             alert("Não foi possível enviar o feedback. Tente novamente.");
@@ -89,25 +110,26 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
         if (workouts.length > 0) {
             return (
                  <div className="space-y-8">
-                    {hiddenExercises.length > 0 && (
-                        <div className="text-center">
-                            <button onClick={restoreAllExercises} className="px-4 py-2 bg-brand-secondary text-white font-semibold rounded-lg shadow hover:bg-gray-700">
-                                Restaurar Exercícios
-                            </button>
-                        </div>
-                    )}
                     {workouts.map(workout => {
                         const visibleExercises = workout.exercises.filter(ex => !ex.isHidden);
                         if (visibleExercises.length === 0) return null;
+                        const completedCount = workout.completedExerciseIds?.length || 0;
 
                         return (
                             <div key={workout.id} className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
-                                <h2 className="text-2xl font-bold text-brand-dark mb-4">{workout.title}</h2>
+                                <div className="flex justify-between items-start mb-4">
+                                    <h2 className="text-2xl font-bold text-brand-dark">{workout.title}</h2>
+                                    {completedCount > 0 && (
+                                        <button onClick={() => restoreAllExercises(workout)} className="px-3 py-1 text-xs font-semibold bg-brand-secondary text-white rounded-lg shadow hover:bg-gray-700">
+                                            Restaurar ({completedCount})
+                                        </button>
+                                    )}
+                                </div>
                                 
                                 {/* Mobile View: Card-based layout */}
                                 <div className="space-y-4 md:hidden">
                                     {visibleExercises.map(ex => {
-                                        const isHidden = hiddenExercises.includes(ex.id);
+                                        const isHidden = workout.completedExerciseIds?.includes(ex.id);
                                         
                                         if (isHidden) {
                                             return (
@@ -115,7 +137,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                                     <p className="text-gray-500 line-through">{ex.name}</p>
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">Concluído</span>
-                                                        <button onClick={() => toggleExerciseVisibility(ex.id)} className="text-gray-400 hover:text-brand-primary">
+                                                        <button onClick={() => toggleExerciseVisibility(workout, ex.id)} className="text-gray-400 hover:text-brand-primary">
                                                             <EyeOffIcon className="w-5 h-5"/>
                                                         </button>
                                                     </div>
@@ -127,7 +149,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                         return (
                                             <div key={ex.id} className="bg-gray-50 p-4 rounded-lg border relative transition-opacity">
                                                 <div className="absolute top-3 right-3 flex items-center gap-2">
-                                                    <button onClick={() => toggleExerciseVisibility(ex.id)} className="text-gray-400 hover:text-brand-primary" title="Marcar como concluído">
+                                                    <button onClick={() => toggleExerciseVisibility(workout, ex.id)} className="text-gray-400 hover:text-brand-primary" title="Marcar como concluído">
                                                         <EyeIcon className="w-5 h-5"/>
                                                     </button>
                                                 </div>
@@ -213,7 +235,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                         </thead>
                                         <tbody>
                                             {visibleExercises.map(ex => {
-                                                const isHidden = hiddenExercises.includes(ex.id);
+                                                const isHidden = workout.completedExerciseIds?.includes(ex.id);
                                                 
                                                 if (isHidden) {
                                                     return (
@@ -226,7 +248,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                                             </td>
                                                             <td colSpan={5} className="p-3 text-center text-gray-400">—</td>
                                                             <td className="p-3 align-top text-center">
-                                                                <button onClick={() => toggleExerciseVisibility(ex.id)} className="text-gray-400 hover:text-brand-primary" title="Restaurar exercício">
+                                                                <button onClick={() => toggleExerciseVisibility(workout, ex.id)} className="text-gray-400 hover:text-brand-primary" title="Restaurar exercício">
                                                                     <EyeOffIcon className="w-6 h-6"/>
                                                                 </button>
                                                             </td>
@@ -267,7 +289,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                                              )}
                                                         </td>
                                                         <td className="p-3 align-top text-center">
-                                                            <button onClick={() => toggleExerciseVisibility(ex.id)} className="text-gray-400 hover:text-brand-primary" title="Marcar como concluído">
+                                                            <button onClick={() => toggleExerciseVisibility(workout, ex.id)} className="text-gray-400 hover:text-brand-primary" title="Marcar como concluído">
                                                                 <EyeIcon className="w-6 h-6"/>
                                                             </button>
                                                         </td>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer, Exercise, WorkoutTemplate, StudentGroup } from '../types';
-import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon, EyeIcon, EyeOffIcon, CloneIcon, UsersIcon } from './icons';
+import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon, EyeIcon, EyeOffIcon, CloneIcon, UsersIcon, PrintIcon } from './icons';
 import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
 import ProfilePictureModal from './modals/ProfilePictureModal';
@@ -10,6 +10,9 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { sendEmail, generateEmailTemplate } from '../services/emailService';
 import WorkoutEditor from './WorkoutEditor';
 import CloneWorkoutModal from './modals/CloneWorkoutModal';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+import WorkoutPDFLayout from './pdf/WorkoutPDFLayout';
 
 interface StudentDetailsModalProps {
   student: Student;
@@ -81,6 +84,10 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
   const [isLoadingFeatures, setIsLoadingFeatures] = useState(true);
 
+  const [workoutToPrint, setWorkoutToPrint] = useState<Workout | null>(null);
+  const pdfLayoutRef = useRef<HTMLDivElement>(null);
+
+
   const fetchFeatureData = useCallback(async () => {
     if (!student) return;
     setIsLoadingFeatures(true);
@@ -108,6 +115,33 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
   useEffect(() => {
     fetchFeatureData();
   }, [fetchFeatureData]);
+
+
+  useEffect(() => {
+    if (workoutToPrint && pdfLayoutRef.current) {
+        const generatePdf = async () => {
+            const element = pdfLayoutRef.current;
+            if (!element) return;
+
+            // Maybe show a spinner
+            const canvas = await html2canvas(element, { scale: 2 });
+            const imgData = canvas.toDataURL('image/png');
+            
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`treino-${student.name.replace(/\s/g, '_')}-${workoutToPrint.title.replace(/\s/g, '_')}.pdf`);
+
+            // Cleanup
+            setWorkoutToPrint(null);
+        };
+
+        // Timeout to allow component to render before capturing
+        setTimeout(generatePdf, 100);
+    }
+}, [workoutToPrint, student.name]);
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -271,7 +305,7 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
         return <div className="text-center p-8">Carregando...</div>;
     }
     switch (activeTab) {
-        case 'workouts': return <WorkoutsTab student={student} trainer={trainer} workouts={workouts} templates={workoutTemplates} onUpdate={fetchFeatureData} onCloneRequest={(workout) => setWorkoutToClone(workout)} />;
+        case 'workouts': return <WorkoutsTab student={student} trainer={trainer} workouts={workouts} templates={workoutTemplates} onUpdate={fetchFeatureData} onCloneRequest={(workout) => setWorkoutToClone(workout)} onPrintRequest={(workout) => setWorkoutToPrint(workout)} />;
         case 'files': return <FilesTab student={student} files={studentFiles} onUpdate={fetchFeatureData} />;
         case 'progress': return <ProgressTab student={student} photos={progressPhotos} onUpdate={fetchFeatureData} />;
         case 'details':
@@ -323,6 +357,16 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
             onClone={handleCloneWorkout}
         />
     )}
+    <div style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1 }}>
+        {workoutToPrint && (
+            <WorkoutPDFLayout
+                ref={pdfLayoutRef}
+                student={student}
+                trainer={trainer}
+                workout={workoutToPrint}
+            />
+        )}
+    </div>
     </>
   );
 };
@@ -567,7 +611,7 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, groups, isEditing,
                                 <span className={(isPaymentDue || areSessionsLow) ? 'text-red-600' : 'text-green-600'}>
                                     {(isPaymentDue || areSessionsLow) ? <ExclamationCircleIcon className="w-5 h-5 text-red-500" /> : <CheckCircleIcon className="w-5 h-5 text-green-500" />}
                                     {studentPlan?.type === 'duration' && (student.paymentDueDate ? `Vencimento em ${formatDate(student.paymentDueDate)}` : 'Sem data de vencimento')}
-                                    {studentPlan?.type === 'session' && (() => {const remaining = student.remainingSessions;if (remaining == null) return "Contagem de aulas não iniciada";if (remaining < 0) {const plural = Math.abs(remaining) > 1;return `${Math.abs(remaining)} aula${plural ? 's' : ''} devendo (a deduzir na renovação)`;}if (remaining === 0) return 'Nenhuma aula restante';const plural = remaining > 1;return `${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}`;})()}
+                                    {studentPlan?.type === 'session' && (() => {const remaining = student.remainingSessions;if (remaining == null) return "Contagem de aulas não iniciada";if (remaining < 0) {const plural = Math.abs(remaining) !== 1;return `${Math.abs(remaining)} aula${plural ? 's' : ''} devendo (a deduzir na renovação)`;}if (remaining === 0) return 'Nenhuma aula restante';const plural = remaining > 1;return `${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}`;})()}
                                     {!studentPlan && 'Aluno sem plano ativo'}
                                 </span>
                             </div> 
@@ -595,7 +639,7 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, groups, isEditing,
     );
 };
 
-const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Workout[]; templates: WorkoutTemplate[]; onUpdate: () => void; onCloneRequest: (workout: Workout) => void; }> = ({ student, trainer, workouts, templates, onUpdate, onCloneRequest }) => {
+const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Workout[]; templates: WorkoutTemplate[]; onUpdate: () => void; onCloneRequest: (workout: Workout) => void; onPrintRequest: (workout: Workout) => void; }> = ({ student, trainer, workouts, templates, onUpdate, onCloneRequest, onPrintRequest }) => {
     const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
     const [creationMode, setCreationMode] = useState<'idle' | 'choice' | 'editing'>('idle');
     const [newWorkoutData, setNewWorkoutData] = useState<Workout | null>(null);
@@ -715,6 +759,7 @@ const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Work
                         <div className="flex justify-between items-start">
                             <p className="font-bold text-lg text-brand-dark">{w.title}</p>
                             <div className="flex gap-3">
+                                <button onClick={() => onPrintRequest(w)} className="text-gray-500 hover:text-purple-600" title="Baixar PDF do Treino"><PrintIcon className="w-5 h-5"/></button>
                                 <button onClick={() => onCloneRequest(w)} className="text-gray-500 hover:text-green-600" title="Clonar treino para outro aluno"><CloneIcon className="w-5 h-5"/></button>
                                 <button onClick={() => setEditingWorkout(w)} className="text-gray-500 hover:text-blue-600"><PencilIcon className="w-5 h-5"/></button>
                                 <button onClick={() => handleDeleteWorkout(w.id)} className="text-gray-400 hover:text-red-500"><TrashIcon className="w-5 h-5"/></button>

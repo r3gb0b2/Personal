@@ -68,6 +68,12 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
         fetchData();
     }, [fetchData]);
 
+    const handleUpdateWorkout = (updatedWorkout: Workout) => {
+        setWorkouts(prevWorkouts =>
+            prevWorkouts.map(w => w.id === updatedWorkout.id ? updatedWorkout : w)
+        );
+    };
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -146,7 +152,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
             const isDepleted = remaining <= 0;
             let statusText = '';
             if (remaining < 0) {
-                const plural = Math.abs(remaining) > 1;
+                const plural = Math.abs(remaining) !== 1;
                 statusText = `Você deve ${Math.abs(remaining)} aula${plural ? 's' : ''}`;
             } else if (remaining === 0) {
                 statusText = 'Você não tem mais aulas restantes';
@@ -170,7 +176,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
     const isPlanActive = status.isActive;
     
     if (view === 'workouts') {
-        return <WorkoutPortal workouts={workouts} onBack={() => setView('dashboard')} isPlanActive={isPlanActive} />;
+        return <WorkoutPortal workouts={workouts} onBack={() => setView('dashboard')} isPlanActive={isPlanActive} onWorkoutUpdate={handleUpdateWorkout} />;
     }
 
     return (
