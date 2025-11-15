@@ -16,7 +16,10 @@
     "html2canvas": "latest",
     "firebase-functions": "^7.0.0",
     "firebase-admin": "^13.6.0",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "@firebase/storage": "^0.14.0",
+    "@firebase/app": "^0.14.6",
+    "@firebase/firestore": "^4.9.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from './firebase';
-import { collection, getDocs, query, where, orderBy, Timestamp, doc, getDoc } from 'firebase/firestore';
+// Fix: Use scoped Firebase package for consistency.
+import { collection, getDocs, query, where, orderBy, Timestamp, doc, getDoc } from '@firebase/firestore';
 import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
 import StudentLogin from './components/student/StudentLogin';

@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, query, where, Timestamp, addDoc } from 'firebase/firestore';
+// Fix: Use scoped Firebase package for consistency.
+import { collection, getDocs, query, where, Timestamp, addDoc } from '@firebase/firestore';
 import { Workout, WorkoutTemplate, Exercise, LibraryExercise, TrainerSuggestion, ExerciseSet, ExerciseSetType, EXERCISE_CATEGORIES, MUSCLE_GROUPS, ExerciseCategory, MuscleGroup } from '../types';
 import { PlusIcon, TrashIcon, EyeIcon, EyeOffIcon } from './icons';
 import ExerciseLibraryModal from './modals/ExerciseLibraryModal';
 
 interface WorkoutEditorProps {
   initialData: Workout | WorkoutTemplate | null;
-  onSave: (data: Omit<Workout, 'id'> | Omit<WorkoutTemplate, 'id'>) => void;
+  onSave: (data: Omit<Workout, 'id'> | Omit<WorkoutTemplate, 'id'> | Workout) => void;
   onCancel: () => void;
   trainerId: string;
   isTemplateMode: boolean; // True for templates, false for student workouts
@@ -129,9 +130,7 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
         e.preventDefault();
         
         const suggestionPromises = exercises.map(async (exercise) => {
-            // Check if it's a new, custom exercise
             if (exercise.name && !availableExercises.some(libEx => libEx.name.toLowerCase() === exercise.name.toLowerCase())) {
-                 // Check if a suggestion for this already exists
                 const suggestionQuery = query(
                     collection(db, 'trainerSuggestions'),
                     where("trainerId", "==", trainerId),
@@ -159,9 +158,9 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
         await Promise.all(suggestionPromises);
         
         const dataToSave: any = { title, exercises };
-        if (!isTemplateMode && studentId && initialData) {
-            dataToSave.id = initialData.id;
-        } else if (initialData) {
+        
+        // Explicitly check for an existing ID and pass it along to ensure updates work correctly.
+        if (initialData && initialData.id) {
             dataToSave.id = initialData.id;
         }
         

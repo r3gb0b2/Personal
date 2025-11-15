@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../firebase';
-import { collection, getDocs, addDoc, doc, deleteDoc, getDoc, updateDoc, setDoc, query, where, Timestamp, limit } from 'firebase/firestore';
+// Fix: Use scoped Firebase package for consistency.
+import { collection, getDocs, addDoc, doc, deleteDoc, getDoc, updateDoc, setDoc, query, where, Timestamp, limit } from '@firebase/firestore';
 import { Trainer, LibraryExercise, TrainerSuggestion } from '../../types';
 import { LogoutIcon, PlusIcon, UserIcon, TrashIcon, SettingsIcon, ClockIcon, DumbbellIcon } from '../icons';
 import Modal from '../modals/Modal';

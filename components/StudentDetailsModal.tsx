@@ -5,8 +5,10 @@ import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
 import ProfilePictureModal from './modals/ProfilePictureModal';
 import { db, storage } from '../firebase';
-import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc, Timestamp, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+// Fix: Use scoped Firebase packages for consistency.
+import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc, Timestamp, setDoc } from '@firebase/firestore';
+// Fix: Use scoped Firebase packages for consistency.
+import { ref, uploadBytes, getDownloadURL } from '@firebase/storage';
 import { sendEmail, generateEmailTemplate } from '../services/emailService';
 import WorkoutEditor from './WorkoutEditor';
 import CloneWorkoutModal from './modals/CloneWorkoutModal';
@@ -684,8 +686,13 @@ const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Work
 
     const handleDeleteWorkout = async (id: string) => {
         if (window.confirm("Tem certeza que deseja excluir esta planilha de treino?")) {
-            await deleteDoc(doc(db, "workouts", id));
-            onUpdate();
+            try {
+                await deleteDoc(doc(db, "workouts", id));
+                onUpdate();
+            } catch (error) {
+                console.error("Error deleting workout:", error);
+                alert("Não foi possível excluir o treino. Tente novamente.");
+            }
         }
     };
 

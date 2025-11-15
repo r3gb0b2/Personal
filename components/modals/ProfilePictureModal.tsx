@@ -1,9 +1,11 @@
 
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Student } from '../../types';
 import Modal from './Modal';
 import { storage } from '../../firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+// Fix: Use scoped Firebase package for consistency.
+import { ref, uploadBytes, getDownloadURL } from '@firebase/storage';
 import { CameraIcon } from '../icons';
 
 interface ProfilePictureModalProps {
