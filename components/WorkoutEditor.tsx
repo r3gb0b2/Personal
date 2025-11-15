@@ -68,7 +68,7 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
     };
 
     const addExercise = () => {
-        setExercises([...exercises, { id: `${Date.now()}`, name: '', rest: '', sets: [], youtubeUrl: '', isHidden: false, studentFeedback: '' }]);
+        setExercises([...exercises, { id: `${Date.now()}-${Math.random()}`, name: '', rest: '', sets: [], youtubeUrl: '', isHidden: false, studentFeedback: '' }]);
     };
     
     const removeExercise = (index: number) => {
@@ -77,7 +77,17 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
 
     const addSet = (exIndex: number) => {
         const newExercises = [...exercises];
-        const newSets = [...newExercises[exIndex].sets, { id: `${Date.now()}`, type: 'reps_load' }];
+        const newSet: ExerciseSet = {
+            id: `${Date.now()}-${Math.random()}`,
+            type: 'reps_load',
+            reps: '',
+            load: '',
+            time: '',
+            distance: '',
+            cadence: '',
+            observation: '',
+        };
+        const newSets = [...newExercises[exIndex].sets, newSet];
         newExercises[exIndex].sets = newSets;
         setExercises(newExercises);
     };

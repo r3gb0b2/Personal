@@ -69,7 +69,17 @@ const ExerciseManagementModal: React.FC<ExerciseManagementModalProps> = ({ isOpe
   };
 
   const addSet = () => {
-    setFormState(prev => ({ ...prev, sets: [...prev.sets, {id: `${Date.now()}`, type: 'reps_load'}] }));
+    const newSet: ExerciseSet = {
+        id: `${Date.now()}-${Math.random()}`,
+        type: 'reps_load',
+        reps: '',
+        load: '',
+        time: '',
+        distance: '',
+        cadence: '',
+        observation: '',
+    };
+    setFormState(prev => ({ ...prev, sets: [...prev.sets, newSet] }));
   };
 
   const removeSet = (setIndex: number) => {
