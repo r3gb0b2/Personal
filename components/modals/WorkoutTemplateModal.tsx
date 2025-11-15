@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { db } from '../../firebase';
-// Fix: Use scoped Firebase package for consistency.
-import { collection, addDoc, doc, updateDoc, deleteDoc, Timestamp } from '@firebase/firestore';
+import { collection, addDoc, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { WorkoutTemplate, Exercise, Student, StudentGroup } from '../../types';
 import Modal from './Modal';
 import WorkoutEditor from '../WorkoutEditor';
@@ -134,15 +133,13 @@ const WorkoutTemplateModal: React.FC<WorkoutTemplateModalProps> = ({ isOpen, onC
                                   <button onClick={() => setEditingTemplate(t)} className="text-gray-500 hover:text-blue-600" title="Editar modelo">
                                       <PencilIcon className="w-5 h-5"/>
                                   </button>
-                                  <button onClick={() => handleDelete(t.id)} className="text-gray-500 hover:text-red-600" title="Excluir modelo">
+                                  <button onClick={() => handleDelete(t.id)} className="text-gray-400 hover:text-red-500" title="Excluir modelo">
                                       <TrashIcon className="w-5 h-5"/>
                                   </button>
                               </div>
                           </div>
                       </div>
-                  )) : (
-                    <p className="text-center text-gray-500 p-8">Nenhum modelo de treino criado.</p>
-                  )}
+                  )) : <p className="text-center text-gray-500 p-8">Nenhum modelo de treino criado.</p>}
               </div>
           </div>
       </Modal>

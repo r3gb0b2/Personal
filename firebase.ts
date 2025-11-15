@@ -1,7 +1,6 @@
-// Fix: Use scoped Firebase packages to resolve the "no exported member" error.
-import { initializeApp } from "@firebase/app";
-import { getFirestore } from "@firebase/firestore";
-import { getStorage } from "@firebase/storage";
+import { initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 // =================================================================================
 // AÇÃO CRÍTICA NECESSÁRIA - LEIA COM ATENÇÃO

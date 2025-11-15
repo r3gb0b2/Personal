@@ -1,8 +1,6 @@
-
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { db } from '../firebase';
-// Fix: Use scoped Firebase package for consistency.
-import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy, updateDoc, getDoc, where } from '@firebase/firestore';
+import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy, updateDoc, getDoc, where } from 'firebase/firestore';
 import { AUTH_SESSION_KEY } from '../constants';
 import { Student, Plan, Payment, Trainer, DaySchedule, WorkoutTemplate, PendingStudent, StudentGroup } from '../types';
 import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon, MailIcon, ClipboardListIcon, LinkIcon, UsersIcon, CheckCircleIcon } from './icons';
