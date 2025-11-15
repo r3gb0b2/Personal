@@ -117,8 +117,15 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
 
     const toggleExerciseCompleted = async (exerciseId: string) => {
         if (!selectedWorkout) return;
+
+        // Defensively get the latest workout data from props instead of relying on local state
+        const currentWorkoutFromProps = workouts.find(w => w.id === selectedWorkout.id);
+        if (!currentWorkoutFromProps) {
+            alert("Erro: O treino selecionado não foi encontrado. Tente recarregar a página.");
+            return;
+        }
         
-        const currentCompleted = selectedWorkout.completedExerciseIds || [];
+        const currentCompleted = currentWorkoutFromProps.completedExerciseIds || [];
         const isCompleted = currentCompleted.includes(exerciseId);
         
         const newCompleted = isCompleted 
@@ -126,9 +133,12 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
             : [...currentCompleted, exerciseId];
             
         try {
-            const workoutRef = doc(db, 'workouts', selectedWorkout.id);
+            // Use the ID from the props version, which is safer
+            const workoutRef = doc(db, 'workouts', currentWorkoutFromProps.id);
             await updateDoc(workoutRef, { completedExerciseIds: newCompleted });
-            const updatedWorkout = { ...selectedWorkout, completedExerciseIds: newCompleted };
+            
+            // Create the updated object based on the props version
+            const updatedWorkout = { ...currentWorkoutFromProps, completedExerciseIds: newCompleted };
             
             // Update both the local selected state and the main list in the parent
             setSelectedWorkout(updatedWorkout);
@@ -136,7 +146,6 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
             
         } catch (error) {
             console.error("Error updating exercise status:", error);
-            // Revert UI on error
             alert("Não foi possível salvar o status do exercício.");
         }
     };
