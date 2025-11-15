@@ -156,13 +156,13 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
         const currentWorkout = workouts.find(w => w.id === selectedWorkout.id);
         if (!currentWorkout) return;
 
-// FIX: Explicitly handle potentially undefined `logData` and use `Object.values` on a correctly typed object to prevent TypeScript from inferring `unknown[]`.
+// FIX: Explicitly handle potentially undefined `logData` to prevent runtime errors and ensure correct type inference for `loggedSets`.
         const logData = sessionLogs[exerciseId]?.logData;
-        const loggedSets = logData ? Object.values(logData).filter(s => s.reps || s.load) : [];
+        const loggedSets: LoggedSet[] = logData ? Object.values(logData).filter(s => s.reps || s.load) : [];
         let logDocId: string | undefined = undefined;
 
         if (loggedSets.length > 0) {
-            const logData: Omit<ExerciseLog, 'id'> = {
+            const logPayload: Omit<ExerciseLog, 'id'> = {
                 studentId: student.id,
                 workoutId: currentWorkout.id,
                 exerciseId, exerciseName,
@@ -170,7 +170,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                 loggedSets,
             };
             const docRef = await addDoc(collection(db, "exerciseLogs"), {
-                ...logData, date: Timestamp.now()
+                ...logPayload, date: Timestamp.now()
             });
             logDocId = docRef.id;
             setSessionLogs(prev => ({...prev, [exerciseId]: { ...prev[exerciseId], logDocId }}));
