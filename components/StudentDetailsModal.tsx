@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer, Exercise, WorkoutTemplate } from '../types';
-import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon, EyeIcon, EyeOffIcon } from './icons';
+import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon, EyeIcon, EyeOffIcon, CloneIcon } from './icons';
 import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
 import ProfilePictureModal from './modals/ProfilePictureModal';
@@ -9,6 +9,7 @@ import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, upd
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { sendEmail, generateEmailTemplate } from '../services/emailService';
 import WorkoutEditor from './WorkoutEditor';
+import CloneWorkoutModal from './modals/CloneWorkoutModal';
 
 interface StudentDetailsModalProps {
   student: Student;
@@ -72,6 +73,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
   const [isEditing, setIsEditing] = useState(false);
   const [isPaymentModalOpen, setPaymentModalOpen] = useState(false);
   const [isPictureModalOpen, setPictureModalOpen] = useState(false);
+  const [workoutToClone, setWorkoutToClone] = useState<Workout | null>(null);
   
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [studentFiles, setStudentFiles] = useState<StudentFile[]>([]);
@@ -219,6 +221,37 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
     }
   }
 
+  const handleCloneWorkout = async (targetStudentIds: string[]): Promise<{success: boolean, message?: string}> => {
+    if (!workoutToClone) return { success: false, message: 'Nenhum treino selecionado para clonar.' };
+
+    try {
+        // Clone exercises but clear out any student-specific feedback
+        const clonedExercises = workoutToClone.exercises.map(ex => {
+            const { studentFeedback, ...restOfExercise } = ex;
+            return restOfExercise;
+        });
+
+        const clonePromises = targetStudentIds.map(studentId => {
+            const newWorkoutData = {
+                title: workoutToClone.title,
+                exercises: clonedExercises,
+                studentId: studentId,
+                trainerId: workoutToClone.trainerId, // Keep the same trainer
+                createdAt: Timestamp.now(),
+            };
+            return addDoc(collection(db, 'workouts'), newWorkoutData);
+        });
+
+        await Promise.all(clonePromises);
+        return { success: true };
+
+    } catch (error) {
+        console.error("Error cloning workout:", error);
+        return { success: false, message: "Ocorreu um erro ao salvar os treinos clonados." };
+    }
+  };
+
+
   const TabButton = ({ tab, label, Icon }: { tab: Tab, label: string, Icon: React.FC<{className?: string}> }) => (
     <button
         onClick={() => setActiveTab(tab)}
@@ -234,7 +267,7 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
         return <div className="text-center p-8">Carregando...</div>;
     }
     switch (activeTab) {
-        case 'workouts': return <WorkoutsTab student={student} trainer={trainer} workouts={workouts} templates={workoutTemplates} onUpdate={fetchFeatureData} />;
+        case 'workouts': return <WorkoutsTab student={student} trainer={trainer} workouts={workouts} templates={workoutTemplates} onUpdate={fetchFeatureData} onCloneRequest={(workout) => setWorkoutToClone(workout)} />;
         case 'files': return <FilesTab student={student} files={studentFiles} onUpdate={fetchFeatureData} />;
         case 'progress': return <ProgressTab student={student} photos={progressPhotos} onUpdate={fetchFeatureData} />;
         case 'details':
@@ -273,6 +306,16 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
             isOpen={isPictureModalOpen}
             onClose={() => setPictureModalOpen(false)}
             onUpdateStudent={onUpdate}
+        />
+    )}
+    {workoutToClone && (
+        <CloneWorkoutModal
+            isOpen={!!workoutToClone}
+            onClose={() => setWorkoutToClone(null)}
+            workoutToClone={workoutToClone}
+            students={allStudents}
+            currentStudentId={student.id}
+            onClone={handleCloneWorkout}
         />
     )}
     </>
@@ -510,7 +553,7 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
     );
 };
 
-const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Workout[]; templates: WorkoutTemplate[]; onUpdate: () => void; }> = ({ student, trainer, workouts, templates, onUpdate }) => {
+const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Workout[]; templates: WorkoutTemplate[]; onUpdate: () => void; onCloneRequest: (workout: Workout) => void; }> = ({ student, trainer, workouts, templates, onUpdate, onCloneRequest }) => {
     const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null);
     const [creationMode, setCreationMode] = useState<'idle' | 'choice' | 'editing'>('idle');
     const [newWorkoutData, setNewWorkoutData] = useState<Workout | null>(null);
@@ -630,6 +673,7 @@ const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Work
                         <div className="flex justify-between items-start">
                             <p className="font-bold text-lg text-brand-dark">{w.title}</p>
                             <div className="flex gap-3">
+                                <button onClick={() => onCloneRequest(w)} className="text-gray-500 hover:text-green-600" title="Clonar treino para outro aluno"><CloneIcon className="w-5 h-5"/></button>
                                 <button onClick={() => setEditingWorkout(w)} className="text-gray-500 hover:text-blue-600"><PencilIcon className="w-5 h-5"/></button>
                                 <button onClick={() => handleDeleteWorkout(w.id)} className="text-gray-400 hover:text-red-500"><TrashIcon className="w-5 h-5"/></button>
                             </div>
