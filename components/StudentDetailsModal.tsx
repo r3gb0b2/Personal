@@ -5,7 +5,7 @@ import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIc
 import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
 import ProfilePictureModal from './modals/ProfilePictureModal';
-import { db, storage } from '../../firebase';
+import { db, storage } from '../firebase';
 // FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
 import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc, Timestamp, setDoc } from '@firebase/firestore';
 // FIX: Changed firebase import path to use the scoped package '@firebase/storage' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.

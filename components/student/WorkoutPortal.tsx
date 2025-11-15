@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Workout, Student, Trainer, ExerciseSet, ExerciseLog, LoggedSet } from '../../types';
 import { DumbbellIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, SendIcon, PrintIcon, CheckCircleIcon } from '../icons';
@@ -158,22 +159,32 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
 
 // FIX: Explicitly handle potentially undefined `logData` to prevent runtime errors and ensure correct type inference for `loggedSets`.
         const logData = sessionLogs[exerciseId]?.logData;
-        const loggedSets: LoggedSet[] = logData ? Object.values(logData).filter(s => s.reps || s.load) : [];
+        // FIX: Replaced Object.values with a safer method using Object.keys and map to ensure correct type inference, resolving the 'unknown' type error.
+        const loggedSets: LoggedSet[] = logData
+            ? Object.keys(logData)
+                .map((key) => logData[key])
+                .filter((s) => s.reps || s.load)
+            : [];
         let logDocId: string | undefined = undefined;
 
-        if (loggedSets.length > 0) {
+// FIX: Explicitly handle potentially undefined `logData` to prevent runtime errors and ensure correct type inference for `loggedSets`.
+        const logDataForPayload = sessionLogs[exerciseId]?.logData;
+        const loggedSetsForPayload: LoggedSet[] = logDataForPayload ? Object.values(logDataForPayload).filter(s => s.reps || s.load) : [];
+        let logDocIdForPayload: string | undefined = undefined;
+
+        if (loggedSetsForPayload.length > 0) {
             const logPayload: Omit<ExerciseLog, 'id'> = {
                 studentId: student.id,
                 workoutId: currentWorkout.id,
                 exerciseId, exerciseName,
                 date: new Date().toISOString(),
-                loggedSets,
+                loggedSets: loggedSetsForPayload,
             };
             const docRef = await addDoc(collection(db, "exerciseLogs"), {
                 ...logPayload, date: Timestamp.now()
             });
-            logDocId = docRef.id;
-            setSessionLogs(prev => ({...prev, [exerciseId]: { ...prev[exerciseId], logDocId }}));
+            logDocIdForPayload = docRef.id;
+            setSessionLogs(prev => ({...prev, [exerciseId]: { ...prev[exerciseId], logDocId: logDocIdForPayload }}));
         }
 
         const currentCompleted = currentWorkout.completedExerciseIds || [];
