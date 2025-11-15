@@ -1,9 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { db } from '../../firebase';
+import { db, storage } from '../../firebase';
 // FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
 import { doc, getDoc, addDoc, collection, Timestamp, getDocs } from '@firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from '@firebase/storage';
 import { Trainer, PendingStudent } from '../../types';
+import { UserIcon } from '../icons';
 
 interface StudentRegistrationProps {
   trainerId: string;
@@ -20,6 +22,8 @@ const StudentRegistration: React.FC<StudentRegistrationProps> = ({ trainerId, on
     phone: '',
     birthDate: '',
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [view, setView] = useState<'form' | 'success'>('form');
 
   useEffect(() => {
@@ -45,6 +49,19 @@ const StudentRegistration: React.FC<StudentRegistrationProps> = ({ trainerId, on
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+  
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+        setImageFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setPreviewUrl(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+    }
+  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +84,13 @@ const StudentRegistration: React.FC<StudentRegistrationProps> = ({ trainerId, on
             setLoading(false);
             return;
         }
+        
+        let profilePictureUrl: string | null = null;
+        if (imageFile) {
+            const storageRef = ref(storage, `pending_profile_pictures/${trainerId}/${Date.now()}-${imageFile.name}`);
+            const snapshot = await uploadBytes(storageRef, imageFile);
+            profilePictureUrl = await getDownloadURL(snapshot.ref);
+        }
 
         const pendingStudentData: Omit<PendingStudent, 'id'> = {
             name: formData.name.trim(),
@@ -76,6 +100,7 @@ const StudentRegistration: React.FC<StudentRegistrationProps> = ({ trainerId, on
             trainerId: trainerId,
             status: 'pending',
             submittedAt: new Date().toISOString(),
+            profilePictureUrl,
         };
 
         await addDoc(collection(db, 'pendingStudents'), {
@@ -131,6 +156,26 @@ const StudentRegistration: React.FC<StudentRegistrationProps> = ({ trainerId, on
                 )}
               </div>
               <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
+                <div className="flex flex-col items-center gap-4">
+                    <label htmlFor="profile-picture-upload" className="cursor-pointer text-center">
+                        <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-2 border-dashed hover:border-brand-primary transition-colors">
+                            {previewUrl ? (
+                                <img src={previewUrl} alt="Prévia" className="w-full h-full rounded-full object-cover"/>
+                            ) : (
+                                <UserIcon className="w-12 h-12 text-gray-400"/>
+                            )}
+                        </div>
+                        <span className="mt-2 text-sm text-brand-primary hover:underline block">Adicionar foto (opcional)</span>
+                    </label>
+                    <input
+                        id="profile-picture-upload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFileChange}
+                    />
+                </div>
+
                 <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="Nome Completo" required className="appearance-none rounded-md relative block w-full px-3 py-3 border border-gray-300"/>
                 <input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="Seu melhor e-mail" required className="appearance-none rounded-md relative block w-full px-3 py-3 border border-gray-300"/>
                 <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="Telefone (WhatsApp)" className="appearance-none rounded-md relative block w-full px-3 py-3 border border-gray-300"/>

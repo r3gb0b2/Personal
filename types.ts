@@ -158,6 +158,7 @@ export interface PendingStudent {
   trainerId: string;
   status: 'pending' | 'approved' | 'rejected';
   submittedAt: string; // ISO string format
+  profilePictureUrl?: string | null;
 }
 
 export type InvoiceStatus = 'Paga' | 'Em Aberto' | 'Vencida';

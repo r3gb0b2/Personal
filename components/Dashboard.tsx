@@ -320,7 +320,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
               paymentDueDate: null,
               sessions: [],
               remainingSessions: null,
-              profilePictureUrl: null,
+              profilePictureUrl: pendingStudent.profilePictureUrl || null,
               schedule: null,
               remindersSent: {},
               accessBlocked: false,
@@ -742,9 +742,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                 <div className="space-y-2">
                     {pendingStudents.map(ps => (
                         <div key={ps.id} className="flex items-center justify-between p-3 bg-white rounded-md border">
-                            <div>
-                                <p className="font-semibold">{ps.name}</p>
-                                <p className="text-sm text-gray-500">{ps.email}</p>
+                            <div className="flex items-center gap-3">
+                                {ps.profilePictureUrl ? (
+                                    <img src={ps.profilePictureUrl} alt={ps.name} className="w-10 h-10 rounded-full object-cover"/>
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                        <UserIcon className="w-6 h-6 text-gray-500"/>
+                                    </div>
+                                )}
+                                <div>
+                                    <p className="font-semibold">{ps.name}</p>
+                                    <p className="text-sm text-gray-500">{ps.email}</p>
+                                </div>
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={() => handleApproveStudent(ps)} className="px-3 py-1 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Aprovar</button>
