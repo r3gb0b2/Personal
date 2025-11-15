@@ -1,19 +1,18 @@
+
 import React, { useState, useEffect } from 'react';
 import { StudentGroup } from '../../types';
 import { db } from '../../firebase';
 import { collection, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import Modal from './Modal';
 import { PencilIcon, TrashIcon } from '../icons';
 
-interface GroupManagementModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+interface GroupManagementViewProps {
+  onBack: () => void;
   groups: StudentGroup[];
   trainerId: string;
   onUpdate: () => void; // To refresh the dashboard list
 }
 
-const GroupManagementModal: React.FC<GroupManagementModalProps> = ({ isOpen, onClose, groups, trainerId, onUpdate }) => {
+const GroupManagementView: React.FC<GroupManagementViewProps> = ({ onBack, groups, trainerId, onUpdate }) => {
   const [editingGroup, setEditingGroup] = useState<StudentGroup | null>(null);
   const [groupName, setGroupName] = useState('');
 
@@ -64,7 +63,11 @@ const GroupManagementModal: React.FC<GroupManagementModalProps> = ({ isOpen, onC
   };
 
   return (
-    <Modal title="Gerenciar Grupos" isOpen={isOpen} onClose={onClose} size="md">
+    <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <h2 className="text-2xl font-bold text-brand-dark">Gerenciar Grupos</h2>
+            <button onClick={onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Voltar</button>
+        </div>
       <div className="space-y-6">
         <div>
           <h3 className="font-bold text-lg mb-2">{editingGroup ? `Editando Grupo: ${editingGroup.name}`: 'Adicionar Novo Grupo'}</h3>
@@ -113,8 +116,8 @@ const GroupManagementModal: React.FC<GroupManagementModalProps> = ({ isOpen, onC
           </div>
         </div>
       </div>
-    </Modal>
+    </div>
   );
 };
 
-export default GroupManagementModal;
+export default GroupManagementView;

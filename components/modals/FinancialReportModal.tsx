@@ -1,12 +1,11 @@
+
 import React, { useState, useMemo } from 'react';
 import { Payment, Student } from '../../types';
-import Modal from './Modal';
 import { PrintIcon, TrashIcon } from '../icons';
 import ReceiptModal from './ReceiptModal';
 
-interface FinancialReportModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+interface FinancialReportProps {
+  onBack: () => void;
   payments: Payment[];
   students: Student[];
   onDeletePayment: (paymentId: string) => Promise<void>;
@@ -14,7 +13,7 @@ interface FinancialReportModalProps {
 
 type FilterPeriod = 'all' | 'this_month' | 'last_month' | 'this_year';
 
-const FinancialReportModal: React.FC<FinancialReportModalProps> = ({ isOpen, onClose, payments, students, onDeletePayment }) => {
+const FinancialReportView: React.FC<FinancialReportProps> = ({ onBack, payments, students, onDeletePayment }) => {
   const [periodFilter, setPeriodFilter] = useState<FilterPeriod>('this_month');
   const [studentFilter, setStudentFilter] = useState<string>('all');
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
@@ -63,7 +62,11 @@ const FinancialReportModal: React.FC<FinancialReportModalProps> = ({ isOpen, onC
 
   return (
     <>
-        <Modal title="Relatório Financeiro" isOpen={isOpen} onClose={onClose} size="xl">
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <h2 className="text-2xl font-bold text-brand-dark">Relatório Financeiro</h2>
+            <button onClick={onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Voltar</button>
+        </div>
         <div className="space-y-4">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-gray-50 rounded-lg">
                 <div className="flex flex-wrap items-center gap-4">
@@ -129,7 +132,7 @@ const FinancialReportModal: React.FC<FinancialReportModalProps> = ({ isOpen, onC
             </table>
             </div>
         </div>
-        </Modal>
+        </div>
         {selectedPayment && (
             <ReceiptModal 
                 isOpen={!!selectedPayment}
@@ -142,4 +145,4 @@ const FinancialReportModal: React.FC<FinancialReportModalProps> = ({ isOpen, onC
   );
 };
 
-export default FinancialReportModal;
+export default FinancialReportView;

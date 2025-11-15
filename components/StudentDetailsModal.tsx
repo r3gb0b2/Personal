@@ -18,13 +18,13 @@ import html2canvas from 'html2canvas';
 import WorkoutPDFLayout from './pdf/WorkoutPDFLayout';
 import FinancialTab from './FinancialTab';
 
-interface StudentDetailsModalProps {
+interface StudentDetailsViewProps {
   student: Student;
   plans: Plan[];
   trainer: Trainer;
   workoutTemplates: WorkoutTemplate[];
   groups: StudentGroup[];
-  onClose: () => void;
+  onBack: () => void;
   onUpdate: (student: Student) => Promise<void>;
   onDelete: (studentId: string) => Promise<void>;
   onAddPayment: (payment: Omit<Payment, 'id'>) => Promise<void>;
@@ -76,7 +76,7 @@ const checkScheduleConflict = (
     return { hasConflict: false };
 };
 
-const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plans, trainer, workoutTemplates, groups, onClose, onUpdate, onDelete, onAddPayment, allStudents }) => {
+const StudentDetailsView: React.FC<StudentDetailsViewProps> = ({ student, plans, trainer, workoutTemplates, groups, onBack, onUpdate, onDelete, onAddPayment, allStudents }) => {
   const [activeTab, setActiveTab] = useState<Tab>('details');
   const [editableStudent, setEditableStudent] = useState<Student>(student);
   const [isEditing, setIsEditing] = useState(false);
@@ -333,7 +333,11 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
 
   return (
     <>
-    <Modal title={isEditing ? `Editando ${student.name}` : student.name} isOpen={true} onClose={onClose} size="xl">
+    <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="flex justify-between items-center mb-4 pb-4 border-b">
+            <h2 className="text-2xl font-bold text-brand-dark">{isEditing ? `Editando ${student.name}` : student.name}</h2>
+            <button onClick={onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Voltar</button>
+        </div>
         <div className="flex border-b">
             <TabButton tab="details" label="Detalhes" Icon={UserIcon} />
             <TabButton tab="workouts" label="Treinos" Icon={DumbbellIcon} />
@@ -344,7 +348,7 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
         <div className="pt-4">
             {renderContent()}
         </div>
-    </Modal>
+    </div>
     {isPaymentModalOpen && (
         <PaymentModal 
             isOpen={isPaymentModalOpen}
@@ -887,4 +891,4 @@ const ProgressTab: React.FC<{student: Student, photos: ProgressPhoto[], onUpdate
 };
 
 
-export default StudentDetailsModal;
+export default StudentDetailsView;

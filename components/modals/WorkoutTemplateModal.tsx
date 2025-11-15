@@ -9,9 +9,8 @@ import WorkoutEditor from '../WorkoutEditor';
 import { PlusIcon, PencilIcon, TrashIcon, UsersIcon } from '../icons';
 import AssignTemplateToGroupModal from './AssignTemplateToGroupModal';
 
-interface WorkoutTemplateModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+interface WorkoutTemplateViewProps {
+  onBack: () => void;
   templates: WorkoutTemplate[];
   trainerId: string;
   onUpdate: () => void;
@@ -19,7 +18,7 @@ interface WorkoutTemplateModalProps {
   groups: StudentGroup[];
 }
 
-const WorkoutTemplateModal: React.FC<WorkoutTemplateModalProps> = ({ isOpen, onClose, templates, trainerId, onUpdate, students, groups }) => {
+const WorkoutTemplateView: React.FC<WorkoutTemplateViewProps> = ({ onBack, templates, trainerId, onUpdate, students, groups }) => {
   const [editingTemplate, setEditingTemplate] = useState<WorkoutTemplate | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [templateToAssign, setTemplateToAssign] = useState<WorkoutTemplate | null>(null);
@@ -94,7 +93,7 @@ const WorkoutTemplateModal: React.FC<WorkoutTemplateModalProps> = ({ isOpen, onC
     return (
         <Modal 
             title={editingTemplate ? "Editar Modelo" : "Novo Modelo de Treino"} 
-            isOpen={isOpen} 
+            isOpen={true} 
             onClose={() => { setIsAdding(false); setEditingTemplate(null); }}
             size="xl"
         >
@@ -111,7 +110,11 @@ const WorkoutTemplateModal: React.FC<WorkoutTemplateModalProps> = ({ isOpen, onC
 
   return (
     <>
-      <Modal title="Modelos de Treino" isOpen={isOpen} onClose={onClose} size="lg">
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <h2 className="text-2xl font-bold text-brand-dark">Modelos de Treino</h2>
+            <button onClick={onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Voltar</button>
+        </div>
           <div className="space-y-4">
               <div className="flex justify-between items-center">
                   <p className="text-gray-600">Crie treinos reutilizáveis para aplicar aos seus alunos.</p>
@@ -143,7 +146,7 @@ const WorkoutTemplateModal: React.FC<WorkoutTemplateModalProps> = ({ isOpen, onC
                   )) : <p className="text-center text-gray-500 p-8">Nenhum modelo de treino criado.</p>}
               </div>
           </div>
-      </Modal>
+      </div>
       {templateToAssign && (
         <AssignTemplateToGroupModal
             isOpen={!!templateToAssign}
@@ -157,4 +160,4 @@ const WorkoutTemplateModal: React.FC<WorkoutTemplateModalProps> = ({ isOpen, onC
   );
 };
 
-export default WorkoutTemplateModal;
+export default WorkoutTemplateView;

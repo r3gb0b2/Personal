@@ -1,17 +1,16 @@
+
 import React, { useState, useMemo } from 'react';
 import { Student, Trainer } from '../../types';
-import Modal from './Modal';
 import { sendEmail, EmailPayload, generateEmailTemplate } from '../../services/emailService';
 import { MailIcon } from '../icons';
 
-interface BulkEmailModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+interface BulkEmailViewProps {
+  onBack: () => void;
   students: Student[];
   trainer: Trainer;
 }
 
-const BulkEmailModal: React.FC<BulkEmailModalProps> = ({ isOpen, onClose, students, trainer }) => {
+const BulkEmailView: React.FC<BulkEmailViewProps> = ({ onBack, students, trainer }) => {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
@@ -51,7 +50,7 @@ const BulkEmailModal: React.FC<BulkEmailModalProps> = ({ isOpen, onClose, studen
         if (result.success) {
             setStatus('success');
             setTimeout(() => {
-                onClose();
+                onBack();
                 // Reset state for next time
                 setSubject('');
                 setMessage('');
@@ -108,7 +107,7 @@ const BulkEmailModal: React.FC<BulkEmailModalProps> = ({ isOpen, onClose, studen
             )}
 
             <div className="flex justify-end gap-4 pt-4">
-            <button type="button" onClick={onClose} disabled={status === 'sending'} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+            <button type="button" onClick={onBack} disabled={status === 'sending'} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
                 Cancelar
             </button>
             <button type="submit" disabled={status === 'sending' || recipients.length === 0} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent disabled:bg-gray-400">
@@ -121,10 +120,14 @@ const BulkEmailModal: React.FC<BulkEmailModalProps> = ({ isOpen, onClose, studen
   }
 
   return (
-    <Modal title="Enviar E-mail para Todos os Alunos" isOpen={isOpen} onClose={onClose}>
+     <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <h2 className="text-2xl font-bold text-brand-dark">Enviar E-mail para Todos os Alunos</h2>
+            <button onClick={onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Voltar</button>
+        </div>
         {renderContent()}
-    </Modal>
+    </div>
   );
 };
 
-export default BulkEmailModal;
+export default BulkEmailView;

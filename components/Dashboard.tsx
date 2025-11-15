@@ -24,52 +24,32 @@ interface DashboardProps {
 type SortKey = 'name' | 'plan' | 'status';
 type SortDirection = 'asc' | 'desc';
 
+type ActiveView = 'dashboard' | 'schedule' | 'studentDetails' | 'planManagement' | 'groupManagement' | 'addStudent' | 'financialReport' | 'profile' | 'bulkEmail' | 'copyLink' | 'workoutTemplates';
+
+
 const Loader: React.FC = () => (
     <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-brand-primary"></div>
     </div>
 );
 
-// TrainerProfileModal Component defined locally
-const TrainerProfileModal: React.FC<{
-  isOpen: boolean;
-  onClose: () => void;
+// TrainerProfileView Component defined locally
+const TrainerProfileView: React.FC<{
+  onBack: () => void;
   trainer: Trainer;
   onSave: (profileData: Omit<Trainer, 'id' | 'username' | 'password'>) => Promise<void>;
   onUpdatePassword: (currentPassword: string, newPassword: string) => Promise<{success: boolean, message: string}>;
-}> = ({ isOpen, onClose, trainer, onSave, onUpdatePassword }) => {
+}> = ({ onBack, trainer, onSave, onUpdatePassword }) => {
   const [formData, setFormData] = useState({
-    fullName: '',
-    contactEmail: '',
-    instagram: '',
-    whatsapp: '',
+    fullName: trainer.fullName || '',
+    contactEmail: trainer.contactEmail || '',
+    instagram: trainer.instagram || '',
+    whatsapp: trainer.whatsapp || '',
   });
 
   const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: ''});
   const [passwordMessage, setPasswordMessage] = useState({type: '', text: ''});
   const [isSaving, setIsSaving] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(true);
-
-  useEffect(() => {
-    // Sync form with props only when modal opens or trainer prop changes.
-    if (isOpen) {
-        setFormData({
-            fullName: trainer.fullName || '',
-            contactEmail: trainer.contactEmail || '',
-            instagram: trainer.instagram || '',
-            whatsapp: trainer.whatsapp || '',
-        });
-        // Reset password fields and messages
-        setPasswordData({ current: '', new: '', confirm: ''});
-        setPasswordMessage({type: '', text: ''});
-        setIsSyncing(false);
-    } else {
-        setIsSyncing(true); // Allow sync for next open
-    }
-  }, [trainer, isOpen]);
-  
-  if (isSyncing) return null;
-
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -86,6 +66,7 @@ const TrainerProfileModal: React.FC<{
     setIsSaving(true);
     try {
         await onSave(formData);
+        onBack();
     } catch (err) {
         // Error is alerted to user in the onSave function
     } finally {
@@ -114,7 +95,12 @@ const TrainerProfileModal: React.FC<{
   }
 
   return (
-    <Modal title="Meu Perfil e Contato" isOpen={isOpen} onClose={onClose}>
+    <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <h2 className="text-2xl font-bold text-brand-dark">Meu Perfil e Contato</h2>
+            <button onClick={onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Voltar</button>
+        </div>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">Nome Completo (Exibição)</label>
@@ -164,11 +150,10 @@ const TrainerProfileModal: React.FC<{
         )}
 
         <div className="flex justify-end gap-4 pt-4">
-             <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Fechar</button>
              <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-secondary rounded-md hover:bg-gray-700">Alterar Senha</button>
         </div>
       </form>
-    </Modal>
+    </div>
   );
 };
 
@@ -183,17 +168,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [currentTrainer, setCurrentTrainer] = useState<Trainer>(trainer);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<'list' | 'schedule'>('list');
-
+  
+  const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [isPlanModalOpen, setPlanModalOpen] = useState(false);
-  const [isTemplateModalOpen, setTemplateModalOpen] = useState(false);
-  const [isAddStudentModalOpen, setAddStudentModalOpen] = useState(false);
-  const [isFinancialReportModalOpen, setFinancialReportModalOpen] = useState(false);
-  const [isProfileModalOpen, setProfileModalOpen] = useState(false);
-  const [isBulkEmailModalOpen, setBulkEmailModalOpen] = useState(false);
-  const [isGroupModalOpen, setGroupModalOpen] = useState(false);
-  const [isCopyLinkModalOpen, setCopyLinkModalOpen] = useState(false);
+
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'name', direction: 'asc' });
   const [groupFilter, setGroupFilter] = useState<string>('all');
 
@@ -377,7 +355,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(updatedTrainer));
         
         alert("Perfil salvo com sucesso!");
-        setProfileModalOpen(false); // Close the modal on success
 
     } catch (error) {
         console.error("Failed to save profile:", error);
@@ -468,13 +445,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         birthDate: newStudentData.birthDate ? Timestamp.fromDate(new Date(newStudentData.birthDate)) : null,
     };
     const docRef = await addDoc(collection(db, 'students'), studentWithTimestamps);
-    setStudents(prev => [...prev, { ...newStudentData, id: docRef.id, trainerId: currentTrainer.id }]);
+    const newStudentWithId = { ...newStudentData, id: docRef.id, trainerId: currentTrainer.id };
+    setStudents(prev => [...prev, newStudentWithId]);
+    fetchData(); // Refresh to get all data consistent
+    setSelectedStudent(newStudentWithId);
+    setActiveView('studentDetails');
   };
   
   const handleDeleteStudent = async (studentId: string) => {
       await deleteDoc(doc(db, 'students', studentId));
       setStudents(prev => prev.filter(s => s.id !== studentId));
       setSelectedStudent(null);
+      setActiveView('dashboard');
   }
 
   const handleAddPlan = async (planData: Omit<Plan, 'id'>) => {
@@ -529,35 +511,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       }
     }
   };
-
-  const formatSchedule = (schedule: DaySchedule[] | null | undefined): string => {
-    if (!schedule || schedule.length === 0) {
-        return 'N/A';
-    }
-
-    const dayMap: { [key: string]: string } = {
-        sunday: 'Dom',
-        monday: 'Seg',
-        tuesday: 'Ter',
-        wednesday: 'Qua',
-        thursday: 'Qui',
-        friday: 'Sex',
-        saturday: 'Sáb',
-    };
-    
-    const dayOrder = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-
-    const sortedSchedule = [...schedule].sort((a, b) => dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day));
-
-    return sortedSchedule.map(item => 
-        `${dayMap[item.day] || item.day} ${item.startTime}-${item.endTime}`
-    ).join(' | ');
-  };
   
   const handleSelectStudent = (studentId: string) => {
     const student = students.find(s => s.id === studentId);
     if (student) {
         setSelectedStudent(student);
+        setActiveView('studentDetails');
     }
   };
 
@@ -665,21 +624,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         </button>
     </th>
   );
-
-
-  return (
+  
+  const renderDashboard = () => (
     <>
-      <div className="bg-brand-dark">
-          <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-white">Dashboard do Personal - [{currentTrainer.fullName || currentTrainer.username}]</h1>
-            <button onClick={onLogout} className="flex items-center gap-2 text-white hover:text-red-400 transition-colors">
-              <LogoutIcon className="w-5 h-5" />
-              <span>Sair</span>
-            </button>
-          </header>
-      </div>
-
-      <main className="container mx-auto p-4 sm:p-6 lg:p-8">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="bg-white p-6 rounded-lg shadow-md flex items-center gap-4">
@@ -707,31 +654,31 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
 
         {/* Actions */}
         <div className="flex flex-wrap gap-4 mb-8">
-            <button onClick={() => setAddStudentModalOpen(true)} className="flex items-center gap-2 bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-accent transition-colors shadow">
+            <button onClick={() => setActiveView('addStudent')} className="flex items-center gap-2 bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-accent transition-colors shadow">
                 <PlusIcon className="w-5 h-5" /> Adicionar Aluno
             </button>
-            <button onClick={() => setPlanModalOpen(true)} className="flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors shadow">
+            <button onClick={() => setActiveView('planManagement')} className="flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors shadow">
                 <BriefcaseIcon className="w-5 h-5" /> Gerenciar Planos
             </button>
-            <button onClick={() => setGroupModalOpen(true)} className="flex items-center gap-2 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition-colors shadow">
+            <button onClick={() => setActiveView('groupManagement')} className="flex items-center gap-2 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition-colors shadow">
                 <UsersIcon className="w-5 h-5" /> Gerenciar Grupos
             </button>
-            <button onClick={() => setCopyLinkModalOpen(true)} className="flex items-center gap-2 bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors shadow">
+            <button onClick={() => setActiveView('copyLink')} className="flex items-center gap-2 bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors shadow">
                 <LinkIcon className="w-5 h-5" /> Link de Cadastro
             </button>
-             <button onClick={() => setTemplateModalOpen(true)} className="flex items-center gap-2 bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-600 transition-colors shadow">
+             <button onClick={() => setActiveView('workoutTemplates')} className="flex items-center gap-2 bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-600 transition-colors shadow">
                 <ClipboardListIcon className="w-5 h-5" /> Modelos de Treino
             </button>
-             <button onClick={() => setView(view === 'list' ? 'schedule' : 'list')} className="flex items-center gap-2 bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors shadow">
-                <CalendarIcon className="w-5 h-5" /> {view === 'list' ? 'Ver Agenda' : 'Ver Lista de Alunos'}
+             <button onClick={() => setActiveView('schedule')} className="flex items-center gap-2 bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors shadow">
+                <CalendarIcon className="w-5 h-5" /> Ver Agenda
             </button>
-             <button onClick={() => setBulkEmailModalOpen(true)} className="flex items-center gap-2 bg-orange-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors shadow">
+             <button onClick={() => setActiveView('bulkEmail')} className="flex items-center gap-2 bg-orange-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors shadow">
                 <MailIcon className="w-5 h-5" /> Enviar E-mail
             </button>
-            <button onClick={() => setFinancialReportModalOpen(true)} className="flex items-center gap-2 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors shadow">
+            <button onClick={() => setActiveView('financialReport')} className="flex items-center gap-2 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors shadow">
                 <ChartBarIcon className="w-5 h-5" /> Controle Financeiro
             </button>
-            <button onClick={() => setProfileModalOpen(true)} className="relative flex items-center gap-2 bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors shadow">
+            <button onClick={() => setActiveView('profile')} className="relative flex items-center gap-2 bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors shadow">
                 <SettingsIcon className="w-5 h-5" /> Meu Perfil
             </button>
         </div>
@@ -765,9 +712,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             </div>
         )}
 
-        {view === 'schedule' ? (
-            <ScheduleView students={students} plans={plans} onStudentClick={handleSelectStudent} />
-        ) : (
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="p-6 border-b flex justify-between items-center">
                   <h2 className="text-xl font-bold">Lista de Alunos</h2>
@@ -864,7 +808,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                                 }
                                 const groups = student.groupIds?.map(gid => studentGroups.find(g => g.id === gid)?.name).filter(Boolean) || [];
                                 return (
-                                    <tr key={student.id} onClick={() => setSelectedStudent(student)} className="border-t hover:bg-gray-50 cursor-pointer">
+                                    <tr key={student.id} onClick={() => handleSelectStudent(student.id)} className="border-t hover:bg-gray-50 cursor-pointer">
                                         <td className="p-4 font-medium">
                                             <div className="flex items-center gap-3">
                                                 {student.profilePictureUrl ? (
@@ -897,114 +841,79 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                 </div>
               )}
           </div>
-        )}
-      </main>
+    </>
+  );
+  
+  const renderActiveView = () => {
+    const onBack = () => {
+      setActiveView('dashboard');
+      setSelectedStudent(null);
+    }
 
-      {selectedStudent && (
-        <StudentDetailsModal
-          student={selectedStudent}
-          plans={plans}
-          trainer={currentTrainer}
-          workoutTemplates={workoutTemplates}
-          groups={studentGroups}
-          onClose={() => setSelectedStudent(null)}
-          onUpdate={handleUpdateStudent}
-          onDelete={handleDeleteStudent}
-          onAddPayment={handleAddPayment}
-          allStudents={students}
-        />
-      )}
-      
-      {isPlanModalOpen && (
-        <PlanManagementModal
-            plans={plans}
-            onAddPlan={handleAddPlan}
-            onUpdatePlan={handleUpdatePlan}
-            onDeletePlan={handleDeletePlan}
-            onClose={() => setPlanModalOpen(false)}
-        />
-      )}
-      
-      {isGroupModalOpen && (
-        <GroupManagementModal
-            isOpen={isGroupModalOpen}
-            onClose={() => setGroupModalOpen(false)}
-            groups={studentGroups}
-            trainerId={currentTrainer.id}
-            onUpdate={fetchData}
-        />
-      )}
-
-      {isTemplateModalOpen && (
-        <WorkoutTemplateModal
-          isOpen={isTemplateModalOpen}
-          onClose={() => setTemplateModalOpen(false)}
-          templates={workoutTemplates}
-          trainerId={currentTrainer.id}
-          onUpdate={fetchData}
-          students={students}
-          groups={studentGroups}
-        />
-      )}
-
-      {isAddStudentModalOpen && (
-        <AddStudentModal 
-            plans={plans}
-            onClose={() => setAddStudentModalOpen(false)}
-            onAdd={handleAddStudent}
-            allStudents={students}
-            trainer={currentTrainer}
-        />
-      )}
-
-      {isFinancialReportModalOpen && (
-          <FinancialReportModal 
-            isOpen={isFinancialReportModalOpen}
-            onClose={() => setFinancialReportModalOpen(false)}
-            payments={payments}
-            students={students}
-            onDeletePayment={handleDeletePayment}
-          />
-      )}
-
-      {isProfileModalOpen && (
-        <TrainerProfileModal
-            isOpen={isProfileModalOpen}
-            onClose={() => setProfileModalOpen(false)}
-            trainer={currentTrainer}
-            onSave={handleSaveProfile}
-            onUpdatePassword={handleUpdateTrainerPassword}
-        />
-      )}
-      
-      {isCopyLinkModalOpen && (
-        <Modal title="Link de Cadastro para Alunos" isOpen={isCopyLinkModalOpen} onClose={() => setCopyLinkModalOpen(false)}>
-            <div className="space-y-4">
-                <p>Compartilhe este link com novos alunos para que eles possam se cadastrar. As solicitações aparecerão no seu painel para aprovação.</p>
-                <input 
-                    type="text" 
-                    readOnly 
-                    value={`${window.location.origin}?trainer=${currentTrainer.id}`}
-                    className="w-full p-2 border rounded bg-gray-100"
-                />
-                <button
-                    onClick={() => navigator.clipboard.writeText(`${window.location.origin}?trainer=${currentTrainer.id}`)}
-                    className="w-full px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent"
-                >
-                    Copiar Link
-                </button>
+    switch(activeView) {
+      case 'studentDetails':
+        return selectedStudent && <StudentDetailsModal student={selectedStudent} plans={plans} trainer={currentTrainer} workoutTemplates={workoutTemplates} groups={studentGroups} onBack={onBack} onUpdate={handleUpdateStudent} onDelete={handleDeleteStudent} onAddPayment={handleAddPayment} allStudents={students} />;
+      case 'planManagement':
+        return <PlanManagementModal plans={plans} onAddPlan={handleAddPlan} onUpdatePlan={handleUpdatePlan} onDeletePlan={handleDeletePlan} onBack={onBack} />;
+      case 'groupManagement':
+        return <GroupManagementModal isOpen={true} onBack={onBack} groups={studentGroups} trainerId={currentTrainer.id} onUpdate={fetchData} />;
+      case 'workoutTemplates':
+        return <WorkoutTemplateModal isOpen={true} onBack={onBack} templates={workoutTemplates} trainerId={currentTrainer.id} onUpdate={fetchData} students={students} groups={studentGroups} />;
+      case 'addStudent':
+        return <AddStudentModal plans={plans} onBack={onBack} onAdd={handleAddStudent} allStudents={students} trainer={currentTrainer} />;
+      case 'financialReport':
+        return <FinancialReportModal isOpen={true} onBack={onBack} payments={payments} students={students} onDeletePayment={handleDeletePayment} />;
+      case 'profile':
+        return <TrainerProfileView onBack={onBack} trainer={currentTrainer} onSave={handleSaveProfile} onUpdatePassword={handleUpdateTrainerPassword} />;
+      case 'bulkEmail':
+        return <BulkEmailModal isOpen={true} onBack={onBack} students={students} trainer={currentTrainer} />;
+      case 'schedule':
+        return <ScheduleView students={students} plans={plans} onStudentClick={handleSelectStudent} />;
+      case 'copyLink':
+        return (
+            <div className="bg-white p-6 rounded-lg shadow-md">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">Link de Cadastro para Alunos</h2>
+                    <button onClick={onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Voltar</button>
+                </div>
+                <div className="space-y-4">
+                    <p>Compartilhe este link com novos alunos para que eles possam se cadastrar. As solicitações aparecerão no seu painel para aprovação.</p>
+                    <input 
+                        type="text" 
+                        readOnly 
+                        value={`${window.location.origin}?trainer=${currentTrainer.id}`}
+                        className="w-full p-2 border rounded bg-gray-100"
+                    />
+                    <button
+                        onClick={() => navigator.clipboard.writeText(`${window.location.origin}?trainer=${currentTrainer.id}`)}
+                        className="w-full px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent"
+                    >
+                        Copiar Link
+                    </button>
+                </div>
             </div>
-        </Modal>
-      )}
+        );
+      case 'dashboard':
+      default:
+        return renderDashboard();
+    }
+  };
 
-      {isBulkEmailModalOpen && (
-        <BulkEmailModal
-          isOpen={isBulkEmailModalOpen}
-          onClose={() => setBulkEmailModalOpen(false)}
-          students={students}
-          trainer={currentTrainer}
-        />
-      )}
+  return (
+    <>
+      <div className="bg-brand-dark">
+          <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <h1 className="text-2xl font-bold text-white">Dashboard do Personal - [{currentTrainer.fullName || currentTrainer.username}]</h1>
+            <button onClick={onLogout} className="flex items-center gap-2 text-white hover:text-red-400 transition-colors">
+              <LogoutIcon className="w-5 h-5" />
+              <span>Sair</span>
+            </button>
+          </header>
+      </div>
+
+      <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+        {renderActiveView()}
+      </main>
     </>
   );
 };

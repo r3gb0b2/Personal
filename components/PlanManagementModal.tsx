@@ -1,20 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { Plan, PlanType } from '../types';
-import Modal from './modals/Modal';
 import { PencilIcon, TrashIcon } from './icons';
 
-interface PlanManagementModalProps {
+interface PlanManagementProps {
   plans: Plan[];
   onAddPlan: (plan: Omit<Plan, 'id'>) => Promise<void>;
   onUpdatePlan: (plan: Plan) => Promise<void>;
   onDeletePlan: (planId: string) => Promise<void>;
-  onClose: () => void;
+  onBack: () => void;
 }
 
 const initialFormState = { name: '', price: '0', durationInDays: '30', numberOfSessions: '10' };
 
-const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddPlan, onUpdatePlan, onDeletePlan, onClose }) => {
+const PlanManagementView: React.FC<PlanManagementProps> = ({ plans, onAddPlan, onUpdatePlan, onDeletePlan, onBack }) => {
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [planType, setPlanType] = useState<PlanType>('duration');
   const [formState, setFormState] = useState(initialFormState);
@@ -107,7 +106,12 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
   };
 
   return (
-    <Modal title="Gerenciar Planos" isOpen={true} onClose={onClose} size="lg">
+    <div className="bg-white p-6 rounded-lg shadow-md">
+       <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <h2 className="text-2xl font-bold text-brand-dark">Gerenciar Planos</h2>
+            <button onClick={onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Voltar</button>
+        </div>
+
       <div className="space-y-6">
         <div>
           <h3 className="font-bold text-lg mb-2">{editingPlan ? `Editando Plano: ${editingPlan.name}`: 'Adicionar Novo Plano'}</h3>
@@ -179,8 +183,8 @@ const PlanManagementModal: React.FC<PlanManagementModalProps> = ({ plans, onAddP
           </div>
         </div>
       </div>
-    </Modal>
+    </div>
   );
 };
 
-export default PlanManagementModal;
+export default PlanManagementView;

@@ -1,12 +1,12 @@
+
 import React, { useState } from 'react';
 import { Plan, Student, DaySchedule, Trainer } from '../types';
-import Modal from './modals/Modal';
 import { PlusIcon, TrashIcon } from './icons';
 import { sendEmail, generateEmailTemplate } from '../services/emailService';
 
-interface AddStudentModalProps {
+interface AddStudentViewProps {
   plans: Plan[];
-  onClose: () => void;
+  onBack: () => void;
   onAdd: (student: Omit<Student, 'id'>) => Promise<void>;
   allStudents: Student[];
   trainer: Trainer;
@@ -63,7 +63,7 @@ const initialStudentState = {
     accessBlocked: false,
 };
 
-const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd, allStudents, trainer }) => {
+const AddStudentView: React.FC<AddStudentViewProps> = ({ plans, onBack, onAdd, allStudents, trainer }) => {
   const [view, setView] = useState<'form' | 'success'>('form');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdStudent, setCreatedStudent] = useState<Omit<Student, 'id'> | null>(null);
@@ -169,13 +169,15 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
         if (sendLoginEmail && studentToAdd.email) {
             await sendWelcomeEmail(studentToAdd);
         }
-        setView('success');
+        // Instead of showing a success view here, we let the parent component
+        // handle the navigation to the new student's detail page.
+        // setView('success'); // No longer needed
     } catch (error) {
         console.error("Failed to add student:", error);
         alert("Houve um erro ao salvar o aluno.");
-    } finally {
         setIsSubmitting(false);
     }
+    // isSubmitting will be reset by parent component re-render
   };
 
   const resetForm = () => {
@@ -185,34 +187,12 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
     setView('form');
   };
 
-  if (view === 'success' && createdStudent) {
-    return (
-        <Modal title="Aluno Cadastrado com Sucesso!" isOpen={true} onClose={onClose}>
-            <div className="text-center p-4 space-y-4">
-                <p>O aluno <strong>{createdStudent.name}</strong> foi adicionado.</p>
-                <div>
-                    <h4 className="font-bold">Dados de Acesso do Aluno</h4>
-                    <div className="mt-2 p-3 bg-gray-100 rounded-md">
-                        <p><strong>Login:</strong> {createdStudent.email || 'Não informado'}</p>
-                        <p className="text-sm text-gray-600">O aluno acessa o portal usando o e-mail cadastrado. Não há senha.</p>
-                    </div>
-                </div>
-                {sendLoginEmail && createdStudent.email ? (
-                    <p className="text-sm text-green-700">Um e-mail com as instruções de acesso foi enviado para {createdStudent.email}.</p>
-                ) : (
-                    <p className="text-sm text-yellow-700">O e-mail de acesso não foi enviado pois o aluno não tem um e-mail cadastrado.</p>
-                )}
-                <div className="flex justify-center gap-4 pt-4">
-                    <button type="button" onClick={resetForm} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Adicionar Outro Aluno</button>
-                    <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Fechar</button>
-                </div>
-            </div>
-        </Modal>
-    );
-  }
-
   return (
-    <Modal title="Adicionar Novo Aluno" isOpen={true} onClose={onClose}>
+    <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="flex justify-between items-center mb-6 border-b pb-4">
+            <h2 className="text-2xl font-bold text-brand-dark">Adicionar Novo Aluno</h2>
+            <button onClick={onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Voltar</button>
+        </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div><label className="block text-sm font-medium text-gray-700">Nome Completo</label><input type="text" name="name" value={newStudent.name} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" required /></div>
         <div><label className="block text-sm font-medium text-gray-700">Email</label><input type="email" name="email" value={newStudent.email} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3" /></div>
@@ -231,12 +211,12 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
             <div className="flex items-center"><input id="sendLoginEmail" name="sendLoginEmail" type="checkbox" checked={sendLoginEmail} onChange={(e) => setSendLoginEmail(e.target.checked)} className="h-4 w-4 text-brand-primary focus:ring-brand-accent border-gray-300 rounded" /><label htmlFor="sendLoginEmail" className="ml-2 block text-sm text-gray-900">Enviar e-mail com informações de acesso</label></div>
         </div>
         <div className="flex justify-end gap-4 pt-4">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Cancelar</button>
+          <button type="button" onClick={onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Cancelar</button>
           <button type="submit" disabled={isSubmitting} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent disabled:bg-gray-400">{isSubmitting ? 'Salvando...' : 'Salvar Aluno'}</button>
         </div>
       </form>
-    </Modal>
+    </div>
   );
 };
 
-export default AddStudentModal;
+export default AddStudentView;
