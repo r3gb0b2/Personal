@@ -1,14 +1,19 @@
-import React, { useState } from 'react';
-import { Workout } from '../../types';
-import { DumbbellIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, SendIcon } from '../icons';
+import React, { useState, useRef, useEffect } from 'react';
+import { Workout, Student, Trainer } from '../../types';
+import { DumbbellIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, SendIcon, PrintIcon } from '../icons';
 import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+import WorkoutPDFLayout from '../pdf/WorkoutPDFLayout';
 
 interface WorkoutPortalProps {
     workouts: Workout[];
     onBack: () => void;
     isPlanActive: boolean;
     onWorkoutUpdate: (updatedWorkout: Workout) => void;
+    student: Student;
+    trainer: Trainer | null;
 }
 
 const getYoutubeEmbedUrl = (url: string | undefined): string | null => {
@@ -28,9 +33,33 @@ const getYoutubeEmbedUrl = (url: string | undefined): string | null => {
     }
 }
 
-const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanActive, onWorkoutUpdate }) => {
+const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanActive, onWorkoutUpdate, student, trainer }) => {
     const [feedback, setFeedback] = useState<{ [exerciseId: string]: string }>({});
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState<string | null>(null);
+    const [workoutToPrint, setWorkoutToPrint] = useState<Workout | null>(null);
+    const pdfLayoutRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (workoutToPrint && pdfLayoutRef.current && student && trainer) {
+            const generatePdf = async () => {
+                const element = pdfLayoutRef.current;
+                if (!element) return;
+
+                const canvas = await html2canvas(element, { scale: 2 });
+                const imgData = canvas.toDataURL('image/png');
+                
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                
+                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                pdf.save(`treino-${student.name.replace(/\s/g, '_')}-${workoutToPrint.title.replace(/\s/g, '_')}.pdf`);
+
+                setWorkoutToPrint(null);
+            };
+            setTimeout(generatePdf, 100);
+        }
+    }, [workoutToPrint, student, trainer]);
 
     const toggleExerciseVisibility = async (workout: Workout, exerciseId: string) => {
         const currentCompleted = workout.completedExerciseIds || [];
@@ -75,9 +104,9 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
         try {
             const workoutRef = doc(db, 'workouts', workoutId);
             const workout = workouts.find(w => w.id === workoutId);
-            if (!workout) throw new Error("Workout not found");
+            if (!workout || !workout.exercises) throw new Error("Workout not found");
 
-            const updatedExercises = (workout.exercises || []).map(ex => 
+            const updatedExercises = workout.exercises.map(ex => 
                 ex.id === exerciseId ? { ...ex, studentFeedback: feedbackText } : ex
             );
 
@@ -118,7 +147,16 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                         return (
                             <div key={workout.id} className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
                                 <div className="flex justify-between items-start mb-4">
-                                    <h2 className="text-2xl font-bold text-brand-dark">{workout.title}</h2>
+                                    <div className="flex items-center gap-4">
+                                        <h2 className="text-2xl font-bold text-brand-dark">{workout.title}</h2>
+                                        <button 
+                                            onClick={() => setWorkoutToPrint(workout)}
+                                            className="text-gray-500 hover:text-brand-primary"
+                                            title="Baixar Treino em PDF"
+                                        >
+                                            <PrintIcon className="w-6 h-6" />
+                                        </button>
+                                    </div>
                                     {completedCount > 0 && (
                                         <button onClick={() => restoreAllExercises(workout)} className="px-3 py-1 text-xs font-semibold bg-brand-secondary text-white rounded-lg shadow hover:bg-gray-700">
                                             Restaurar ({completedCount})
@@ -126,8 +164,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                     )}
                                 </div>
                                 
-                                {/* Mobile View: Card-based layout */}
-                                <div className="space-y-4 md:hidden">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {visibleExercises.map(ex => {
                                         const isHidden = workout.completedExerciseIds?.includes(ex.id);
                                         
@@ -147,7 +184,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
 
                                         const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
                                         return (
-                                            <div key={ex.id} className="bg-gray-50 p-4 rounded-lg border relative transition-opacity">
+                                            <div key={ex.id} className="bg-gray-50 p-4 rounded-lg border relative transition-opacity flex flex-col">
                                                 <div className="absolute top-3 right-3 flex items-center gap-2">
                                                     <button onClick={() => toggleExerciseVisibility(workout, ex.id)} className="text-gray-400 hover:text-brand-primary" title="Marcar como concluído">
                                                         <EyeIcon className="w-5 h-5"/>
@@ -191,7 +228,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                                     </div>
                                                 )}
 
-                                                <div className="mt-4 pt-4 border-t">
+                                                <div className="mt-4 pt-4 border-t flex-grow flex flex-col justify-end">
                                                      <p className="text-sm font-semibold text-gray-600 mb-1">Feedback para o Personal:</p>
                                                      {ex.studentFeedback ? (
                                                         <p className="text-sm italic text-gray-500 bg-gray-100 p-2 rounded-md">"Enviado: {ex.studentFeedback}"</p>
@@ -217,87 +254,6 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                             </div>
                                         );
                                     })}
-                                </div>
-
-                                {/* Desktop View: Table layout */}
-                                <div className="overflow-x-auto hidden md:block">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-brand-light">
-                                            <tr>
-                                                <th className="p-3 font-semibold w-1/4">Exercício</th>
-                                                <th className="p-3 font-semibold">Séries</th>
-                                                <th className="p-3 font-semibold">Reps</th>
-                                                <th className="p-3 font-semibold">Descanso</th>
-                                                <th className="p-3 font-semibold">Observações</th>
-                                                <th className="p-3 font-semibold w-1/4">Feedback</th>
-                                                <th className="p-3 font-semibold text-center">Ação</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {visibleExercises.map(ex => {
-                                                const isHidden = workout.completedExerciseIds?.includes(ex.id);
-                                                
-                                                if (isHidden) {
-                                                    return (
-                                                        <tr key={ex.id} className="border-t">
-                                                            <td className="p-3">
-                                                                <div className="flex justify-between items-center">
-                                                                    <p className="text-gray-500 line-through">{ex.name}</p>
-                                                                    <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full">Concluído</span>
-                                                                </div>
-                                                            </td>
-                                                            <td colSpan={5} className="p-3 text-center text-gray-400">—</td>
-                                                            <td className="p-3 align-top text-center">
-                                                                <button onClick={() => toggleExerciseVisibility(workout, ex.id)} className="text-gray-400 hover:text-brand-primary" title="Restaurar exercício">
-                                                                    <EyeOffIcon className="w-6 h-6"/>
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                }
-
-                                                return (
-                                                    <tr key={ex.id} className="border-t">
-                                                        <td className="p-3 font-medium align-top">
-                                                            {ex.name}
-                                                        </td>
-                                                        <td className="p-3 align-top">{ex.sets}</td>
-                                                        <td className="p-3 align-top">{ex.reps}</td>
-                                                        <td className="p-3 align-top">{ex.rest}</td>
-                                                        <td className="p-3 text-sm text-gray-600 align-top whitespace-pre-wrap">{ex.notes}</td>
-                                                        <td className="p-3 align-top">
-                                                             {ex.studentFeedback ? (
-                                                                <p className="text-sm italic text-gray-500 bg-gray-100 p-2 rounded-md">"Enviado: {ex.studentFeedback}"</p>
-                                                             ) : (
-                                                                <div className="flex items-center gap-1">
-                                                                    <input 
-                                                                        type="text" 
-                                                                        placeholder="Como foi?" 
-                                                                        className="flex-grow text-sm border-gray-300 rounded-md shadow-sm w-full"
-                                                                        value={feedback[ex.id] || ''}
-                                                                        onChange={(e) => handleFeedbackChange(ex.id, e.target.value)}
-                                                                    />
-                                                                    <button 
-                                                                        onClick={() => handleSendFeedback(workout.id, ex.id)}
-                                                                        disabled={isSubmittingFeedback === ex.id}
-                                                                        className="p-2 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400"
-                                                                        title="Enviar Feedback"
-                                                                    >
-                                                                        <SendIcon className="w-4 h-4"/>
-                                                                    </button>
-                                                                </div>
-                                                             )}
-                                                        </td>
-                                                        <td className="p-3 align-top text-center">
-                                                            <button onClick={() => toggleExerciseVisibility(workout, ex.id)} className="text-gray-400 hover:text-brand-primary" title="Marcar como concluído">
-                                                                <EyeIcon className="w-6 h-6"/>
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
                                 </div>
                             </div>
                         );
@@ -332,6 +288,17 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
             <main className="container mx-auto p-4 sm:p-6 lg:p-8">
                {renderContent()}
             </main>
+            
+            <div style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1 }}>
+                {workoutToPrint && student && trainer && (
+                    <WorkoutPDFLayout
+                        ref={pdfLayoutRef}
+                        student={student}
+                        trainer={trainer}
+                        workout={workoutToPrint}
+                    />
+                )}
+            </div>
         </>
     );
 };

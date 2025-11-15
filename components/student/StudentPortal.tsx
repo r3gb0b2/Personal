@@ -176,7 +176,14 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
     const isPlanActive = status.isActive;
     
     if (view === 'workouts') {
-        return <WorkoutPortal workouts={workouts} onBack={() => setView('dashboard')} isPlanActive={isPlanActive} onWorkoutUpdate={handleUpdateWorkout} />;
+        return <WorkoutPortal 
+            workouts={workouts} 
+            onBack={() => setView('dashboard')} 
+            isPlanActive={isPlanActive} 
+            onWorkoutUpdate={handleUpdateWorkout}
+            student={student}
+            trainer={trainer}
+        />;
     }
 
     return (
