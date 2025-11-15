@@ -160,14 +160,13 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
 
         await Promise.all(suggestionPromises);
         
-        const dataToSave: any = { title, exercises };
+        const dataToSave = {
+            ...(initialData || {}),
+            title,
+            exercises,
+        };
         
-        // CRITICAL FIX: Preserve the ID if we are editing an existing workout
-        if (initialData && 'id' in initialData && initialData.id) {
-            dataToSave.id = initialData.id;
-        }
-        
-        onSave(dataToSave);
+        onSave(dataToSave as any);
     };
 
     const renderSetInputs = (exIndex: number, set: ExerciseSet, setIndex: number) => {
