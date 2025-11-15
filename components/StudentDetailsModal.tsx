@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer, Exercise, WorkoutTemplate } from '../types';
-import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon, EyeIcon, EyeOffIcon, CloneIcon } from './icons';
+import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer, Exercise, WorkoutTemplate, StudentGroup } from '../types';
+import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon, EyeIcon, EyeOffIcon, CloneIcon, UsersIcon } from './icons';
 import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
 import ProfilePictureModal from './modals/ProfilePictureModal';
@@ -16,6 +16,7 @@ interface StudentDetailsModalProps {
   plans: Plan[];
   trainer: Trainer;
   workoutTemplates: WorkoutTemplate[];
+  groups: StudentGroup[];
   onClose: () => void;
   onUpdate: (student: Student) => Promise<void>;
   onDelete: (studentId: string) => Promise<void>;
@@ -67,7 +68,7 @@ const checkScheduleConflict = (
     return { hasConflict: false };
 };
 
-const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plans, trainer, workoutTemplates, onClose, onUpdate, onDelete, onAddPayment, allStudents }) => {
+const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plans, trainer, workoutTemplates, groups, onClose, onUpdate, onDelete, onAddPayment, allStudents }) => {
   const [activeTab, setActiveTab] = useState<Tab>('details');
   const [editableStudent, setEditableStudent] = useState<Student>(student);
   const [isEditing, setIsEditing] = useState(false);
@@ -275,7 +276,7 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
         case 'progress': return <ProgressTab student={student} photos={progressPhotos} onUpdate={fetchFeatureData} />;
         case 'details':
         default:
-            return <DetailsTab student={student} plans={plans} trainer={trainer} isEditing={isEditing} setIsEditing={setIsEditing} editableStudent={editableStudent} setEditableStudent={setEditableStudent} handleSave={handleSave} handleDelete={handleDelete} setPictureModalOpen={setPictureModalOpen} setPaymentModalOpen={setPaymentModalOpen} handleAddSession={handleAddSession} handleDeleteSession={handleDeleteSession} onUpdate={onUpdate} />;
+            return <DetailsTab student={student} plans={plans} trainer={trainer} groups={groups} isEditing={isEditing} setIsEditing={setIsEditing} editableStudent={editableStudent} setEditableStudent={setEditableStudent} handleSave={handleSave} handleDelete={handleDelete} setPictureModalOpen={setPictureModalOpen} setPaymentModalOpen={setPaymentModalOpen} handleAddSession={handleAddSession} handleDeleteSession={handleDeleteSession} onUpdate={onUpdate} />;
     }
   };
 
@@ -328,7 +329,7 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
 
 // --- TAB COMPONENTS ---
 
-const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEditing, editableStudent, setEditableStudent, handleSave, handleDelete, setPictureModalOpen, setPaymentModalOpen, handleAddSession, handleDeleteSession, onUpdate }) => {
+const DetailsTab: React.FC<any> = ({ student, plans, trainer, groups, isEditing, setIsEditing, editableStudent, setEditableStudent, handleSave, handleDelete, setPictureModalOpen, setPaymentModalOpen, handleAddSession, handleDeleteSession, onUpdate }) => {
     const [isSendingReminder, setIsSendingReminder] = useState(false);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -337,6 +338,14 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
         // @ts-ignore
         const inputValue = isCheckbox ? e.target.checked : value;
         setEditableStudent((prev: Student) => ({ ...prev, [name]: inputValue }));
+    };
+
+    const handleGroupToggle = (groupId: string) => {
+        const currentGroupIds = editableStudent.groupIds || [];
+        const newGroupIds = currentGroupIds.includes(groupId)
+            ? currentGroupIds.filter((id: string) => id !== groupId)
+            : [...currentGroupIds, groupId];
+        setEditableStudent((prev: Student) => ({ ...prev, groupIds: newGroupIds }));
     };
 
     const daysOfWeek = [
@@ -371,6 +380,7 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
     };
     
     const studentPlan = plans.find((p: Plan) => p.id === student.planId);
+    const studentGroups = student.groupIds?.map((id: string) => groups.find((g: StudentGroup) => g.id === id)?.name).filter(Boolean) || [];
     const isPaymentDue = studentPlan?.type === 'duration' && student.paymentDueDate && new Date(student.paymentDueDate) < new Date();
     const areSessionsLow = studentPlan?.type === 'session' && (student.remainingSessions != null && student.remainingSessions <= 0);
     const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
@@ -463,6 +473,23 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
                 <div><label className="block text-sm font-medium text-gray-700">Plano</label><select name="planId" value={editableStudent.planId ?? ''} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"><option value="">Sem Plano</option>{plans.map((p: Plan) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
                 <div className="flex items-center"><input id="accessBlocked" name="accessBlocked" type="checkbox" checked={!!editableStudent.accessBlocked} onChange={handleInputChange} className="h-4 w-4 text-brand-primary focus:ring-brand-accent border-gray-300 rounded" /><label htmlFor="accessBlocked" className="ml-2 block text-sm text-gray-900">Bloquear acesso do aluno ao portal</label></div>
                 <div>
+                    <label className="block text-sm font-medium text-gray-700">Grupos</label>
+                    <div className="mt-2 p-3 border rounded-md grid grid-cols-2 sm:grid-cols-3 gap-2 bg-gray-50">
+                        {groups.map((group: StudentGroup) => (
+                           <label key={group.id} className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={editableStudent.groupIds?.includes(group.id)}
+                                    onChange={() => handleGroupToggle(group.id)}
+                                    className="h-4 w-4 text-brand-primary focus:ring-brand-accent border-gray-300 rounded"
+                                />
+                                <span className="text-sm text-gray-800">{group.name}</span>
+                            </label>
+                        ))}
+                        {groups.length === 0 && <p className="text-sm text-gray-500 col-span-full">Nenhum grupo criado.</p>}
+                    </div>
+                </div>
+                <div>
                     <label className="block text-sm font-medium text-gray-700">Horário Fixo</label>
                     <div className="mt-2 p-3 border rounded-md space-y-3 bg-gray-50">
                         {editableStudent.schedule?.map((item: DaySchedule, index: number) => (
@@ -524,6 +551,12 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
                     </ul>
                 ) : <p className="text-gray-600">Nenhum horário definido</p>}
             </div></div><div className="flex gap-2"><button onClick={() => setIsEditing(true)} className="px-3 py-1 text-sm font-medium text-white bg-brand-secondary rounded-md hover:bg-gray-700">Editar</button><button onClick={handleDelete} className="px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Excluir</button></div></div>{student.accessBlocked && (<div className="mt-2 text-center sm:text-left p-2 bg-red-100 text-red-800 rounded-md text-sm font-semibold">Acesso ao portal bloqueado.</div>)}</div></div>
+            <div className="p-4 rounded-lg bg-gray-50 border">
+                 <h3 className="font-bold text-lg mb-2 flex items-center gap-2"><UsersIcon className="w-6 h-6 text-gray-500" /> Grupos</h3>
+                 <div className="flex flex-wrap gap-2">
+                    {studentGroups.length > 0 ? studentGroups.map(g => <span key={g} className="px-3 py-1 text-sm font-medium bg-cyan-100 text-cyan-800 rounded-full">{g}</span>) : <p className="text-sm text-gray-500">Nenhum grupo atribuído.</p>}
+                 </div>
+            </div>
             <div className={`p-4 rounded-lg ${(isPaymentDue || areSessionsLow) ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border`}>
                 <div className="flex justify-between items-center">
                     <div>

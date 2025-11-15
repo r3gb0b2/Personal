@@ -6,10 +6,11 @@ import Dashboard from './components/Dashboard';
 import StudentLogin from './components/student/StudentLogin';
 import StudentPortal from './components/student/StudentPortal';
 import AdminDashboard from './components/admin/AdminDashboard';
+import StudentRegistration from './components/student/StudentRegistration';
 import { AUTH_SESSION_KEY, STUDENT_AUTH_SESSION_KEY } from './constants';
 import { Student, Plan, Payment, Trainer } from './types';
 
-type View = 'trainerLogin' | 'dashboard' | 'studentLogin' | 'studentPortal' | 'adminDashboard';
+type View = 'trainerLogin' | 'dashboard' | 'studentLogin' | 'studentPortal' | 'adminDashboard' | 'studentRegistration';
 
 const App: React.FC = () => {
   const [view, setView] = useState<View>('trainerLogin');
@@ -17,6 +18,16 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<Trainer | { id: 'admin', username: 'admin' } | null>(null);
   const [currentStudentData, setCurrentStudentData] = useState<{ student: Student; payments: Payment[]; trainer: Trainer | null } | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [registrationTrainerId, setRegistrationTrainerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const trainerId = urlParams.get('trainer');
+    if (trainerId) {
+        setRegistrationTrainerId(trainerId);
+        setView('studentRegistration');
+    }
+  }, []);
 
   const handleStudentLogin = useCallback(async (email: string): Promise<{ success: boolean; message?: string }> => {
     setIsLoading(true);
@@ -103,6 +114,11 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isRegistration = !!urlParams.get('trainer');
+
+    if (isRegistration) return; // Skip session restore on registration page
+
     const restoreSession = async () => {
         try {
             const sessionAuth = sessionStorage.getItem(AUTH_SESSION_KEY);
@@ -216,6 +232,13 @@ const App: React.FC = () => {
       setCurrentStudentData(null);
       setView('studentLogin');
   }
+  
+  const handleRegistrationComplete = () => {
+      // Remove URL params and go to login screen
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setView('trainerLogin');
+      setRegistrationTrainerId(null);
+  }
 
   const renderView = () => {
       switch(view) {
@@ -236,6 +259,12 @@ const App: React.FC = () => {
               // Fallback to login if data is missing
               setView('studentLogin');
               return null;
+          case 'studentRegistration':
+              if (registrationTrainerId) {
+                  return <StudentRegistration trainerId={registrationTrainerId} onRegistrationComplete={handleRegistrationComplete} />;
+              }
+               // Fallback if trainerId is missing
+              return <LoginScreen onLogin={handleLogin} onShowStudentLogin={() => setView('studentLogin')} />;
           case 'trainerLogin':
           default:
               return <LoginScreen onLogin={handleLogin} onShowStudentLogin={() => setView('studentLogin')} />;

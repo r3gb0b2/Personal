@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy, updateDoc, getDoc, where } from 'firebase/firestore';
 import { AUTH_SESSION_KEY } from '../constants';
-import { Student, Plan, Payment, Trainer, DaySchedule, WorkoutTemplate } from '../types';
-import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon, MailIcon, ClipboardListIcon } from './icons';
+import { Student, Plan, Payment, Trainer, DaySchedule, WorkoutTemplate, PendingStudent, StudentGroup } from '../types';
+import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon, MailIcon, ClipboardListIcon, LinkIcon, UsersIcon, CheckCircleIcon } from './icons';
 import StudentDetailsModal from './StudentDetailsModal';
 import PlanManagementModal from './PlanManagementModal';
 import AddStudentModal from './AddStudentModal';
@@ -12,6 +12,7 @@ import Modal from './modals/Modal';
 import ScheduleView from './ScheduleView';
 import BulkEmailModal from './modals/BulkEmailModal';
 import WorkoutTemplateModal from './modals/WorkoutTemplateModal';
+import GroupManagementModal from './modals/GroupManagementModal';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -175,6 +176,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [workoutTemplates, setWorkoutTemplates] = useState<WorkoutTemplate[]>([]);
+  const [pendingStudents, setPendingStudents] = useState<PendingStudent[]>([]);
+  const [studentGroups, setStudentGroups] = useState<StudentGroup[]>([]);
   const [currentTrainer, setCurrentTrainer] = useState<Trainer>(trainer);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -187,7 +190,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [isFinancialReportModalOpen, setFinancialReportModalOpen] = useState(false);
   const [isProfileModalOpen, setProfileModalOpen] = useState(false);
   const [isBulkEmailModalOpen, setBulkEmailModalOpen] = useState(false);
+  const [isGroupModalOpen, setGroupModalOpen] = useState(false);
+  const [isCopyLinkModalOpen, setCopyLinkModalOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'name', direction: 'asc' });
+  const [groupFilter, setGroupFilter] = useState<string>('all');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -199,6 +205,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       const plansSnapshot = await getDocs(collection(db, 'plans'));
       const paymentsSnapshot = await getDocs(query(collection(db, 'payments'), orderBy('paymentDate', 'desc')));
       const templatesSnapshot = await getDocs(collection(db, 'workoutTemplates'));
+      const pendingStudentsQuery = query(collection(db, 'pendingStudents'), where("trainerId", "==", currentTrainer.id), where("status", "==", "pending"));
+      const pendingStudentsSnapshot = await getDocs(pendingStudentsQuery);
+      const groupsQuery = query(collection(db, 'studentGroups'), where("trainerId", "==", currentTrainer.id));
+      const groupsSnapshot = await getDocs(groupsQuery);
+
 
       const filterByTrainer = (doc: any) => {
           const data = doc.data();
@@ -238,11 +249,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             paymentDate: toISO(data.paymentDate),
         } as Payment;
       });
+      
+      const pendingStudentsList = pendingStudentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), submittedAt: toISO(doc.data().submittedAt) } as PendingStudent));
+      
+      const groupsList = groupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentGroup));
 
       setStudents(studentsList);
       setPlans(plansList);
       setPayments(paymentsList);
       setWorkoutTemplates(templatesList);
+      setPendingStudents(pendingStudentsList);
+      setStudentGroups(groupsList);
 
     } catch (err) {
       console.error("Firebase Connection Error Details:", err);
@@ -255,6 +272,46 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleApproveStudent = async (pendingStudent: PendingStudent) => {
+      try {
+        const newStudentData: Omit<Student, 'id'> = {
+            name: pendingStudent.name,
+            email: pendingStudent.email,
+            phone: pendingStudent.phone,
+            birthDate: pendingStudent.birthDate,
+            startDate: new Date().toISOString(),
+            planId: null,
+            paymentDueDate: null,
+            sessions: [],
+            trainerId: pendingStudent.trainerId,
+        };
+        await addDoc(collection(db, 'students'), {
+            ...newStudentData,
+            startDate: Timestamp.fromDate(new Date(newStudentData.startDate)),
+            birthDate: newStudentData.birthDate ? Timestamp.fromDate(new Date(newStudentData.birthDate)) : null
+        });
+        await deleteDoc(doc(db, 'pendingStudents', pendingStudent.id));
+        fetchData(); // Refresh all data
+        alert(`${pendingStudent.name} foi aprovado(a) e adicionado(a) à sua lista de alunos.`);
+      } catch (error) {
+          console.error("Error approving student:", error);
+          alert("Ocorreu um erro ao aprovar o aluno.");
+      }
+  };
+
+  const handleRejectStudent = async (pendingStudentId: string) => {
+    if (window.confirm("Tem certeza que deseja rejeitar esta solicitação? A ação não pode ser desfeita.")) {
+        try {
+            await deleteDoc(doc(db, 'pendingStudents', pendingStudentId));
+            fetchData();
+            alert("Solicitação rejeitada com sucesso.");
+        } catch(error) {
+            console.error("Error rejecting student:", error);
+            alert("Ocorreu um erro ao rejeitar a solicitação.");
+        }
+    }
+  };
 
   const handleSaveProfile = async (
     profileData: Omit<Trainer, 'id' | 'username' | 'password'>
@@ -502,7 +559,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   }, [getPlan]);
 
   const sortedStudents = useMemo(() => {
-    const sortableStudents = [...students];
+    let sortableStudents = [...students];
+
+    if (groupFilter !== 'all') {
+        sortableStudents = sortableStudents.filter(s => s.groupIds?.includes(groupFilter));
+    }
+
     if (sortConfig.key) {
       sortableStudents.sort((a, b) => {
         let aValue: string;
@@ -535,7 +597,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       });
     }
     return sortableStudents;
-  }, [students, sortConfig, getPlan, getStudentStatus]);
+  }, [students, sortConfig, getPlan, getStudentStatus, groupFilter]);
 
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = 'asc';
@@ -603,6 +665,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             <button onClick={() => setPlanModalOpen(true)} className="flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors shadow">
                 <BriefcaseIcon className="w-5 h-5" /> Gerenciar Planos
             </button>
+            <button onClick={() => setGroupModalOpen(true)} className="flex items-center gap-2 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition-colors shadow">
+                <UsersIcon className="w-5 h-5" /> Gerenciar Grupos
+            </button>
+            <button onClick={() => setCopyLinkModalOpen(true)} className="flex items-center gap-2 bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors shadow">
+                <LinkIcon className="w-5 h-5" /> Link de Cadastro
+            </button>
              <button onClick={() => setTemplateModalOpen(true)} className="flex items-center gap-2 bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-600 transition-colors shadow">
                 <ClipboardListIcon className="w-5 h-5" /> Modelos de Treino
             </button>
@@ -619,13 +687,40 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                 <SettingsIcon className="w-5 h-5" /> Meu Perfil
             </button>
         </div>
+        
+        {pendingStudents.length > 0 && (
+            <div className="mb-8 p-4 bg-yellow-50 border border-yellow-300 rounded-lg shadow-sm">
+                <h3 className="font-bold text-lg text-yellow-900 mb-3">{pendingStudents.length} Nova(s) Solicitação(ões) de Cadastro</h3>
+                <div className="space-y-2">
+                    {pendingStudents.map(ps => (
+                        <div key={ps.id} className="flex items-center justify-between p-3 bg-white rounded-md border">
+                            <div>
+                                <p className="font-semibold">{ps.name}</p>
+                                <p className="text-sm text-gray-500">{ps.email}</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => handleApproveStudent(ps)} className="px-3 py-1 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Aprovar</button>
+                                <button onClick={() => handleRejectStudent(ps.id)} className="px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">Rejeitar</button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
 
         {view === 'schedule' ? (
             <ScheduleView students={students} plans={plans} onStudentClick={handleSelectStudent} />
         ) : (
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <div className="p-6 border-b">
+              <div className="p-6 border-b flex justify-between items-center">
                   <h2 className="text-xl font-bold">Lista de Alunos</h2>
+                  <div>
+                    <label htmlFor="group-filter" className="text-sm font-medium text-gray-700 mr-2">Filtrar por Grupo:</label>
+                    <select id="group-filter" value={groupFilter} onChange={e => setGroupFilter(e.target.value)} className="border-gray-300 rounded-md shadow-sm text-sm">
+                        <option value="all">Todos os Grupos</option>
+                        {studentGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </select>
+                  </div>
               </div>
               {loading ? <Loader /> : error ? (
                   <div className="m-4 sm:m-6 lg:m-8 bg-red-50 border border-red-200 p-6 rounded-lg shadow-sm">
@@ -696,7 +791,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                             <tr>
                                 <SortableHeader sortKey="name" label="Nome" />
                                 <SortableHeader sortKey="plan" label="Plano" />
-                                <th className="p-4 font-semibold">Horário</th>
+                                <th className="p-4 font-semibold">Grupos</th>
                                 <th className="p-4 font-semibold">Situação</th>
                                 <SortableHeader sortKey="status" label="Status" />
                             </tr>
@@ -710,6 +805,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                                     green: 'text-green-800 bg-green-100',
                                     gray: 'text-gray-800 bg-gray-100',
                                 }
+                                const groups = student.groupIds?.map(gid => studentGroups.find(g => g.id === gid)?.name).filter(Boolean) || [];
                                 return (
                                     <tr key={student.id} onClick={() => setSelectedStudent(student)} className="border-t hover:bg-gray-50 cursor-pointer">
                                         <td className="p-4 font-medium">
@@ -725,7 +821,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                                             </div>
                                         </td>
                                         <td className="p-4 text-gray-600">{getPlan(student.planId)?.name || 'N/A'}</td>
-                                        <td className="p-4 text-gray-600">{formatSchedule(student.schedule)}</td>
+                                        <td className="p-4 text-gray-600 text-sm">
+                                            {groups.length > 0 ? groups.map(g => <span key={g} className="inline-block bg-gray-200 rounded-full px-2 py-1 text-xs mr-1 mb-1">{g}</span>) : 'N/A'}
+                                        </td>
                                         <td className="p-4 text-gray-600">{status.situation}</td>
                                         <td className="p-4">
                                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${colorClasses[status.color]}`}>{status.text}</span>
@@ -734,7 +832,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                                 )
                             }) : (
                                   <tr>
-                                    <td colSpan={5} className="text-center p-8 text-gray-500">Nenhum aluno cadastrado.</td>
+                                    <td colSpan={5} className="text-center p-8 text-gray-500">Nenhum aluno encontrado.</td>
                                 </tr>
                             )}
                         </tbody>
@@ -751,6 +849,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
           plans={plans}
           trainer={currentTrainer}
           workoutTemplates={workoutTemplates}
+          groups={studentGroups}
           onClose={() => setSelectedStudent(null)}
           onUpdate={handleUpdateStudent}
           onDelete={handleDeleteStudent}
@@ -766,6 +865,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             onUpdatePlan={handleUpdatePlan}
             onDeletePlan={handleDeletePlan}
             onClose={() => setPlanModalOpen(false)}
+        />
+      )}
+      
+      {isGroupModalOpen && (
+        <GroupManagementModal
+            isOpen={isGroupModalOpen}
+            onClose={() => setGroupModalOpen(false)}
+            groups={studentGroups}
+            trainerId={currentTrainer.id}
+            onUpdate={fetchData}
         />
       )}
 
@@ -807,6 +916,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             onSave={handleSaveProfile}
             onUpdatePassword={handleUpdateTrainerPassword}
         />
+      )}
+      
+      {isCopyLinkModalOpen && (
+        <Modal title="Link de Cadastro para Alunos" isOpen={isCopyLinkModalOpen} onClose={() => setCopyLinkModalOpen(false)}>
+            <div className="space-y-4">
+                <p>Compartilhe este link com novos alunos para que eles possam se cadastrar. As solicitações aparecerão no seu painel para aprovação.</p>
+                <input 
+                    type="text" 
+                    readOnly 
+                    value={`${window.location.origin}?trainer=${currentTrainer.id}`}
+                    className="w-full p-2 border rounded bg-gray-100"
+                />
+                <button
+                    onClick={() => navigator.clipboard.writeText(`${window.location.origin}?trainer=${currentTrainer.id}`)}
+                    className="w-full px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent"
+                >
+                    Copiar Link
+                </button>
+            </div>
+        </Modal>
       )}
 
       {isBulkEmailModalOpen && (

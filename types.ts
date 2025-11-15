@@ -40,6 +40,7 @@ export interface Student {
   remindersSent?: { [key: string]: string }; // e.g., { 'sessions_3': '2023-10-27T10:00:00Z' }
   birthDate?: string | null; // ISO string format
   accessBlocked?: boolean;
+  groupIds?: string[];
 }
 
 export type PaymentMethod = 'Pix' | 'Dinheiro' | 'Cartão de Crédito' | 'Transferência';
@@ -112,4 +113,21 @@ export interface ProgressPhoto {
     studentNotes?: string;
     trainerFeedback?: string;
     uploadedAt: string; // ISO string
+}
+
+export interface StudentGroup {
+  id: string;
+  name: string;
+  trainerId: string;
+}
+
+export interface PendingStudent {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  birthDate: string | null; // ISO string format
+  trainerId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: string; // ISO string format
 }
