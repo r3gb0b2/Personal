@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../firebase';
 import { collection, addDoc, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
-import { LibraryExercise, TrainerSuggestion, Trainer, ExerciseSet, ExerciseSetType } from '../../types';
+import { LibraryExercise, TrainerSuggestion, Trainer, ExerciseSet, ExerciseSetType, EXERCISE_CATEGORIES, MUSCLE_GROUPS } from '../../types';
 import Modal from '../modals/Modal';
 import { PencilIcon, TrashIcon, CheckCircleIcon, XIcon, PlusIcon } from '../icons';
 
@@ -15,7 +15,7 @@ interface ExerciseManagementModalProps {
 }
 
 type Tab = 'library' | 'suggestions';
-const initialFormState: Omit<LibraryExercise, 'id'> = { name: '', rest: '', youtubeUrl: '', sets: [] };
+const initialFormState: Omit<LibraryExercise, 'id'> = { name: '', category: 'Musculação', muscleGroup: 'Outro', rest: '', youtubeUrl: '', sets: [] };
 
 const setTypeLabels: { [key in ExerciseSetType]: string } = {
     reps_load: 'Repetições e Carga',
@@ -57,9 +57,9 @@ const ExerciseManagementModal: React.FC<ExerciseManagementModalProps> = ({ isOpe
     }
   }, [editingExercise]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormState(prev => ({ ...prev, [name]: value }));
+    setFormState(prev => ({ ...prev, [name]: value as any }));
   };
   
   const handleSetChange = (setIndex: number, field: keyof ExerciseSet, value: string) => {
@@ -157,9 +157,18 @@ const ExerciseManagementModal: React.FC<ExerciseManagementModalProps> = ({ isOpe
     <Modal title="Gerenciar Exercícios" isOpen={isOpen} onClose={onClose} size="xl">
       <div className="flex border-b"><TabButton tab="suggestions" label="Sugestões dos Personais" count={trainerSuggestions.length} /><TabButton tab="library" label="Exercícios Globais" /></div>
       <div className="pt-4 max-h-[65vh] overflow-y-auto">
-        {activeTab === 'suggestions' && (<div className="space-y-3">{trainerSuggestions.length > 0 ? trainerSuggestions.map(s => (<div key={s.id} className="p-3 border rounded-lg bg-white shadow-sm"><div className="flex justify-between items-start"><div><p className="font-bold text-lg text-brand-dark">{s.name}</p><p className="text-xs text-gray-500">Sugerido por: {trainerMap.get(s.trainerId) || 'Desconhecido'}</p></div><div className="flex items-center gap-3"><button onClick={() => handleApprove(s)} className="flex items-center gap-1 text-green-600 hover:text-green-800" title="Aprovar e adicionar à biblioteca"><CheckCircleIcon className="w-5 h-5"/> Aprovar</button><button onClick={() => handleReject(s.id)} className="flex items-center gap-1 text-red-500 hover:text-red-700" title="Rejeitar sugestão"><XIcon className="w-5 h-5"/> Rejeitar</button></div></div><div className="mt-2 text-sm text-gray-700 bg-gray-50 p-2 rounded space-y-1">{(s.sets || []).map((set, i) => (<p key={i}><strong>Série {i+1}:</strong> {renderSetDetails(set)}</p>))}</div></div>)) : <p className="text-center text-gray-500 p-8">Nenhuma nova sugestão de exercício.</p>}</div>)}
-        {activeTab === 'library' && (<div className="space-y-6"><div><h3 className="font-bold text-lg mb-2">{editingExercise ? `Editando: ${editingExercise.name}`: 'Adicionar Novo Exercício Global'}</h3><form onSubmit={handleSave} className="space-y-3 p-4 border rounded-md bg-gray-50"><input type="text" name="name" value={formState.name} onChange={handleInputChange} placeholder="Nome do Exercício" className="text-md font-semibold w-full border-gray-300 rounded-md" required /><div className="grid grid-cols-2 gap-2"><input type="text" name="rest" value={formState.rest} onChange={handleInputChange} placeholder="Descanso" className="text-sm w-full border-gray-300 rounded-md"/><input type="text" name="youtubeUrl" value={formState.youtubeUrl} onChange={handleInputChange} placeholder="Link YouTube" className="text-sm w-full border-gray-300 rounded-md"/></div>
-        <div className="space-y-2 pt-2">{formState.sets.map((set, setIndex) => (<div key={set.id} className="p-2 border rounded-md bg-white grid grid-cols-[1fr,auto] gap-2 items-center"><div className="grid grid-cols-3 gap-2 items-center"><select value={set.type} onChange={e => handleSetChange(setIndex, 'type', e.target.value)} className="text-sm border-gray-300 rounded-md col-span-full sm:col-span-1">{Object.entries(setTypeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><div className="col-span-full sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2">{renderSetInputs(set, setIndex)}</div></div><button type="button" onClick={() => removeSet(setIndex)} className="text-gray-400 hover:text-red-600 p-1"><TrashIcon className="w-4 h-4"/></button></div>))}
+        {activeTab === 'suggestions' && (<div className="space-y-3">{trainerSuggestions.length > 0 ? trainerSuggestions.map(s => (<div key={s.id} className="p-3 border rounded-lg bg-white shadow-sm"><div className="flex justify-between items-start"><div><p className="font-bold text-lg text-brand-dark">{s.name}</p><p className="text-xs text-gray-500">Sugerido por: {trainerMap.get(s.trainerId) || 'Desconhecido'} | Categoria: {s.category} | Grupo: {s.muscleGroup}</p></div><div className="flex items-center gap-3"><button onClick={() => handleApprove(s)} className="flex items-center gap-1 text-green-600 hover:text-green-800" title="Aprovar e adicionar à biblioteca"><CheckCircleIcon className="w-5 h-5"/> Aprovar</button><button onClick={() => handleReject(s.id)} className="flex items-center gap-1 text-red-500 hover:text-red-700" title="Rejeitar sugestão"><XIcon className="w-5 h-5"/> Rejeitar</button></div></div><div className="mt-2 text-sm text-gray-700 bg-gray-50 p-2 rounded space-y-1">{(s.sets || []).map((set, i) => (<p key={i}><strong>Série {i+1}:</strong> {renderSetDetails(set)}</p>))}</div></div>)) : <p className="text-center text-gray-500 p-8">Nenhuma nova sugestão de exercício.</p>}</div>)}
+        {activeTab === 'library' && (<div className="space-y-6"><div><h3 className="font-bold text-lg mb-2">{editingExercise ? `Editando: ${editingExercise.name}`: 'Adicionar Novo Exercício Global'}</h3><form onSubmit={handleSave} className="space-y-3 p-4 border rounded-md bg-gray-50"><input type="text" name="name" value={formState.name} onChange={handleInputChange} placeholder="Nome do Exercício" className="text-md font-semibold w-full border-gray-300 rounded-md" required />
+        <div className="grid grid-cols-2 gap-2">
+            <select name="category" value={formState.category} onChange={handleInputChange} className="text-sm w-full border-gray-300 rounded-md">
+                {EXERCISE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select name="muscleGroup" value={formState.muscleGroup} onChange={handleInputChange} className="text-sm w-full border-gray-300 rounded-md">
+                {MUSCLE_GROUPS.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+        </div>
+        <div className="grid grid-cols-2 gap-2"><input type="text" name="rest" value={formState.rest} onChange={handleInputChange} placeholder="Descanso" className="text-sm w-full border-gray-300 rounded-md"/><input type="text" name="youtubeUrl" value={formState.youtubeUrl} onChange={handleInputChange} placeholder="Link YouTube" className="text-sm w-full border-gray-300 rounded-md"/></div>
+        <div className="space-y-2 pt-2">{formState.sets.map((set, setIndex) => (<div key={set.id || setIndex} className="p-2 border rounded-md bg-white grid grid-cols-[1fr,auto] gap-2 items-center"><div className="grid grid-cols-3 gap-2 items-center"><select value={set.type} onChange={e => handleSetChange(setIndex, 'type', e.target.value)} className="text-sm border-gray-300 rounded-md col-span-full sm:col-span-1">{Object.entries(setTypeLabels).map(([key, label]) => <option key={key} value={key as ExerciseSetType}>{label}</option>)}</select><div className="col-span-full sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2">{renderSetInputs(set, setIndex)}</div></div><button type="button" onClick={() => removeSet(setIndex)} className="text-gray-400 hover:text-red-600 p-1"><TrashIcon className="w-4 h-4"/></button></div>))}
         <button type="button" onClick={addSet} className="w-full text-xs flex items-center justify-center gap-1 py-1 font-medium text-brand-primary border-2 border-dashed border-gray-300 rounded-md hover:bg-gray-100"><PlusIcon className="w-3 h-3"/> Adicionar Série</button></div>
         <div className="flex justify-end gap-2">{editingExercise && <button type="button" onClick={() => setEditingExercise(null)} className="px-4 py-2 font-medium text-gray-700 bg-gray-200 rounded-md">Cancelar</button>}<button type="submit" className="px-4 py-2 font-medium text-white bg-brand-primary rounded-md">{editingExercise ? 'Salvar' : 'Adicionar'}</button></div></form></div><div className="space-y-3">{libraryExercises.map(ex => (<div key={ex.id} className="p-3 border rounded-lg bg-white"><div className="flex justify-between items-center"><p className="font-semibold">{ex.name}</p><div className="flex gap-4"><button onClick={() => setEditingExercise(ex)} className="text-gray-500 hover:text-brand-primary"><PencilIcon className="w-5 h-5"/></button><button onClick={() => handleDelete(ex.id)} className="text-gray-500 hover:text-red-600"><TrashIcon className="w-5 h-5"/></button></div></div></div>))}</div></div>)}
       </div>

@@ -86,9 +86,18 @@ export interface ExerciseSet {
   observation?: string;
 }
 
+export type ExerciseCategory = 'Musculação' | 'Cardio' | 'Funcional' | 'Alongamento' | 'Outro';
+export const EXERCISE_CATEGORIES: ExerciseCategory[] = ['Musculação', 'Cardio', 'Funcional', 'Alongamento', 'Outro'];
+
+export type MuscleGroup = 'Peito' | 'Costas' | 'Pernas' | 'Ombros' | 'Bíceps' | 'Tríceps' | 'Abdômen' | 'Corpo Inteiro' | 'Outro';
+export const MUSCLE_GROUPS: MuscleGroup[] = ['Peito', 'Costas', 'Pernas', 'Ombros', 'Bíceps', 'Tríceps', 'Abdômen', 'Corpo Inteiro', 'Outro'];
+
+
 export interface Exercise {
     id: string;
     name: string;
+    category: ExerciseCategory;
+    muscleGroup: MuscleGroup;
     rest: string; // Rest between sets
     youtubeUrl?: string;
     isHidden?: boolean;
@@ -165,6 +174,8 @@ export interface Invoice {
 export interface LibraryExercise {
   id: string;
   name: string;
+  category: ExerciseCategory;
+  muscleGroup: MuscleGroup;
   rest: string;
   youtubeUrl?: string;
   sets: ExerciseSet[];
@@ -177,6 +188,8 @@ export interface TrainerSuggestion {
   submittedAt: string; // ISO String
   // Denormalized exercise data for easier display and searching
   name: string;
+  category: ExerciseCategory;
+  muscleGroup: MuscleGroup;
   rest: string;
   youtubeUrl?: string;
   sets: ExerciseSet[];

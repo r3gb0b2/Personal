@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, setDoc, doc, query, where, Timestamp, addDoc } from 'firebase/firestore';
-import { Workout, WorkoutTemplate, Exercise, LibraryExercise, TrainerSuggestion, ExerciseSet, ExerciseSetType } from '../types';
+import { collection, getDocs, query, where, Timestamp, addDoc } from 'firebase/firestore';
+import { Workout, WorkoutTemplate, Exercise, LibraryExercise, TrainerSuggestion, ExerciseSet, ExerciseSetType, EXERCISE_CATEGORIES, MUSCLE_GROUPS, ExerciseCategory, MuscleGroup } from '../types';
 import { PlusIcon, TrashIcon, EyeIcon, EyeOffIcon } from './icons';
+import ExerciseLibraryModal from './modals/ExerciseLibraryModal';
 
 interface WorkoutEditorProps {
   initialData: Workout | WorkoutTemplate | null;
@@ -25,10 +26,8 @@ const setTypeLabels: { [key in ExerciseSetType]: string } = {
 const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCancel, trainerId, isTemplateMode, studentId }) => {
     const [title, setTitle] = useState(initialData?.title || '');
     const [exercises, setExercises] = useState<Exercise[]>(initialData?.exercises || []);
-    const [availableExercises, setAvailableExercises] = useState<LibraryExercise[]>([]);
-    const [activeSuggestionBox, setActiveSuggestionBox] = useState<number | null>(null);
-    const [flashedIndex, setFlashedIndex] = useState<number | null>(null);
-    const exerciseRefs = useRef<(HTMLDivElement | null)[]>([]);
+    const [availableExercises, setAvailableExercises] = useState<(LibraryExercise | TrainerSuggestion)[]>([]);
+    const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 
     useEffect(() => {
         const fetchAvailableExercises = async () => {
@@ -40,20 +39,20 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
             const suggestionsSnapshot = await getDocs(suggestionsQuery);
             const trainerExercisesData = suggestionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TrainerSuggestion));
             
-            const combined = new Map<string, LibraryExercise>();
+            const combined = new Map<string, (LibraryExercise | TrainerSuggestion)>();
             globalExercises.forEach(ex => combined.set(ex.name.toLowerCase(), ex));
             trainerExercisesData.forEach(ex => {
                 if (!combined.has(ex.name.toLowerCase())) {
-                    combined.set(ex.name.toLowerCase(), ex as LibraryExercise);
+                    combined.set(ex.name.toLowerCase(), ex);
                 }
             });
             
-            setAvailableExercises(Array.from(combined.values()));
+            setAvailableExercises(Array.from(combined.values()).sort((a, b) => a.name.localeCompare(b.name)));
         };
         fetchAvailableExercises();
     }, [trainerId]);
     
-    const handleExerciseChange = (index: number, field: keyof Omit<Exercise, 'sets'>, value: string | boolean) => {
+    const handleExerciseChange = (index: number, field: keyof Omit<Exercise, 'sets' | 'id'>, value: string | boolean | ExerciseCategory | MuscleGroup) => {
         const newExercises = [...exercises];
         (newExercises[index] as any)[field] = value;
         setExercises(newExercises);
@@ -65,10 +64,6 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
         newSets[setIndex] = { ...newSets[setIndex], [field]: value };
         newExercises[exIndex].sets = newSets;
         setExercises(newExercises);
-    };
-
-    const addExercise = () => {
-        setExercises([...exercises, { id: `${Date.now()}-${Math.random()}`, name: '', rest: '', sets: [], youtubeUrl: '', isHidden: false, studentFeedback: '' }]);
     };
     
     const removeExercise = (index: number) => {
@@ -97,34 +92,53 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
         newExercises[exIndex].sets = newExercises[exIndex].sets.filter((_, i) => i !== setIndex);
         setExercises(newExercises);
     };
-
-    const handleSelectSuggestion = (index: number, suggestion: LibraryExercise) => {
-        const newExercises = [...exercises];
-        newExercises[index] = {
-            ...newExercises[index],
-            name: suggestion.name,
-            rest: suggestion.rest,
-            youtubeUrl: suggestion.youtubeUrl,
-            sets: suggestion.sets.map(s => ({...s, id: `${Date.now()}-${Math.random()}`})), // Give new IDs to sets
+    
+    const handleAddExerciseFromLibrary = (exerciseFromLib: LibraryExercise) => {
+        const newExercise: Exercise = {
+            id: `${Date.now()}-${Math.random()}`,
+            name: exerciseFromLib.name,
+            category: exerciseFromLib.category,
+            muscleGroup: exerciseFromLib.muscleGroup,
+            rest: exerciseFromLib.rest,
+            youtubeUrl: exerciseFromLib.youtubeUrl,
+            sets: exerciseFromLib.sets.map(s => ({...s, id: `${Date.now()}-${Math.random()}`})),
+            isHidden: false,
+            studentFeedback: ''
         };
-        setExercises(newExercises);
-        setActiveSuggestionBox(null);
-        
-        setFlashedIndex(index);
-        setTimeout(() => setFlashedIndex(null), 1000);
+        setExercises(prev => [...prev, newExercise]);
+        setIsLibraryOpen(false);
+    };
+    
+    const handleCreateCustomExercise = () => {
+        const newExercise: Exercise = {
+            id: `${Date.now()}-${Math.random()}`,
+            name: '',
+            category: 'Musculação',
+            muscleGroup: 'Outro',
+            rest: '',
+            youtubeUrl: '',
+            sets: [],
+            isHidden: false,
+            studentFeedback: ''
+        };
+        setExercises(prev => [...prev, newExercise]);
+        setIsLibraryOpen(false);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
         const suggestionPromises = exercises.map(async (exercise) => {
+            // Check if it's a new, custom exercise
             if (exercise.name && !availableExercises.some(libEx => libEx.name.toLowerCase() === exercise.name.toLowerCase())) {
+                 // Check if a suggestion for this already exists
                 const suggestionQuery = query(
                     collection(db, 'trainerSuggestions'),
                     where("trainerId", "==", trainerId),
                     where("name", "==", exercise.name.trim())
                 );
                 const existingSuggestions = await getDocs(suggestionQuery);
+
                 if (existingSuggestions.empty) {
                     const { id, isHidden, studentFeedback, ...suggestionData } = exercise;
                     const newSuggestion: Omit<TrainerSuggestion, 'id'> = {
@@ -154,12 +168,6 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
         onSave(dataToSave);
     };
 
-    const filteredSuggestions = (index: number) => {
-        const currentName = exercises[index]?.name;
-        if (activeSuggestionBox !== index || !currentName || currentName.length < 2) return [];
-        return availableExercises.filter(ex => ex.name.toLowerCase().includes(currentName.toLowerCase()));
-    };
-
     const renderSetInputs = (exIndex: number, set: ExerciseSet, setIndex: number) => {
         switch(set.type) {
             case 'reps_load':
@@ -179,6 +187,7 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
     };
 
     return (
+        <>
         <form onSubmit={handleSubmit} className="space-y-6 p-2 max-h-[65vh] overflow-y-auto">
             <div>
                 <label className="block text-sm font-bold text-gray-700">Título</label>
@@ -186,19 +195,26 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
             </div>
             <div className="space-y-4">
                 {exercises.map((ex, index) => {
-                    const cardClass = `p-4 border rounded-lg bg-gray-50 space-y-3 relative transition-all duration-300 ${ex.isHidden ? 'opacity-50 bg-gray-100' : ''} ${flashedIndex === index ? 'bg-green-100 border-green-300' : ''}`;
+                    const cardClass = `p-4 border rounded-lg bg-gray-50 space-y-3 relative transition-all duration-300 ${ex.isHidden ? 'opacity-50 bg-gray-100' : ''}`;
+                    const isCustom = !availableExercises.some(libEx => libEx.name.toLowerCase() === ex.name.toLowerCase());
                     return (
-                        <div key={ex.id} ref={el => exerciseRefs.current[index] = el} className={cardClass}>
+                        <div key={ex.id} className={cardClass}>
                             <div className="absolute top-2 right-2 flex gap-2">
                                 {!isTemplateMode && <button type="button" onClick={() => handleExerciseChange(index, 'isHidden', !ex.isHidden)} className="text-gray-400 hover:text-blue-600" title={ex.isHidden ? 'Mostrar para o aluno' : 'Ocultar do aluno'}>{ex.isHidden ? <EyeOffIcon className="w-5 h-5"/> : <EyeIcon className="w-5 h-5"/>}</button>}
                                 <button type="button" onClick={() => removeExercise(index)} className="text-gray-400 hover:text-red-600"><TrashIcon className="w-5 h-5"/></button>
                             </div>
-                            <div className="relative"><input type="text" value={ex.name} onChange={e => { handleExerciseChange(index, 'name', e.target.value); setActiveSuggestionBox(index); }} onBlur={() => setTimeout(() => setActiveSuggestionBox(null), 200)} placeholder="Nome do Exercício" className="text-md font-semibold w-full border-b pb-1 bg-transparent focus:outline-none focus:border-brand-primary pr-16" />
-                                {filteredSuggestions(index).length > 0 && (<ul className="absolute z-20 w-full bg-white border rounded-md mt-1 max-h-40 overflow-y-auto shadow-lg">{filteredSuggestions(index).map(suggestion => (<li key={suggestion.name} className="p-2 hover:bg-gray-100 cursor-pointer" onMouseDown={() => handleSelectSuggestion(index, suggestion)}>{suggestion.name}</li>))}</ul>)}
+                             <input type="text" value={ex.name} onChange={e => handleExerciseChange(index, 'name', e.target.value)} placeholder="Nome do Exercício" disabled={!isCustom} className="text-md font-semibold w-full border-b pb-1 bg-transparent focus:outline-none focus:border-brand-primary pr-16 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                            <div className="grid grid-cols-2 gap-2">
+                                <select value={ex.category} onChange={e => handleExerciseChange(index, 'category', e.target.value as ExerciseCategory)} disabled={!isCustom} className="text-sm w-full border-gray-300 rounded-md disabled:bg-gray-100 disabled:cursor-not-allowed">
+                                    {EXERCISE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <select value={ex.muscleGroup} onChange={e => handleExerciseChange(index, 'muscleGroup', e.target.value as MuscleGroup)} disabled={!isCustom} className="text-sm w-full border-gray-300 rounded-md disabled:bg-gray-100 disabled:cursor-not-allowed">
+                                    {MUSCLE_GROUPS.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <input type="text" value={ex.rest} onChange={e => handleExerciseChange(index, 'rest', e.target.value)} placeholder="Descanso" className="text-sm w-full border-gray-300 rounded-md"/>
-                                <input type="text" value={ex.youtubeUrl} onChange={e => handleExerciseChange(index, 'youtubeUrl', e.target.value)} placeholder="Link YouTube (Opcional)" className="text-sm w-full border-gray-300 rounded-md"/>
+                                <input type="text" value={ex.youtubeUrl || ''} onChange={e => handleExerciseChange(index, 'youtubeUrl', e.target.value)} placeholder="Link YouTube (Opcional)" className="text-sm w-full border-gray-300 rounded-md"/>
                             </div>
                             
                             <div className="space-y-2 pt-2">
@@ -206,7 +222,7 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
                                     <div key={set.id} className="p-2 border rounded-md bg-white grid grid-cols-[1fr,auto] gap-2 items-center">
                                         <div className="grid grid-cols-3 gap-2 items-center">
                                             <select value={set.type} onChange={e => handleSetChange(index, setIndex, 'type', e.target.value)} className="text-sm border-gray-300 rounded-md col-span-full sm:col-span-1">
-                                                {Object.entries(setTypeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                                                {Object.entries(setTypeLabels).map(([key, label]) => <option key={key} value={key as ExerciseSetType}>{label}</option>)}
                                             </select>
                                             <div className="col-span-full sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
                                                 {renderSetInputs(index, set, setIndex)}
@@ -221,13 +237,23 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
                         </div>
                     )
                 })}
-                <button type="button" onClick={addExercise} className="w-full flex items-center justify-center gap-2 py-2 text-sm font-medium text-brand-primary border-2 border-dashed border-gray-300 rounded-md hover:bg-gray-100"><PlusIcon className="w-4 h-4"/> Adicionar Exercício</button>
+                <button type="button" onClick={() => setIsLibraryOpen(true)} className="w-full flex items-center justify-center gap-2 py-2 text-sm font-medium text-brand-primary border-2 border-dashed border-gray-300 rounded-md hover:bg-gray-100"><PlusIcon className="w-4 h-4"/> Adicionar Exercício</button>
             </div>
             <div className="flex justify-end gap-4 pt-4 sticky bottom-0 bg-white py-2">
                 <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Cancelar</button>
                 <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Salvar</button>
             </div>
         </form>
+        {isLibraryOpen && (
+            <ExerciseLibraryModal
+                isOpen={isLibraryOpen}
+                onClose={() => setIsLibraryOpen(false)}
+                onSelectExercise={handleAddExerciseFromLibrary}
+                onCreateCustom={handleCreateCustomExercise}
+                availableExercises={availableExercises}
+            />
+        )}
+        </>
     );
 };
 

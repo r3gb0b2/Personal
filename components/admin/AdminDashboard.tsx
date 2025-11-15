@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../firebase';
-import { collection, getDocs, addDoc, doc, deleteDoc, getDoc, updateDoc, setDoc, query, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, doc, deleteDoc, getDoc, updateDoc, setDoc, query, where, Timestamp, limit } from 'firebase/firestore';
 import { Trainer, LibraryExercise, TrainerSuggestion } from '../../types';
 import { LogoutIcon, PlusIcon, UserIcon, TrashIcon, SettingsIcon, ClockIcon, DumbbellIcon } from '../icons';
 import Modal from '../modals/Modal';
 import AutomationSettingsModal from './AutomationSettingsModal';
 import ExerciseManagementModal from './ExerciseManagementModal';
+import { defaultExercises } from '../../data/defaultExercises';
+
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -151,7 +153,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [isExerciseModalOpen, setExerciseModalOpen] = useState(false);
   const [newTrainer, setNewTrainer] = useState({ username: '', password: '' });
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (isInitialLoad = false) => {
     setLoading(true);
     try {
       const trainersSnapshot = await getDocs(collection(db, 'trainers'));
@@ -159,8 +161,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       setTrainers(trainersList);
       
       const toISO = (ts: any) => ts?.toDate ? ts.toDate().toISOString() : new Date().toISOString();
-      const librarySnapshot = await getDocs(collection(db, 'libraryExercises'));
+
+      const libraryRef = collection(db, 'libraryExercises');
+      let librarySnapshot = await getDocs(libraryRef);
+
+      if (isInitialLoad && librarySnapshot.empty) {
+          console.log("Empty library detected, seeding with default exercises...");
+          const seedPromises = defaultExercises.map(ex => addDoc(libraryRef, ex));
+          await Promise.all(seedPromises);
+          // Refetch after seeding
+          librarySnapshot = await getDocs(libraryRef);
+          console.log("Seeding complete.");
+      }
       setLibraryExercises(librarySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LibraryExercise)));
+
 
       const suggestionsQuery = query(collection(db, 'trainerSuggestions'), where("status", "==", "pending"));
       const suggestionsSnapshot = await getDocs(suggestionsQuery);
@@ -175,7 +189,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    fetchData(true);
   }, [fetchData]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -358,7 +372,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             libraryExercises={libraryExercises}
             trainerSuggestions={trainerSuggestions}
             trainers={trainers}
-            onUpdate={fetchData}
+            onUpdate={() => fetchData(false)}
         />
       )}
     </>
