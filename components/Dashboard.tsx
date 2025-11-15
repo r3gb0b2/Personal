@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { db, storage } from '../firebase';
 // FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
@@ -6,7 +7,7 @@ import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, 
 import { ref, uploadBytes, getDownloadURL } from '@firebase/storage';
 import { AUTH_SESSION_KEY } from '../constants';
 import { Student, Plan, Payment, Trainer, DaySchedule, WorkoutTemplate, PendingStudent, StudentGroup } from '../types';
-import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon, MailIcon, ClipboardListIcon, LinkIcon, UsersIcon, CheckCircleIcon, UploadCloudIcon, ClockIcon } from './icons';
+import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon, MailIcon, ClipboardListIcon, LinkIcon, UsersIcon, CheckCircleIcon, UploadCloudIcon, ClockIcon, XIcon } from './icons';
 import StudentDetailsView from './StudentDetailsModal';
 import PlanManagementView from './PlanManagementModal';
 import AddStudentView from './AddStudentModal';
@@ -313,52 +314,6 @@ const WelcomeDashboardView: React.FC<{
 };
 
 
-const Sidebar: React.FC<{
-    activeView: ActiveView,
-    setActiveView: (view: ActiveView) => void,
-    onLogout: () => void,
-    pendingStudentsCount: number
-}> = ({ activeView, setActiveView, onLogout, pendingStudentsCount }) => {
-    const NavItem: React.FC<{view: ActiveView, label: string, Icon: React.FC<{className?: string}>, alertCount?: number}> = ({view, label, Icon, alertCount}) => (
-        <button
-            onClick={() => setActiveView(view)}
-            className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-colors ${
-                activeView === view ? 'bg-brand-accent text-white' : 'text-gray-300 hover:bg-brand-secondary hover:text-white'
-            }`}
-        >
-            <Icon className="w-6 h-6"/>
-            <span className="font-semibold">{label}</span>
-            {alertCount && alertCount > 0 && (
-                <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">{alertCount}</span>
-            )}
-        </button>
-    );
-
-    return (
-        <aside className="w-64 bg-brand-dark text-white flex flex-col p-4 flex-shrink-0">
-            <nav className="flex-grow space-y-2">
-                <NavItem view="welcome" label="Dashboard" Icon={ChartBarIcon} />
-                <NavItem view="studentList" label="Alunos" Icon={UserIcon} alertCount={pendingStudentsCount} />
-                <NavItem view="schedule" label="Agenda" Icon={CalendarIcon} />
-                <NavItem view="planManagement" label="Planos" Icon={BriefcaseIcon} />
-                <NavItem view="workoutTemplates" label="Modelos de Treino" Icon={ClipboardListIcon} />
-                <NavItem view="financialReport" label="Financeiro" Icon={DollarSignIcon} />
-            </nav>
-            <div className="mt-auto space-y-2">
-                <NavItem view="profile" label="Meu Perfil" Icon={SettingsIcon} />
-                <button
-                    onClick={onLogout}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg text-gray-300 hover:bg-brand-secondary hover:text-white transition-colors"
-                >
-                    <LogoutIcon className="w-6 h-6"/>
-                    <span className="font-semibold">Sair</span>
-                </button>
-            </div>
-        </aside>
-    );
-};
-
-
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -372,6 +327,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   
   const [activeView, setActiveView] = useState<ActiveView>('welcome');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const [isBulkEmailModalOpen, setBulkEmailModalOpen] = useState(false);
   const [isGroupModalOpen, setGroupModalOpen] = useState(false);
@@ -750,6 +706,77 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     </th>
   );
   
+  const Sidebar: React.FC<{
+    activeView: ActiveView,
+    setActiveView: (view: ActiveView) => void,
+    onLogout: () => void,
+    pendingStudentsCount: number
+}> = ({ activeView, setActiveView, onLogout, pendingStudentsCount }) => {
+    const NavItem: React.FC<{view: ActiveView, label: string, Icon: React.FC<{className?: string}>, alertCount?: number}> = ({view, label, Icon, alertCount}) => {
+        const handleNavClick = (view: ActiveView) => {
+            setActiveView(view);
+            setIsSidebarOpen(false); // Close sidebar on navigation in mobile
+        };
+        return (
+            <button
+                onClick={() => handleNavClick(view)}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-colors ${
+                    activeView === view ? 'bg-brand-accent text-white' : 'text-gray-300 hover:bg-brand-secondary hover:text-white'
+                }`}
+            >
+                <Icon className="w-6 h-6"/>
+                <span className="font-semibold">{label}</span>
+                {alertCount && alertCount > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">{alertCount}</span>
+                )}
+            </button>
+        );
+    };
+
+    return (
+        <>
+            {/* Overlay for mobile */}
+            <div
+                className={`fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden transition-opacity duration-300 ${
+                    isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
+                onClick={() => setIsSidebarOpen(false)}
+            />
+            <aside
+                className={`fixed inset-y-0 left-0 w-64 bg-brand-dark text-white flex flex-col p-4 z-40 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:flex-shrink-0 ${
+                    isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                }`}
+            >
+                <div className="flex justify-between items-center mb-6 lg:hidden">
+                    <span className="text-lg font-bold">Menu</span>
+                    <button onClick={() => setIsSidebarOpen(false)} className="p-1 text-gray-300 hover:text-white">
+                        <XIcon className="w-6 h-6" />
+                    </button>
+                </div>
+                <nav className="flex-grow space-y-2">
+                    <NavItem view="welcome" label="Dashboard" Icon={ChartBarIcon} />
+                    <NavItem view="studentList" label="Alunos" Icon={UserIcon} alertCount={pendingStudentsCount} />
+                    <NavItem view="schedule" label="Agenda" Icon={CalendarIcon} />
+                    <NavItem view="planManagement" label="Planos" Icon={BriefcaseIcon} />
+                    <NavItem view="workoutTemplates" label="Modelos de Treino" Icon={ClipboardListIcon} />
+                    <NavItem view="financialReport" label="Financeiro" Icon={DollarSignIcon} />
+                </nav>
+                <div className="mt-auto space-y-2">
+                    <NavItem view="profile" label="Meu Perfil" Icon={SettingsIcon} />
+                    <button
+                        onClick={onLogout}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg text-gray-300 hover:bg-brand-secondary hover:text-white transition-colors"
+                    >
+                        <LogoutIcon className="w-6 h-6"/>
+                        <span className="font-semibold">Sair</span>
+                    </button>
+                </div>
+            </aside>
+        </>
+    );
+};
+
+
   const renderStudentList = () => (
     <>
         <div className="bg-white p-6 rounded-lg shadow-md">
@@ -836,7 +863,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       case 'addStudent':
         return <AddStudentView plans={plans} onBack={onBackToStudentList} onAdd={handleAddStudent} allStudents={students} trainer={currentTrainer} />;
       case 'financialReport':
-        return <FinancialReportView onBack={onBackToWelcome} payments={payments} students={students} onDeletePayment={handleDeletePayment} />;
+        return <FinancialReportView onBack={onBackToWelcome} payments={payments} students={students} onDeletePayment={handleDeletePayment} plans={plans} />;
       case 'profile':
         return <TrainerProfileView onBack={onBackToWelcome} trainer={currentTrainer} onSave={handleSaveProfile} onUpdatePassword={handleUpdateTrainerPassword} />;
       case 'schedule':
@@ -852,6 +879,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       <header className="bg-white shadow-md z-20">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
             <div className="flex items-center gap-4">
+                <button
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="p-1 text-brand-dark lg:hidden"
+                    aria-label="Abrir menu"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
                 {currentTrainer.logoUrl ? 
                     <img src={currentTrainer.logoUrl} alt="Logo" className="h-10 w-auto" /> :
                     <h1 className="text-xl font-bold text-brand-dark">Dashboard</h1>
