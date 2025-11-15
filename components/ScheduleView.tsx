@@ -38,8 +38,8 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students, plans, onStudentC
     { key: 'saturday', name: 'Sábado' },
   ];
 
-  const timeSlots = Array.from({ length: (22 - 6) * 2 }, (_, i) => {
-    const hours = 6 + Math.floor(i / 2);
+  const timeSlots = Array.from({ length: (22 - 4) * 2 }, (_, i) => {
+    const hours = 4 + Math.floor(i / 2);
     const minutes = (i % 2) * 30;
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
   });
@@ -199,7 +199,7 @@ const ScheduleView: React.FC<ScheduleViewProps> = ({ students, plans, onStudentC
                     if (durationMinutes <= 0) return null;
 
                     const remsPerHour = 6;
-                    const topOffset = ((startMinutes - (6 * 60)) / 60) * remsPerHour;
+                    const topOffset = ((startMinutes - (4 * 60)) / 60) * remsPerHour;
                     const height = (durationMinutes / 60) * remsPerHour;
                     
                     const color = studentColors.get(appt.studentId) || 'bg-gray-200 border-gray-400 text-gray-800';
