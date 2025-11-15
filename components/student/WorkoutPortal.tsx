@@ -164,7 +164,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                 <div className="space-y-4">
                     <h2 className="text-2xl font-bold text-brand-dark mb-2">Selecione seu Treino</h2>
                     {workouts.map(workout => {
-                        const visibleExercises = (workout.exercises || []).filter(ex => !ex.isHidden);
+                        const visibleExercises = (workout.exercises || []).filter(ex => ex && !ex.isHidden);
                         if (visibleExercises.length === 0) return null;
 
                         const totalExercises = visibleExercises.length;
@@ -187,7 +187,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
             )
         }
 
-        const visibleExercises = (selectedWorkout.exercises || []).filter(ex => !ex.isHidden);
+        const visibleExercises = (selectedWorkout.exercises || []).filter(ex => ex && !ex.isHidden);
         return (
             <div>
                 <div className="flex justify-between items-start mb-4">
@@ -204,12 +204,13 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                     </button>
                 </div>
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
-                     {visibleExercises.map(ex => {
+                     {visibleExercises.map((ex, exIndex) => {
+                         if (!ex) return null; // Defensive check for malformed data
                          const isCompleted = selectedWorkout.completedExerciseIds?.includes(ex.id);
                          const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
 
                          return (
-                            <div key={ex.id} className={`bg-white p-4 rounded-lg border shadow-sm transition-all duration-300 relative flex flex-col ${isCompleted ? 'opacity-60 bg-green-50' : ''}`}>
+                            <div key={ex.id || exIndex} className={`bg-white p-4 rounded-lg border shadow-sm transition-all duration-300 relative flex flex-col ${isCompleted ? 'opacity-60 bg-green-50' : ''}`}>
                                 {isCompleted && (
                                     <div className="absolute top-3 right-3 flex items-center gap-2 text-green-700 font-bold text-sm bg-green-200 px-2 py-1 rounded-full z-10">
                                         <CheckCircleIcon className="w-5 h-5" />
@@ -229,12 +230,15 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {(ex.sets || []).map((set, index) => (
-                                                <tr key={set.id} className="border-b">
-                                                    <td className="p-2 text-center font-medium">{index + 1}</td>
-                                                    <td className="p-2">{renderSetDetails(set)}</td>
-                                                </tr>
-                                            ))}
+                                            {(ex.sets || []).map((set, setIndex) => {
+                                                if (!set) return null; // Defensive check for malformed data
+                                                return (
+                                                    <tr key={set.id || setIndex} className="border-b">
+                                                        <td className="p-2 text-center font-medium">{setIndex + 1}</td>
+                                                        <td className="p-2">{renderSetDetails(set)}</td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
