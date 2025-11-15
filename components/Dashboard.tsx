@@ -6,10 +6,10 @@ import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, 
 import { AUTH_SESSION_KEY } from '../constants';
 import { Student, Plan, Payment, Trainer, DaySchedule, WorkoutTemplate, PendingStudent, StudentGroup } from '../types';
 import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon, MailIcon, ClipboardListIcon, LinkIcon, UsersIcon, CheckCircleIcon } from './icons';
-import StudentDetailsModal from './StudentDetailsModal';
-import PlanManagementModal from './PlanManagementModal';
-import AddStudentModal from './AddStudentModal';
-import FinancialReportModal from './modals/FinancialReportModal';
+import StudentDetailsView from './StudentDetailsModal';
+import PlanManagementView from './PlanManagementModal';
+import AddStudentView from './AddStudentModal';
+import FinancialReportView from './modals/FinancialReportModal';
 import Modal from './modals/Modal';
 import ScheduleView from './ScheduleView';
 import BulkEmailModal from './modals/BulkEmailModal';
@@ -24,7 +24,7 @@ interface DashboardProps {
 type SortKey = 'name' | 'plan' | 'status';
 type SortDirection = 'asc' | 'desc';
 
-type ActiveView = 'dashboard' | 'schedule' | 'studentDetails' | 'planManagement' | 'groupManagement' | 'addStudent' | 'financialReport' | 'profile' | 'bulkEmail' | 'copyLink' | 'workoutTemplates';
+type ActiveView = 'dashboard' | 'schedule' | 'studentDetails' | 'planManagement' | 'addStudent' | 'financialReport' | 'profile' | 'workoutTemplates';
 
 
 const Loader: React.FC = () => (
@@ -171,6 +171,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
+  const [isBulkEmailModalOpen, setBulkEmailModalOpen] = useState(false);
+  const [isGroupModalOpen, setGroupModalOpen] = useState(false);
+  const [isCopyLinkModalOpen, setCopyLinkModalOpen] = useState(false);
 
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'name', direction: 'asc' });
   const [groupFilter, setGroupFilter] = useState<string>('all');
@@ -660,10 +664,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             <button onClick={() => setActiveView('planManagement')} className="flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors shadow">
                 <BriefcaseIcon className="w-5 h-5" /> Gerenciar Planos
             </button>
-            <button onClick={() => setActiveView('groupManagement')} className="flex items-center gap-2 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition-colors shadow">
+            <button onClick={() => setGroupModalOpen(true)} className="flex items-center gap-2 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition-colors shadow">
                 <UsersIcon className="w-5 h-5" /> Gerenciar Grupos
             </button>
-            <button onClick={() => setActiveView('copyLink')} className="flex items-center gap-2 bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors shadow">
+            <button onClick={() => setCopyLinkModalOpen(true)} className="flex items-center gap-2 bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors shadow">
                 <LinkIcon className="w-5 h-5" /> Link de Cadastro
             </button>
              <button onClick={() => setActiveView('workoutTemplates')} className="flex items-center gap-2 bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-600 transition-colors shadow">
@@ -672,7 +676,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
              <button onClick={() => setActiveView('schedule')} className="flex items-center gap-2 bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors shadow">
                 <CalendarIcon className="w-5 h-5" /> Ver Agenda
             </button>
-             <button onClick={() => setActiveView('bulkEmail')} className="flex items-center gap-2 bg-orange-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors shadow">
+             <button onClick={() => setBulkEmailModalOpen(true)} className="flex items-center gap-2 bg-orange-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors shadow">
                 <MailIcon className="w-5 h-5" /> Enviar E-mail
             </button>
             <button onClick={() => setActiveView('financialReport')} className="flex items-center gap-2 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors shadow">
@@ -852,47 +856,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
 
     switch(activeView) {
       case 'studentDetails':
-        return selectedStudent && <StudentDetailsModal student={selectedStudent} plans={plans} trainer={currentTrainer} workoutTemplates={workoutTemplates} groups={studentGroups} onBack={onBack} onUpdate={handleUpdateStudent} onDelete={handleDeleteStudent} onAddPayment={handleAddPayment} allStudents={students} />;
+        return selectedStudent && <StudentDetailsView student={selectedStudent} plans={plans} trainer={currentTrainer} workoutTemplates={workoutTemplates} groups={studentGroups} onBack={onBack} onUpdate={handleUpdateStudent} onDelete={handleDeleteStudent} onAddPayment={handleAddPayment} allStudents={students} />;
       case 'planManagement':
-        return <PlanManagementModal plans={plans} onAddPlan={handleAddPlan} onUpdatePlan={handleUpdatePlan} onDeletePlan={handleDeletePlan} onBack={onBack} />;
-      case 'groupManagement':
-        return <GroupManagementModal isOpen={true} onBack={onBack} groups={studentGroups} trainerId={currentTrainer.id} onUpdate={fetchData} />;
+        return <PlanManagementView plans={plans} onAddPlan={handleAddPlan} onUpdatePlan={handleUpdatePlan} onDeletePlan={handleDeletePlan} onBack={onBack} />;
       case 'workoutTemplates':
-        return <WorkoutTemplateModal isOpen={true} onBack={onBack} templates={workoutTemplates} trainerId={currentTrainer.id} onUpdate={fetchData} students={students} groups={studentGroups} />;
+        return <WorkoutTemplateModal onBack={onBack} templates={workoutTemplates} trainerId={currentTrainer.id} onUpdate={fetchData} students={students} groups={studentGroups} />;
       case 'addStudent':
-        return <AddStudentModal plans={plans} onBack={onBack} onAdd={handleAddStudent} allStudents={students} trainer={currentTrainer} />;
+        return <AddStudentView plans={plans} onBack={onBack} onAdd={handleAddStudent} allStudents={students} trainer={currentTrainer} />;
       case 'financialReport':
-        return <FinancialReportModal isOpen={true} onBack={onBack} payments={payments} students={students} onDeletePayment={handleDeletePayment} />;
+        return <FinancialReportView onBack={onBack} payments={payments} students={students} onDeletePayment={handleDeletePayment} />;
       case 'profile':
         return <TrainerProfileView onBack={onBack} trainer={currentTrainer} onSave={handleSaveProfile} onUpdatePassword={handleUpdateTrainerPassword} />;
-      case 'bulkEmail':
-        return <BulkEmailModal isOpen={true} onBack={onBack} students={students} trainer={currentTrainer} />;
       case 'schedule':
         return <ScheduleView students={students} plans={plans} onStudentClick={handleSelectStudent} />;
-      case 'copyLink':
-        return (
-            <div className="bg-white p-6 rounded-lg shadow-md">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold">Link de Cadastro para Alunos</h2>
-                    <button onClick={onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Voltar</button>
-                </div>
-                <div className="space-y-4">
-                    <p>Compartilhe este link com novos alunos para que eles possam se cadastrar. As solicitações aparecerão no seu painel para aprovação.</p>
-                    <input 
-                        type="text" 
-                        readOnly 
-                        value={`${window.location.origin}?trainer=${currentTrainer.id}`}
-                        className="w-full p-2 border rounded bg-gray-100"
-                    />
-                    <button
-                        onClick={() => navigator.clipboard.writeText(`${window.location.origin}?trainer=${currentTrainer.id}`)}
-                        className="w-full px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent"
-                    >
-                        Copiar Link
-                    </button>
-                </div>
-            </div>
-        );
       case 'dashboard':
       default:
         return renderDashboard();
@@ -914,6 +890,35 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       <main className="container mx-auto p-4 sm:p-6 lg:p-8">
         {renderActiveView()}
       </main>
+
+      {isGroupModalOpen && (
+          <GroupManagementModal isOpen={isGroupModalOpen} onClose={() => setGroupModalOpen(false)} groups={studentGroups} trainerId={currentTrainer.id} onUpdate={fetchData} />
+      )}
+      {isBulkEmailModalOpen && (
+          <BulkEmailModal isOpen={isBulkEmailModalOpen} onClose={() => setBulkEmailModalOpen(false)} students={students} trainer={currentTrainer} />
+      )}
+      {isCopyLinkModalOpen && (
+        <Modal title="Link de Cadastro para Alunos" isOpen={isCopyLinkModalOpen} onClose={() => setCopyLinkModalOpen(false)}>
+            <div className="space-y-4">
+                <p>Compartilhe este link com novos alunos para que eles possam se cadastrar. As solicitações aparecerão no seu painel para aprovação.</p>
+                <input 
+                    type="text" 
+                    readOnly 
+                    value={`${window.location.origin}?trainer=${currentTrainer.id}`}
+                    className="w-full p-2 border rounded bg-gray-100"
+                />
+                <button
+                    onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}?trainer=${currentTrainer.id}`);
+                        alert('Link copiado!');
+                    }}
+                    className="w-full px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent"
+                >
+                    Copiar Link
+                </button>
+            </div>
+        </Modal>
+      )}
     </>
   );
 };
