@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Student, Workout } from '../../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Student, Workout, StudentGroup } from '../../types';
 import Modal from './Modal';
 import { CloneIcon } from '../icons';
 
@@ -8,16 +8,26 @@ interface CloneWorkoutModalProps {
   onClose: () => void;
   workoutToClone: Workout;
   students: Student[];
+  groups: StudentGroup[];
   currentStudentId: string;
   onClone: (targetStudentIds: string[]) => Promise<{success: boolean, message?: string}>;
 }
 
-const CloneWorkoutModal: React.FC<CloneWorkoutModalProps> = ({ isOpen, onClose, workoutToClone, students, currentStudentId, onClone }) => {
+const CloneWorkoutModal: React.FC<CloneWorkoutModalProps> = ({ isOpen, onClose, workoutToClone, students, groups, currentStudentId, onClone }) => {
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [status, setStatus] = useState<'idle' | 'cloning' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   
   const otherStudents = useMemo(() => students.filter(s => s.id !== currentStudentId), [students, currentStudentId]);
+
+  // Reset state when modal is closed or reopened
+  useEffect(() => {
+    if (!isOpen) {
+        setSelectedStudentIds([]);
+        setStatus('idle');
+        setErrorMessage('');
+    }
+  }, [isOpen]);
 
   const handleStudentToggle = (studentId: string) => {
     setSelectedStudentIds(prev =>
@@ -34,6 +44,14 @@ const CloneWorkoutModal: React.FC<CloneWorkoutModalProps> = ({ isOpen, onClose, 
           setSelectedStudentIds(otherStudents.map(s => s.id));
       }
   }
+
+  const handleGroupSelect = (groupId: string) => {
+    const studentsInGroup = otherStudents.filter(s => s.groupIds?.includes(groupId));
+    const studentIdsInGroup = studentsInGroup.map(s => s.id);
+
+    // Add students from the selected group to the current selection, avoiding duplicates.
+    setSelectedStudentIds(prev => [...new Set([...prev, ...studentIdsInGroup])]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,9 +70,7 @@ const CloneWorkoutModal: React.FC<CloneWorkoutModalProps> = ({ isOpen, onClose, 
       setStatus('success');
       setTimeout(() => {
         onClose();
-        // Reset state for next time
-        setStatus('idle');
-        setSelectedStudentIds([]);
+        // State is reset by useEffect on close
       }, 1500);
     } else {
       setErrorMessage(result.message || 'Ocorreu um erro desconhecido.');
@@ -75,6 +91,24 @@ const CloneWorkoutModal: React.FC<CloneWorkoutModalProps> = ({ isOpen, onClose, 
       <form onSubmit={handleSubmit} className="space-y-4">
         <p>Selecione para quais alunos você deseja copiar a planilha de treino <strong className="font-semibold text-brand-dark">{workoutToClone.title}</strong>.</p>
         
+        {groups.length > 0 && (
+            <div className="p-3 bg-gray-50 rounded-md border">
+                <h4 className="font-semibold text-sm text-gray-800 mb-2">Atalho: Selecionar por Grupo</h4>
+                <div className="flex flex-wrap gap-2">
+                    {groups.map(group => (
+                        <button 
+                            type="button" 
+                            key={group.id}
+                            onClick={() => handleGroupSelect(group.id)}
+                            className="px-3 py-1 text-xs font-medium bg-cyan-100 text-cyan-800 rounded-full hover:bg-cyan-200"
+                        >
+                            + {group.name}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        )}
+
         <div className="border rounded-md max-h-64 overflow-y-auto p-2">
             <div className="flex justify-end mb-2 pr-2">
                  <button type="button" onClick={handleSelectAll} className="text-sm font-medium text-brand-primary hover:text-brand-accent">

@@ -318,6 +318,7 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
             onClose={() => setWorkoutToClone(null)}
             workoutToClone={workoutToClone}
             students={allStudents}
+            groups={groups}
             currentStudentId={student.id}
             onClone={handleCloneWorkout}
         />

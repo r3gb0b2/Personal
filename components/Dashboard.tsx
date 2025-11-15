@@ -252,7 +252,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       
       const pendingStudentsList = pendingStudentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), submittedAt: toISO(doc.data().submittedAt) } as PendingStudent));
       
-      const groupsList = groupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentGroup));
+      let groupsList = groupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentGroup));
+
+      if (groupsList.length === 0) {
+        // If no groups exist, create the defaults and refetch
+        await Promise.all([
+          addDoc(collection(db, 'studentGroups'), { name: 'Presencial', trainerId: currentTrainer.id }),
+          addDoc(collection(db, 'studentGroups'), { name: 'Online', trainerId: currentTrainer.id })
+        ]);
+        const newGroupsSnapshot = await getDocs(groupsQuery);
+        groupsList = newGroupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentGroup));
+      }
 
       setStudents(studentsList);
       setPlans(plansList);
@@ -911,7 +921,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
           onClose={() => setTemplateModalOpen(false)}
           templates={workoutTemplates}
           trainerId={currentTrainer.id}
-          onUpdate={fetchData} 
+          onUpdate={fetchData}
+          students={students}
+          groups={studentGroups}
         />
       )}
 
