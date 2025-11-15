@@ -250,7 +250,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         } as Payment;
       });
       
-      const pendingStudentsList = pendingStudentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), submittedAt: toISO(doc.data().submittedAt) } as PendingStudent));
+      const pendingStudentsList = pendingStudentsSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+              id: doc.id,
+              ...data,
+              submittedAt: toISO(data.submittedAt),
+              birthDate: toISO(data.birthDate),
+          } as PendingStudent;
+      });
       
       let groupsList = groupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentGroup));
 

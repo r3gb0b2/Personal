@@ -98,8 +98,9 @@ export const sendLowSessionReminders = functions.pubsub
       return null;
     }
 
-    const {apiKey, senderEmail} = brevoConfigSnap.data() as
-      {apiKey?: string, senderEmail?: string};
+    const {apiKey, senderEmail} = brevoConfigSnap.data() as {
+      apiKey?: string, senderEmail?: string
+    };
 
     if (!apiKey || !senderEmail) {
       functions.logger.error(
