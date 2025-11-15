@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, setDoc, doc, query, where } from 'firebase/firestore';
-import { Workout, WorkoutTemplate, Exercise } from '../types';
+import { collection, getDocs, setDoc, doc, query, where, Timestamp, addDoc } from 'firebase/firestore';
+import { Workout, WorkoutTemplate, Exercise, LibraryExercise, TrainerSuggestion } from '../types';
 import { PlusIcon, TrashIcon, EyeIcon, EyeOffIcon } from './icons';
 
 interface WorkoutEditorProps {
@@ -16,20 +16,35 @@ interface WorkoutEditorProps {
 const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCancel, trainerId, isTemplateMode, studentId }) => {
     const [title, setTitle] = useState(initialData?.title || '');
     const [exercises, setExercises] = useState<Exercise[]>(initialData?.exercises || []);
-    const [exerciseLibrary, setExerciseLibrary] = useState<Omit<Exercise, 'id'>[]>([]);
+    const [availableExercises, setAvailableExercises] = useState<Omit<Exercise, 'id'>[]>([]);
     const [activeSuggestionBox, setActiveSuggestionBox] = useState<number | null>(null);
     const [flashedIndex, setFlashedIndex] = useState<number | null>(null);
     const exerciseRefs = useRef<(HTMLDivElement | null)[]>([]);
 
     useEffect(() => {
-        const fetchLibrary = async () => {
+        const fetchAvailableExercises = async () => {
             if (!trainerId) return;
-            const q = query(collection(db, 'trainerExercises'), where("trainerId", "==", trainerId));
-            const snapshot = await getDocs(q);
-            const lib = snapshot.docs.map(doc => doc.data() as Omit<Exercise, 'id'>);
-            setExerciseLibrary(lib);
+            // 1. Fetch global library exercises
+            const librarySnapshot = await getDocs(collection(db, 'libraryExercises'));
+            const globalExercises = librarySnapshot.docs.map(doc => doc.data() as LibraryExercise);
+
+            // 2. Fetch trainer's own suggestions (approved or pending)
+            const suggestionsQuery = query(collection(db, 'trainerSuggestions'), where("trainerId", "==", trainerId));
+            const suggestionsSnapshot = await getDocs(suggestionsQuery);
+            const trainerExercises = suggestionsSnapshot.docs.map(doc => doc.data() as TrainerSuggestion);
+
+            // 3. Combine and deduplicate, giving precedence to global exercises
+            const combined = new Map<string, Omit<Exercise, 'id'>>();
+            globalExercises.forEach(ex => combined.set(ex.name.toLowerCase(), ex));
+            trainerExercises.forEach(ex => {
+                if (!combined.has(ex.name.toLowerCase())) {
+                    combined.set(ex.name.toLowerCase(), ex);
+                }
+            });
+            
+            setAvailableExercises(Array.from(combined.values()));
         };
-        fetchLibrary();
+        fetchAvailableExercises();
     }, [trainerId]);
     
     const handleExerciseChange = (index: number, field: keyof Exercise, value: string | boolean) => {
@@ -68,17 +83,39 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        for (const exercise of exercises) {
+        // Create suggestions for new exercises
+        const suggestionPromises = exercises.map(async (exercise) => {
             if (exercise.name) {
-                const isNewToLibrary = !exerciseLibrary.some(libEx => libEx.name.toLowerCase() === exercise.name.toLowerCase());
-                if (isNewToLibrary) {
-                    const { id, studentFeedback, ...data } = exercise; // Don't save student-specific data to global library
-                    const newLibraryEntry = { ...data, trainerId };
-                    const docId = `${trainerId}-${exercise.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-')}`;
-                    await setDoc(doc(db, 'trainerExercises', docId), newLibraryEntry, { merge: true });
+                const isGlobal = availableExercises.some(libEx => libEx.name.toLowerCase() === exercise.name.toLowerCase());
+                
+                if (!isGlobal) {
+                    // Check if a suggestion already exists to avoid duplicates
+                    const suggestionQuery = query(
+                        collection(db, 'trainerSuggestions'),
+                        where("trainerId", "==", trainerId),
+                        where("name", "==", exercise.name.trim())
+                    );
+                    const existingSuggestions = await getDocs(suggestionQuery);
+                    
+                    if (existingSuggestions.empty) {
+                        const { id, isHidden, studentFeedback, ...suggestionData } = exercise;
+                        const newSuggestion: Omit<TrainerSuggestion, 'id'> = {
+                            ...suggestionData,
+                            trainerId,
+                            status: 'pending',
+                            submittedAt: new Date().toISOString()
+                        };
+                        return addDoc(collection(db, 'trainerSuggestions'), {
+                            ...newSuggestion,
+                            submittedAt: Timestamp.now()
+                        });
+                    }
                 }
             }
-        }
+            return Promise.resolve();
+        });
+
+        await Promise.all(suggestionPromises);
         
         const dataToSave: any = { title, exercises };
         if (!isTemplateMode && studentId && initialData) {
@@ -97,7 +134,7 @@ const WorkoutEditor: React.FC<WorkoutEditorProps> = ({ initialData, onSave, onCa
         if (activeSuggestionBox !== index || !currentName || currentName.length < 2) {
             return [];
         }
-        return exerciseLibrary.filter(ex => ex.name.toLowerCase().includes(currentName.toLowerCase()));
+        return availableExercises.filter(ex => ex.name.toLowerCase().includes(currentName.toLowerCase()));
     };
 
     return (

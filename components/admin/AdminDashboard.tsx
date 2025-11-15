@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../../firebase';
-import { collection, getDocs, addDoc, doc, deleteDoc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
-import { Trainer } from '../../types';
-import { LogoutIcon, PlusIcon, UserIcon, TrashIcon, SettingsIcon, ClockIcon } from '../icons';
+import { collection, getDocs, addDoc, doc, deleteDoc, getDoc, updateDoc, setDoc, query, where, Timestamp } from 'firebase/firestore';
+import { Trainer, LibraryExercise, TrainerSuggestion } from '../../types';
+import { LogoutIcon, PlusIcon, UserIcon, TrashIcon, SettingsIcon, ClockIcon, DumbbellIcon } from '../icons';
 import Modal from '../modals/Modal';
 import AutomationSettingsModal from './AutomationSettingsModal';
+import ExerciseManagementModal from './ExerciseManagementModal';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -140,30 +141,42 @@ const EmailSettingsModal: React.FC<{
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [trainers, setTrainers] = useState<Trainer[]>([]);
+  const [libraryExercises, setLibraryExercises] = useState<LibraryExercise[]>([]);
+  const [trainerSuggestions, setTrainerSuggestions] = useState<TrainerSuggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddModalOpen, setAddModalOpen] = useState(false);
   const [isPasswordModalOpen, setPasswordModalOpen] = useState(false);
   const [isEmailModalOpen, setEmailModalOpen] = useState(false);
   const [isAutomationModalOpen, setAutomationModalOpen] = useState(false);
+  const [isExerciseModalOpen, setExerciseModalOpen] = useState(false);
   const [newTrainer, setNewTrainer] = useState({ username: '', password: '' });
 
-  const fetchTrainers = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const trainersSnapshot = await getDocs(collection(db, 'trainers'));
       const trainersList = trainersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trainer));
       setTrainers(trainersList);
+      
+      const toISO = (ts: any) => ts?.toDate ? ts.toDate().toISOString() : new Date().toISOString();
+      const librarySnapshot = await getDocs(collection(db, 'libraryExercises'));
+      setLibraryExercises(librarySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LibraryExercise)));
+
+      const suggestionsQuery = query(collection(db, 'trainerSuggestions'), where("status", "==", "pending"));
+      const suggestionsSnapshot = await getDocs(suggestionsQuery);
+      setTrainerSuggestions(suggestionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), submittedAt: toISO(doc.data().submittedAt) } as TrainerSuggestion)));
+
     } catch (error) {
-      console.error("Failed to fetch trainers:", error);
-      alert("Não foi possível carregar os dados dos personais. Verifique o console.");
+      console.error("Failed to fetch data:", error);
+      alert("Não foi possível carregar os dados. Verifique o console.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchTrainers();
-  }, [fetchTrainers]);
+    fetchData();
+  }, [fetchData]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -237,6 +250,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-xl font-bold">Gerenciar Sistema</h2>
           <div className="flex flex-wrap gap-4">
+             <button onClick={() => setExerciseModalOpen(true)} className="flex items-center gap-2 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors shadow">
+                <DumbbellIcon className="w-5 h-5" /> Gerenciar Exercícios
+                 {trainerSuggestions.length > 0 && (
+                    <span className="bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">{trainerSuggestions.length}</span>
+                 )}
+            </button>
              <button onClick={() => setAutomationModalOpen(true)} className="flex items-center gap-2 bg-teal-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-700 transition-colors shadow">
                 <ClockIcon className="w-5 h-5" /> Lembretes Automáticos
             </button>
@@ -329,6 +348,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         <AutomationSettingsModal
             isOpen={isAutomationModalOpen}
             onClose={() => setAutomationModalOpen(false)}
+        />
+      )}
+
+      {isExerciseModalOpen && (
+        <ExerciseManagementModal
+            isOpen={isExerciseModalOpen}
+            onClose={() => setExerciseModalOpen(false)}
+            libraryExercises={libraryExercises}
+            trainerSuggestions={trainerSuggestions}
+            trainers={trainers}
+            onUpdate={fetchData}
         />
       )}
     </>

@@ -143,3 +143,27 @@ export interface Invoice {
   paidDate?: string | null; // ISO string
   status: InvoiceStatus;
 }
+
+export interface LibraryExercise {
+  id: string;
+  name: string;
+  sets: string;
+  reps: string;
+  rest: string;
+  notes: string;
+  youtubeUrl?: string;
+}
+
+export interface TrainerSuggestion {
+  id: string; // Document ID
+  trainerId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: string; // ISO String
+  // Denormalized exercise data for easier display and searching
+  name: string;
+  sets: string;
+  reps: string;
+  rest: string;
+  notes: string;
+  youtubeUrl?: string;
+}
