@@ -159,7 +159,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     setLoading(true);
     try {
       const trainersSnapshot = await getDocs(collection(db, 'trainers'));
-      const trainersList = trainersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Trainer));
+      const trainersList = trainersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Trainer));
       setTrainers(trainersList);
       
       const toISO = (ts: any) => ts?.toDate ? ts.toDate().toISOString() : new Date().toISOString();
@@ -175,12 +175,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           librarySnapshot = await getDocs(libraryRef);
           console.log("Seeding complete.");
       }
-      setLibraryExercises(librarySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LibraryExercise)));
+      setLibraryExercises(librarySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LibraryExercise)));
 
 
       const suggestionsQuery = query(collection(db, 'trainerSuggestions'), where("status", "==", "pending"));
       const suggestionsSnapshot = await getDocs(suggestionsQuery);
-      setTrainerSuggestions(suggestionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), submittedAt: toISO(doc.data().submittedAt) } as TrainerSuggestion)));
+      setTrainerSuggestions(suggestionsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, submittedAt: toISO(doc.data().submittedAt) } as TrainerSuggestion)));
 
     } catch (error) {
       console.error("Failed to fetch data:", error);

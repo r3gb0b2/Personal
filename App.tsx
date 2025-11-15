@@ -58,8 +58,8 @@ const App: React.FC = () => {
       }
 
       const student: Student = {
-          id: studentDoc.id,
           ...studentData,
+          id: studentDoc.id,
           startDate: toISO(studentData.startDate) || new Date().toISOString(),
           paymentDueDate: toISO(studentData.paymentDueDate),
           sessions: (studentData.sessions || []).filter(Boolean).map((s: any) => ({ ...s, date: toISO(s.date) })),
@@ -70,8 +70,8 @@ const App: React.FC = () => {
       const payments = paymentsSnapshot.docs.map(doc => {
           const data = doc.data();
           return {
-              id: doc.id,
               ...data,
+              id: doc.id,
               paymentDate: toISO(data.paymentDate),
           } as Payment;
       });
@@ -149,7 +149,7 @@ const App: React.FC = () => {
   const fetchPlansForStudentPortal = useCallback(async () => {
     try {
         const plansSnapshot = await getDocs(collection(db, 'plans'));
-        const plansList = plansSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Plan));
+        const plansList = plansSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Plan));
         setPlans(plansList);
     } catch (e) {
         console.error("Could not fetch plans for student portal", e);

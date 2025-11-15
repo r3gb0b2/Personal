@@ -230,8 +230,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         }
 
         return {
-          id: docSnapshot.id,
           ...data,
+          id: docSnapshot.id,
           startDate: toISO(data.startDate) || new Date().toISOString(),
           paymentDueDate: toISO(data.paymentDueDate),
           birthDate: toISO(data.birthDate),
@@ -240,15 +240,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         } as Student;
       });
 
-      const plansList = plansSnapshot.docs.filter(filterByTrainer).map(docSnapshot => ({ id: docSnapshot.id, ...docSnapshot.data() } as Plan));
+      const plansList = plansSnapshot.docs.filter(filterByTrainer).map(docSnapshot => ({ ...docSnapshot.data(), id: docSnapshot.id } as Plan));
       
-      const templatesList = templatesSnapshot.docs.filter(filterByTrainer).map(docSnapshot => ({ id: docSnapshot.id, ...docSnapshot.data() } as WorkoutTemplate));
+      const templatesList = templatesSnapshot.docs.filter(filterByTrainer).map(docSnapshot => ({ ...docSnapshot.data(), id: docSnapshot.id } as WorkoutTemplate));
 
       const paymentsList = paymentsSnapshot.docs.filter(filterByTrainer).map(docSnapshot => {
         const data = docSnapshot.data();
         return {
-            id: docSnapshot.id,
             ...data,
+            id: docSnapshot.id,
             paymentDate: toISO(data.paymentDate),
         } as Payment;
       });
@@ -256,14 +256,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       const pendingStudentsList = pendingStudentsSnapshot.docs.map(doc => {
           const data = doc.data();
           return {
-              id: doc.id,
               ...data,
+              id: doc.id,
               submittedAt: toISO(data.submittedAt),
               birthDate: toISO(data.birthDate),
           } as PendingStudent;
       });
       
-      let groupsList = groupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentGroup));
+      let groupsList = groupsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as StudentGroup));
 
       if (groupsList.length === 0) {
         // If no groups exist, create the defaults and refetch
@@ -272,7 +272,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
           addDoc(collection(db, 'studentGroups'), { name: 'Online', trainerId: currentTrainer.id })
         ]);
         const newGroupsSnapshot = await getDocs(groupsQuery);
-        groupsList = newGroupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StudentGroup));
+        groupsList = newGroupsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as StudentGroup));
       }
 
       setStudents(studentsList);

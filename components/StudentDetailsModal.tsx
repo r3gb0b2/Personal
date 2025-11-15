@@ -101,19 +101,19 @@ const StudentDetailsModal: React.FC<StudentDetailsModalProps> = ({ student, plan
     try {
         const workoutsQuery = query(collection(db, 'workouts'), where("studentId", "==", student.id), orderBy("createdAt", "desc"));
         const workoutsSnapshot = await getDocs(workoutsQuery);
-        setWorkouts(workoutsSnapshot.docs.map(d => ({ id: d.id, ...d.data(), createdAt: toISO(d.data().createdAt) } as Workout)));
+        setWorkouts(workoutsSnapshot.docs.map(d => ({ ...d.data(), id: d.id, createdAt: toISO(d.data().createdAt) } as Workout)));
 
         const filesQuery = query(collection(db, 'studentFiles'), where("studentId", "==", student.id), orderBy("uploadedAt", "desc"));
         const filesSnapshot = await getDocs(filesQuery);
-        setStudentFiles(filesSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploadedAt: toISO(d.data().uploadedAt) } as StudentFile)));
+        setStudentFiles(filesSnapshot.docs.map(d => ({ ...d.data(), id: d.id, uploadedAt: toISO(d.data().uploadedAt) } as StudentFile)));
 
         const photosQuery = query(collection(db, 'progressPhotos'), where("studentId", "==", student.id), orderBy("uploadedAt", "desc"));
         const photosSnapshot = await getDocs(photosQuery);
-        setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploadedAt: toISO(d.data().uploadedAt) } as ProgressPhoto)));
+        setProgressPhotos(photosSnapshot.docs.map(d => ({ ...d.data(), id: d.id, uploadedAt: toISO(d.data().uploadedAt) } as ProgressPhoto)));
         
         const paymentsQuery = query(collection(db, 'payments'), where("studentId", "==", student.id), orderBy("paymentDate", "desc"));
         const paymentsSnapshot = await getDocs(paymentsQuery);
-        setPaymentHistory(paymentsSnapshot.docs.map(d => ({ id: d.id, ...d.data(), paymentDate: toISO(d.data().paymentDate) } as Payment)));
+        setPaymentHistory(paymentsSnapshot.docs.map(d => ({ ...d.data(), id: d.id, paymentDate: toISO(d.data().paymentDate) } as Payment)));
 
 
     } catch (e) {
