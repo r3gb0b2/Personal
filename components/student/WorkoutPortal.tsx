@@ -157,19 +157,14 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
         const currentWorkout = workouts.find(w => w.id === selectedWorkout.id);
         if (!currentWorkout) return;
 
-// FIX: Explicitly handle potentially undefined `logData` to prevent runtime errors and ensure correct type inference for `loggedSets`.
-        const logData = sessionLogs[exerciseId]?.logData;
-        // FIX: Replaced Object.values with a safer method using Object.keys and map to ensure correct type inference, resolving the 'unknown' type error.
-        const loggedSets: LoggedSet[] = logData
-            ? Object.keys(logData)
-                .map((key) => logData[key])
+        // FIX: Combined redundant log processing blocks and fixed type inference.
+        // Replaced Object.values with a safer method using Object.keys and map to ensure correct type inference.
+        const logDataForPayload = sessionLogs[exerciseId]?.logData;
+        const loggedSetsForPayload: LoggedSet[] = logDataForPayload
+            ? Object.keys(logDataForPayload)
+                .map((key) => logDataForPayload[key])
                 .filter((s) => s.reps || s.load)
             : [];
-        let logDocId: string | undefined = undefined;
-
-// FIX: Explicitly handle potentially undefined `logData` to prevent runtime errors and ensure correct type inference for `loggedSets`.
-        const logDataForPayload = sessionLogs[exerciseId]?.logData;
-        const loggedSetsForPayload: LoggedSet[] = logDataForPayload ? Object.values(logDataForPayload).filter(s => s.reps || s.load) : [];
         let logDocIdForPayload: string | undefined = undefined;
 
         if (loggedSetsForPayload.length > 0) {

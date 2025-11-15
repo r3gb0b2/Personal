@@ -17,7 +17,7 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import WorkoutPDFLayout from './pdf/WorkoutPDFLayout';
 import FinancialTab from './FinancialTab';
-import Chart from 'chart.js';
+import { Chart } from 'chart.js';
 
 
 interface StudentDetailsViewProps {
