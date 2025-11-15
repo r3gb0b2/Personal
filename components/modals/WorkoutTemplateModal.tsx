@@ -30,6 +30,7 @@ const WorkoutTemplateModal: React.FC<WorkoutTemplateModalProps> = ({ isOpen, onC
             // Update existing template
             const templateRef = doc(db, 'workoutTemplates', templateData.id);
             const dataToUpdate = { ...templateData };
+            delete (dataToUpdate as Partial<WorkoutTemplate>).id;
             await updateDoc(templateRef, dataToUpdate);
         } else {
             // Add new template

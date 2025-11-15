@@ -667,10 +667,8 @@ const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Work
 
             if (isExisting) {
                 const workoutRef = doc(db, 'workouts', workoutData.id);
-                // The object from WorkoutEditor now contains all necessary fields.
-                // We can pass it directly to updateDoc.
-                // The `id` property is ignored by updateDoc, so no need to delete it.
                 const dataToUpdate = { ...workoutData };
+                delete (dataToUpdate as Partial<Workout>).id;
                 await updateDoc(workoutRef, dataToUpdate);
             } else {
                 await addDoc(collection(db, 'workouts'), {
