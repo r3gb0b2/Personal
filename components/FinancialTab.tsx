@@ -129,3 +129,62 @@ const FinancialTab: React.FC<FinancialTabProps> = ({ student, payments, plans })
           <label htmlFor="period-filter" className="text-sm font-medium text-gray-700 mr-2">Filtrar por:</label>
           <select
             id="period-filter"
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as Period)}
+            className="border-gray-300 rounded-md shadow-sm"
+          >
+            <option value="this_month">Este Mês</option>
+            <option value="last_3_months">Últimos 3 Meses</option>
+            <option value="this_year">Este Ano</option>
+            <option value="all">Todo o Período</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard title="Recebido (Período)" value={`R$ ${kpis.recebimentoNoPeriodo.toFixed(2)}`} colorClass="border-green-500" />
+        <KpiCard title="A Receber (Período)" value={`R$ ${kpis.emAbertoNoPeriodo.toFixed(2)}`} colorClass="border-blue-500" />
+        <KpiCard title="Recebido (Ano Total)" value={`R$ ${kpis.recebidosNoAno.toFixed(2)}`} colorClass="border-purple-500" />
+        <KpiCard title="Total Vencido" value={`R$ ${kpis.totalVencido.toFixed(2)}`} colorClass="border-red-500" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+          <h4 className="font-semibold mb-2">Faturas Pagas ({paidInvoices.length})</h4>
+          <div className="border rounded-lg max-h-64 overflow-y-auto">
+            <table className="w-full text-sm">
+              <tbody>
+                {paidInvoices.map(inv => (
+                  <tr key={inv.id} className="border-b last:border-b-0">
+                    <td className="p-2">{inv.description}</td>
+                    <td className="p-2">{formatDate(inv.paidDate)}</td>
+                    <td className="p-2 text-right font-semibold">R$ {inv.amount.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <h4 className="font-semibold mb-2">Faturas Pendentes ({openOrOverdueInvoices.length})</h4>
+          <div className="border rounded-lg max-h-64 overflow-y-auto">
+            <table className="w-full text-sm">
+              <tbody>
+                {openOrOverdueInvoices.map(inv => (
+                  <tr key={inv.id} className="border-b last:border-b-0">
+                    <td className="p-2">{inv.description}</td>
+                    <td className="p-2">{formatDate(inv.dueDate)}</td>
+                    <td className="p-2"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusColors[inv.status]}`}>{inv.status}</span></td>
+                    <td className="p-2 text-right font-semibold">R$ {inv.amount.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+// FIX: Added default export to fix the module import error.
+export default FinancialTab;
