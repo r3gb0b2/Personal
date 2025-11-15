@@ -667,8 +667,7 @@ const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Work
 
             if (isExisting) {
                 const workoutRef = doc(db, 'workouts', workoutData.id);
-                const dataToUpdate = { ...workoutData };
-                delete (dataToUpdate as Partial<Workout>).id;
+                const { id, ...dataToUpdate } = workoutData;
                 await updateDoc(workoutRef, dataToUpdate);
             } else {
                 await addDoc(collection(db, 'workouts'), {
