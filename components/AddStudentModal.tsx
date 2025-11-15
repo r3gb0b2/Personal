@@ -122,6 +122,17 @@ const AddStudentModal: React.FC<AddStudentModalProps> = ({ plans, onClose, onAdd
     if (!newStudent.name.trim()) {
       alert("O nome do aluno é obrigatório."); return;
     }
+    
+    if (newStudent.email) {
+        const emailExists = allStudents.some(
+            student => student.email.toLowerCase() === newStudent.email.trim().toLowerCase()
+        );
+        if (emailExists) {
+            alert("Este e-mail já está cadastrado para outro aluno.");
+            return;
+        }
+    }
+    
     const { hasConflict, conflictWith } = checkScheduleConflict(newStudent.schedule, allStudents);
     if (hasConflict && !window.confirm(`Atenção: Este horário conflita com o de ${conflictWith}. Deseja salvar mesmo assim?`)) {
         return;

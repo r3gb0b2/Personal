@@ -274,31 +274,58 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   }, [fetchData]);
 
   const handleApproveStudent = async (pendingStudent: PendingStudent) => {
+      // 1. Check for duplicate email
+      const emailExists = students.some(
+          student => student.email.toLowerCase() === pendingStudent.email.toLowerCase()
+      );
+
+      if (emailExists) {
+          alert(
+              `Erro: O e-mail "${pendingStudent.email}" já está cadastrado para outro aluno. ` +
+              `Por favor, rejeite esta solicitação.`
+          );
+          return;
+      }
+
       try {
-        const newStudentData: Omit<Student, 'id'> = {
-            name: pendingStudent.name,
-            email: pendingStudent.email,
-            phone: pendingStudent.phone,
-            birthDate: pendingStudent.birthDate,
-            startDate: new Date().toISOString(),
-            planId: null,
-            paymentDueDate: null,
-            sessions: [],
-            trainerId: pendingStudent.trainerId,
-        };
-        await addDoc(collection(db, 'students'), {
-            ...newStudentData,
-            startDate: Timestamp.fromDate(new Date(newStudentData.startDate)),
-            birthDate: newStudentData.birthDate ? Timestamp.fromDate(new Date(newStudentData.birthDate)) : null
-        });
-        await deleteDoc(doc(db, 'pendingStudents', pendingStudent.id));
-        fetchData(); // Refresh all data
-        alert(`${pendingStudent.name} foi aprovado(a) e adicionado(a) à sua lista de alunos.`);
+          // 2. Create a complete student object with defaults for optional fields
+          const newStudentData: Omit<Student, 'id'> = {
+              name: pendingStudent.name,
+              email: pendingStudent.email,
+              phone: pendingStudent.phone,
+              birthDate: pendingStudent.birthDate,
+              startDate: new Date().toISOString(),
+              planId: null,
+              paymentDueDate: null,
+              sessions: [],
+              remainingSessions: null,
+              profilePictureUrl: null,
+              schedule: null,
+              remindersSent: {},
+              accessBlocked: false,
+              groupIds: [],
+              trainerId: pendingStudent.trainerId,
+          };
+          
+          // 3. Add to Firestore with correct Timestamp conversion
+          await addDoc(collection(db, 'students'), {
+              ...newStudentData,
+              startDate: Timestamp.fromDate(new Date(newStudentData.startDate)),
+              birthDate: newStudentData.birthDate ? Timestamp.fromDate(new Date(newStudentData.birthDate)) : null
+          });
+
+          // 4. Delete the pending request
+          await deleteDoc(doc(db, 'pendingStudents', pendingStudent.id));
+          
+          // 5. Refresh data and notify user
+          fetchData(); // Refresh all data
+          alert(`${pendingStudent.name} foi aprovado(a) e adicionado(a) à sua lista de alunos.`);
       } catch (error) {
           console.error("Error approving student:", error);
-          alert("Ocorreu um erro ao aprovar o aluno.");
+          alert("Ocorreu um erro ao aprovar o aluno. Verifique o console para mais detalhes.");
       }
   };
+
 
   const handleRejectStudent = async (pendingStudentId: string) => {
     if (window.confirm("Tem certeza que deseja rejeitar esta solicitação? A ação não pode ser desfeita.")) {

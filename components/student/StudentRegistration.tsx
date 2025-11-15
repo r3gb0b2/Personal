@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../firebase';
-import { doc, getDoc, addDoc, collection, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, addDoc, collection, Timestamp, getDocs } from 'firebase/firestore';
 import { Trainer, PendingStudent } from '../../types';
 
 interface StudentRegistrationProps {
@@ -50,6 +50,22 @@ const StudentRegistration: React.FC<StudentRegistrationProps> = ({ trainerId, on
     setError('');
 
     try {
+        // Check if email already exists
+        const studentsCollection = collection(db, 'students');
+        const studentsSnapshot = await getDocs(studentsCollection);
+        const normalizedEmail = formData.email.trim().toLowerCase();
+        
+        const emailExists = studentsSnapshot.docs.some(doc => {
+            const studentData = doc.data();
+            return typeof studentData.email === 'string' && studentData.email.toLowerCase() === normalizedEmail;
+        });
+
+        if (emailExists) {
+            setError("Este e-mail já está cadastrado. Por favor, faça login ou use um e-mail diferente.");
+            setLoading(false);
+            return;
+        }
+
         const pendingStudentData: Omit<PendingStudent, 'id'> = {
             name: formData.name.trim(),
             email: formData.email.trim().toLowerCase(),
@@ -126,10 +142,10 @@ const StudentRegistration: React.FC<StudentRegistrationProps> = ({ trainerId, on
                 <div>
                   <button
                     type="submit"
-                    disabled={!trainer}
+                    disabled={!trainer || loading}
                     className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-brand-primary hover:bg-brand-accent disabled:bg-gray-400"
                   >
-                    Enviar Cadastro
+                    {loading ? 'Enviando...' : 'Enviar Cadastro'}
                   </button>
                 </div>
               </form>
