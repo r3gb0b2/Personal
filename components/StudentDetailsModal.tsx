@@ -264,7 +264,7 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
 
     try {
         // Clone exercises but clear out any student-specific feedback
-        const clonedExercises = workoutToClone.exercises.map(ex => {
+        const clonedExercises = (workoutToClone.exercises || []).map(ex => {
             const { studentFeedback, ...restOfExercise } = ex;
             return restOfExercise;
         });
@@ -767,7 +767,7 @@ const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Work
                         </div>
                         <div className="mt-2">
                            <p className="text-sm text-gray-500">{w.exercises?.length || 0} exercícios</p>
-                           {w.exercises.some(ex => ex.studentFeedback) && (
+                           {(w.exercises || []).some(ex => ex.studentFeedback) && (
                                <div className="mt-2 text-sm text-blue-600 font-semibold bg-blue-50 p-2 rounded-md">
                                    <p>🔔 Um ou mais exercícios têm feedback do aluno!</p>
                                </div>

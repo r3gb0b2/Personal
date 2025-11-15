@@ -72,7 +72,7 @@ const WorkoutTemplateModal: React.FC<WorkoutTemplateModalProps> = ({ isOpen, onC
       const creationPromises = targetStudents.map(student => {
           const newWorkoutData = {
               title: templateToAssign.title,
-              exercises: templateToAssign.exercises,
+              exercises: templateToAssign.exercises || [],
               studentId: student.id,
               trainerId: trainerId,
               createdAt: Timestamp.now(),

@@ -29,7 +29,7 @@ const WorkoutPDFLayout = React.forwardRef<HTMLDivElement, Props>(({ student, tra
             </tr>
           </thead>
           <tbody>
-            {workout.exercises.filter(ex => !ex.isHidden).map((ex, index) => (
+            {(workout.exercises || []).filter(ex => !ex.isHidden).map((ex, index) => (
               <tr key={ex.id} style={{ backgroundColor: index % 2 === 0 ? '#fff' : '#f9f9f9' }}>
                 <td style={{ border: '1px solid #ddd', padding: '8px', fontWeight: 'bold' }}>{ex.name}</td>
                 <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'center' }}>{ex.sets || '-'}</td>

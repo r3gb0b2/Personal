@@ -77,7 +77,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
             const workout = workouts.find(w => w.id === workoutId);
             if (!workout) throw new Error("Workout not found");
 
-            const updatedExercises = workout.exercises.map(ex => 
+            const updatedExercises = (workout.exercises || []).map(ex => 
                 ex.id === exerciseId ? { ...ex, studentFeedback: feedbackText } : ex
             );
 
@@ -111,7 +111,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
             return (
                  <div className="space-y-8">
                     {workouts.map(workout => {
-                        const visibleExercises = workout.exercises.filter(ex => !ex.isHidden);
+                        const visibleExercises = (workout.exercises || []).filter(ex => !ex.isHidden);
                         if (visibleExercises.length === 0) return null;
                         const completedCount = workout.completedExerciseIds?.length || 0;
 
