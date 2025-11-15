@@ -110,8 +110,11 @@ setProgressPhotos(photosSnapshot.docs.map(d => ({ id: d.id, ...d.data(), uploade
 
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setEditableStudent(prev => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    const isCheckbox = type === 'checkbox';
+    // @ts-ignore
+    const inputValue = isCheckbox ? e.target.checked : value;
+    setEditableStudent(prev => ({ ...prev, [name]: inputValue }));
   };
   
   const handleSave = async () => {
@@ -329,8 +332,11 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
     const [isSendingReminder, setIsSendingReminder] = useState(false);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        setEditableStudent((prev: Student) => ({ ...prev, [name]: value }));
+        const { name, value, type } = e.target;
+        const isCheckbox = type === 'checkbox';
+        // @ts-ignore
+        const inputValue = isCheckbox ? e.target.checked : value;
+        setEditableStudent((prev: Student) => ({ ...prev, [name]: inputValue }));
     };
 
     const daysOfWeek = [
@@ -367,7 +373,7 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
     const studentPlan = plans.find((p: Plan) => p.id === student.planId);
     const isPaymentDue = studentPlan?.type === 'duration' && student.paymentDueDate && new Date(student.paymentDueDate) < new Date();
     const areSessionsLow = studentPlan?.type === 'session' && (student.remainingSessions != null && student.remainingSessions <= 0);
-    const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
     const sessionTypeInfo: { [key: string]: { label: string; color: string; bg: string; } } = { regular: { label: 'Aula Normal', color: 'text-gray-500', bg: 'bg-gray-100' }, extra: { label: 'Aula Extra (Bônus)', color: 'text-blue-500', bg: 'bg-blue-100' }, absent: { label: 'Falta', color: 'text-red-500', bg: 'bg-red-100' }, };
 
     const dayMap: { [key: string]: string } = {
@@ -453,7 +459,9 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
                 <div><label className="block text-sm font-medium text-gray-700">Nome</label><input type="text" name="name" value={editableStudent.name} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"/></div>
                 <div><label className="block text-sm font-medium text-gray-700">Email</label><input type="email" name="email" value={editableStudent.email} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"/></div>
                 <div><label className="block text-sm font-medium text-gray-700">Telefone</label><input type="tel" name="phone" value={editableStudent.phone} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"/></div>
+                <div><label className="block text-sm font-medium text-gray-700">Data de Nascimento</label><input type="date" name="birthDate" value={editableStudent.birthDate ? new Date(editableStudent.birthDate).toISOString().split('T')[0] : ''} onChange={e => setEditableStudent((prev: Student) => ({...prev, birthDate: e.target.value ? new Date(e.target.value).toISOString() : null}))} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"/></div>
                 <div><label className="block text-sm font-medium text-gray-700">Plano</label><select name="planId" value={editableStudent.planId ?? ''} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"><option value="">Sem Plano</option>{plans.map((p: Plan) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+                <div className="flex items-center"><input id="accessBlocked" name="accessBlocked" type="checkbox" checked={!!editableStudent.accessBlocked} onChange={handleInputChange} className="h-4 w-4 text-brand-primary focus:ring-brand-accent border-gray-300 rounded" /><label htmlFor="accessBlocked" className="ml-2 block text-sm text-gray-900">Bloquear acesso do aluno ao portal</label></div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700">Horário Fixo</label>
                     <div className="mt-2 p-3 border rounded-md space-y-3 bg-gray-50">
@@ -504,7 +512,7 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
             </div>
         ) : (
             <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start"><div className="relative group flex-shrink-0">{student.profilePictureUrl ? (<img src={student.profilePictureUrl} alt={student.name} className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md"/>) : (<div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-4 border-white shadow-md"><UserIcon className="w-12 h-12 text-gray-500"/></div>)}<button onClick={() => setPictureModalOpen(true)} className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center rounded-full transition-opacity opacity-0 group-hover:opacity-100"><CameraIcon className="w-8 h-8 text-white"/></button></div><div className="flex-1 w-full"><div className="flex flex-col-reverse items-center sm:flex-row sm:justify-between sm:items-start w-full gap-4 sm:gap-0"><div className="text-center sm:text-left"><p><strong>Email:</strong> {student.email || 'N/A'}</p><p><strong>Telefone:</strong> {student.phone || 'N/A'}</p><p><strong>Início:</strong> {formatDate(student.startDate)}</p> <div>
+            <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start"><div className="relative group flex-shrink-0">{student.profilePictureUrl ? (<img src={student.profilePictureUrl} alt={student.name} className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md"/>) : (<div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-4 border-white shadow-md"><UserIcon className="w-12 h-12 text-gray-500"/></div>)}<button onClick={() => setPictureModalOpen(true)} className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center rounded-full transition-opacity opacity-0 group-hover:opacity-100"><CameraIcon className="w-8 h-8 text-white"/></button></div><div className="flex-1 w-full"><div className="flex flex-col-reverse items-center sm:flex-row sm:justify-between sm:items-start w-full gap-4 sm:gap-0"><div className="text-center sm:text-left"><p><strong>Email:</strong> {student.email || 'N/A'}</p><p><strong>Telefone:</strong> {student.phone || 'N/A'}</p><p><strong>Início:</strong> {formatDate(student.startDate)}</p><p><strong>Nascimento:</strong> {student.birthDate ? formatDate(student.birthDate) : 'N/A'}</p> <div>
                 <p className="font-semibold">Horário:</p>
                 {sortedSchedule.length > 0 ? (
                     <ul className="pl-4 list-disc mt-1 space-y-1">
@@ -515,7 +523,7 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, isEditing, setIsEd
                         ))}
                     </ul>
                 ) : <p className="text-gray-600">Nenhum horário definido</p>}
-            </div></div><div className="flex gap-2"><button onClick={() => setIsEditing(true)} className="px-3 py-1 text-sm font-medium text-white bg-brand-secondary rounded-md hover:bg-gray-700">Editar</button><button onClick={handleDelete} className="px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Excluir</button></div></div></div></div>
+            </div></div><div className="flex gap-2"><button onClick={() => setIsEditing(true)} className="px-3 py-1 text-sm font-medium text-white bg-brand-secondary rounded-md hover:bg-gray-700">Editar</button><button onClick={handleDelete} className="px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Excluir</button></div></div>{student.accessBlocked && (<div className="mt-2 text-center sm:text-left p-2 bg-red-100 text-red-800 rounded-md text-sm font-semibold">Acesso ao portal bloqueado.</div>)}</div></div>
             <div className={`p-4 rounded-lg ${(isPaymentDue || areSessionsLow) ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border`}>
                 <div className="flex justify-between items-center">
                     <div>

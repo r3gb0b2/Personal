@@ -327,6 +327,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     return students.filter(s => {
        const plan = plans.find(p => p.id === s.planId);
        if (!plan) return false;
+       if (s.accessBlocked) return false; // Exclude blocked students
        if (plan.type === 'duration') {
            return s.paymentDueDate && new Date(s.paymentDueDate) > new Date();
        }
@@ -344,6 +345,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         trainerId: currentTrainer.id,
         startDate: Timestamp.fromDate(new Date(updatedStudent.startDate)),
         paymentDueDate: updatedStudent.paymentDueDate ? Timestamp.fromDate(new Date(updatedStudent.paymentDueDate)) : null,
+        birthDate: updatedStudent.birthDate ? Timestamp.fromDate(new Date(updatedStudent.birthDate)) : null,
         sessions: updatedStudent.sessions.map(s => ({ ...s, date: Timestamp.fromDate(new Date(s.date))}))
     };
     delete (dataToUpdate as any).id;
@@ -358,6 +360,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         trainerId: currentTrainer.id,
         startDate: Timestamp.fromDate(new Date(newStudentData.startDate)),
         paymentDueDate: newStudentData.paymentDueDate ? Timestamp.fromDate(new Date(newStudentData.paymentDueDate)) : null,
+        birthDate: newStudentData.birthDate ? Timestamp.fromDate(new Date(newStudentData.birthDate)) : null,
     };
     const docRef = await addDoc(collection(db, 'students'), studentWithTimestamps);
     setStudents(prev => [...prev, { ...newStudentData, id: docRef.id, trainerId: currentTrainer.id }]);
@@ -456,6 +459,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const getPlan = useCallback((planId: string | null) => plans.find(p => p.id === planId), [plans]);
 
   const getStudentStatus = useCallback((student: Student) => {
+      if (student.accessBlocked) return { text: 'Bloqueado', color: 'red', situation: 'Acesso bloqueado' };
       const plan = getPlan(student.planId);
       if (!plan) return { text: 'Sem Plano', color: 'gray', situation: 'N/A' };
 
@@ -781,6 +785,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             onClose={() => setAddStudentModalOpen(false)}
             onAdd={handleAddStudent}
             allStudents={students}
+            trainer={currentTrainer}
         />
       )}
 

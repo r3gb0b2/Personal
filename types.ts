@@ -38,6 +38,8 @@ export interface Student {
   trainerId: string;
   schedule?: DaySchedule[] | null;
   remindersSent?: { [key: string]: string }; // e.g., { 'sessions_3': '2023-10-27T10:00:00Z' }
+  birthDate?: string | null; // ISO string format
+  accessBlocked?: boolean;
 }
 
 export type PaymentMethod = 'Pix' | 'Dinheiro' | 'Cartão de Crédito' | 'Transferência';

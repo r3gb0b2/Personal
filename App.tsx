@@ -39,6 +39,11 @@ const App: React.FC = () => {
       
       const toISO = (ts: any) => ts && ts.toDate ? ts.toDate().toISOString() : null;
       const studentData = studentDoc.data();
+
+      if (studentData.accessBlocked) {
+        return { success: false, message: 'Seu acesso está bloqueado por inadimplência. Por favor, entre em contato com seu personal para regularizar a situação.' };
+      }
+
       const student: Student = {
           id: studentDoc.id,
           ...studentData,
