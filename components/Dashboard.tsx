@@ -232,6 +232,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
           ...data,
           startDate: toISO(data.startDate) || new Date().toISOString(),
           paymentDueDate: toISO(data.paymentDueDate),
+          birthDate: toISO(data.birthDate),
           sessions: (data.sessions || []).filter(Boolean).map((s: any) => ({ ...s, date: toISO(s.date) })),
           schedule: scheduleData,
         } as Student;
