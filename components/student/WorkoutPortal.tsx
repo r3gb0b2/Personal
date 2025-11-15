@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Workout, Student, Trainer, ExerciseSet } from '../../types';
 import { DumbbellIcon, ExclamationCircleIcon, SendIcon, PrintIcon, CheckCircleIcon } from '../icons';
 import { db } from '../../firebase';
@@ -46,13 +46,19 @@ const renderSetDetails = (set: ExerciseSet): string => {
 
 
 const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanActive, onWorkoutUpdate, student, trainer }) => {
-    const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
+    const [selectedWorkoutId, setSelectedWorkoutId] = useState<string | null>(null);
+    
+    // By deriving the selected workout from props, we ensure it's never stale.
+    const selectedWorkout = useMemo(() => {
+        if (!selectedWorkoutId) return null;
+        return workouts.find(w => w.id === selectedWorkoutId) || null;
+    }, [workouts, selectedWorkoutId]);
+
     const [feedback, setFeedback] = useState<{ [exerciseId: string]: string }>({});
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState<string | null>(null);
     const [workoutToPrint, setWorkoutToPrint] = useState<Workout | null>(null);
     const pdfLayoutRef = useRef<HTMLDivElement>(null);
 
-    // Fix: Define the missing handleFeedbackChange function.
     const handleFeedbackChange = (exerciseId: string, text: string) => {
         setFeedback(prev => ({...prev, [exerciseId]: text}));
     };
@@ -94,7 +100,9 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
             await updateDoc(workoutRef, { completedExerciseIds: newCompleted });
             const updatedWorkout = { ...selectedWorkout, completedExerciseIds: newCompleted };
             
-            setSelectedWorkout(updatedWorkout);
+            // The parent component's state is updated, which will trigger a re-render
+            // of this component with a fresh `workouts` prop. The `useMemo` hook
+            // will then provide the updated `selectedWorkout`.
             onWorkoutUpdate(updatedWorkout);
         } catch (error) {
             console.error("Error updating exercise status:", error);
@@ -110,7 +118,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
         setIsSubmittingFeedback(exerciseId);
         try {
             const workoutRef = doc(db, 'workouts', selectedWorkout.id);
-            if (!selectedWorkout.exercises) throw new Error("Workout not found");
+            if (!selectedWorkout.exercises) throw new Error("Workout data is missing exercises.");
 
             const updatedExercises = selectedWorkout.exercises.map(ex => 
                 ex.id === exerciseId ? { ...ex, studentFeedback: feedbackText } : ex
@@ -121,7 +129,6 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
             setFeedback(prev => ({...prev, [exerciseId]: ''}));
             
             const updatedWorkout = { ...selectedWorkout, exercises: updatedExercises };
-            setSelectedWorkout(updatedWorkout);
             onWorkoutUpdate(updatedWorkout);
 
         } catch (error) {
@@ -165,7 +172,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                         const progress = totalExercises > 0 ? (completedCount / totalExercises) * 100 : 0;
 
                         return (
-                            <div key={workout.id} onClick={() => setSelectedWorkout(workout)} className="bg-white p-4 rounded-lg shadow-md cursor-pointer hover:shadow-lg transition-shadow">
+                            <div key={workout.id} onClick={() => setSelectedWorkoutId(workout.id)} className="bg-white p-4 rounded-lg shadow-md cursor-pointer hover:shadow-lg transition-shadow">
                                 <div className="flex justify-between items-center">
                                     <h3 className="font-bold text-xl text-brand-primary">{workout.title}</h3>
                                     <span className="text-sm font-semibold text-gray-600">{completedCount}/{totalExercises} concluídos</span>
@@ -185,7 +192,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
             <div>
                 <div className="flex justify-between items-start mb-4">
                     <div>
-                        <button onClick={() => setSelectedWorkout(null)} className="text-sm font-medium text-brand-primary hover:underline mb-2">&larr; Voltar para a lista de treinos</button>
+                        <button onClick={() => setSelectedWorkoutId(null)} className="text-sm font-medium text-brand-primary hover:underline mb-2">&larr; Voltar para a lista de treinos</button>
                         <h2 className="text-2xl font-bold text-brand-dark">{selectedWorkout.title}</h2>
                     </div>
                      <button 
