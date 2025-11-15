@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Workout, Student, Trainer } from '../../types';
+import { Workout, Student, Trainer, ExerciseSet } from '../../types';
 import { DumbbellIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, SendIcon, PrintIcon } from '../icons';
 import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -22,7 +22,6 @@ const getYoutubeEmbedUrl = (url: string | undefined): string | null => {
         const urlObj = new URL(url);
         let videoId = urlObj.searchParams.get('v');
         if (!videoId) {
-            // Handles short URLs like youtu.be/VIDEOID
             const pathParts = urlObj.pathname.split('/');
             videoId = pathParts[pathParts.length - 1];
         }
@@ -32,6 +31,19 @@ const getYoutubeEmbedUrl = (url: string | undefined): string | null => {
         return null;
     }
 }
+
+const renderSetDetails = (set: ExerciseSet): string => {
+    switch(set.type) {
+        case 'reps_load': return `${set.reps || '-'} reps @ ${set.load || '-'}`;
+        case 'reps_load_time': return `${set.reps || '-'} reps @ ${set.load || '-'} [${set.time || '-'}]`;
+        case 'reps_time': return `${set.reps || '-'} reps [${set.time || '-'}]`;
+        case 'run': return `${set.distance || '-'} em ${set.time || '-'}`;
+        case 'cadence': return `Cadência ${set.cadence || '-'} | ${set.reps || '-'} reps @ ${set.load || '-'}`;
+        case 'observation': return `${set.observation || '-'}`;
+        default: return '';
+    }
+};
+
 
 const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanActive, onWorkoutUpdate, student, trainer }) => {
     const [feedback, setFeedback] = useState<{ [exerciseId: string]: string }>({});
@@ -164,7 +176,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                     )}
                                 </div>
                                 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
                                     {visibleExercises.map(ex => {
                                         const isHidden = workout.completedExerciseIds?.includes(ex.id);
                                         
@@ -190,43 +202,29 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                                         <EyeIcon className="w-5 h-5"/>
                                                     </button>
                                                 </div>
-
                                                 <h3 className="font-bold text-lg mb-3 text-brand-secondary">{ex.name}</h3>
+                                                {embedUrl && (<div className="mb-4"><iframe className="w-full aspect-video rounded-md shadow" src={embedUrl} title={ex.name} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe></div>)}
                                                 
-                                                {embedUrl && (
-                                                    <div className="mb-4">
-                                                        <iframe
-                                                            className="w-full aspect-video rounded-md shadow"
-                                                            src={embedUrl}
-                                                            title={ex.name}
-                                                            frameBorder="0"
-                                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                            allowFullScreen
-                                                        ></iframe>
-                                                    </div>
-                                                )}
-
-                                                <div className="grid grid-cols-3 gap-x-4 gap-y-2 text-center border-t border-b py-3">
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">Séries</p>
-                                                        <p className="font-bold text-lg">{ex.sets || '-'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">Reps</p>
-                                                        <p className="font-bold text-lg">{ex.reps || '-'}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm text-gray-500">Descanso</p>
-                                                        <p className="font-bold text-lg">{ex.rest || '-'}</p>
-                                                    </div>
+                                                <div className="mb-3 overflow-x-auto">
+                                                    <table className="w-full text-sm text-left">
+                                                        <thead className="bg-gray-200">
+                                                            <tr>
+                                                                <th className="p-2 w-12 text-center">Série</th>
+                                                                <th className="p-2">Detalhes</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {(ex.sets || []).map((set, index) => (
+                                                                <tr key={set.id} className="border-b">
+                                                                    <td className="p-2 text-center font-medium">{index + 1}</td>
+                                                                    <td className="p-2">{renderSetDetails(set)}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
                                                 </div>
 
-                                                {ex.notes && (
-                                                    <div className="mt-3">
-                                                        <p className="text-sm font-semibold text-gray-600">Observações:</p>
-                                                        <p className="text-sm text-gray-800 whitespace-pre-wrap">{ex.notes}</p>
-                                                    </div>
-                                                )}
+                                                {ex.rest && (<div className="text-sm"><span className="font-semibold">Descanso:</span> {ex.rest}</div>)}
 
                                                 <div className="mt-4 pt-4 border-t flex-grow flex flex-col justify-end">
                                                      <p className="text-sm font-semibold text-gray-600 mb-1">Feedback para o Personal:</p>
@@ -234,20 +232,8 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                                         <p className="text-sm italic text-gray-500 bg-gray-100 p-2 rounded-md">"Enviado: {ex.studentFeedback}"</p>
                                                      ) : (
                                                         <div className="flex items-center gap-2">
-                                                            <input 
-                                                                type="text" 
-                                                                placeholder="Opcional: como foi o exercício?" 
-                                                                className="flex-grow text-sm border-gray-300 rounded-md shadow-sm"
-                                                                value={feedback[ex.id] || ''}
-                                                                onChange={(e) => handleFeedbackChange(ex.id, e.target.value)}
-                                                            />
-                                                            <button 
-                                                                onClick={() => handleSendFeedback(workout.id, ex.id)} 
-                                                                disabled={isSubmittingFeedback === ex.id}
-                                                                className="p-2 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400"
-                                                            >
-                                                                <SendIcon className="w-4 h-4"/>
-                                                            </button>
+                                                            <input type="text" placeholder="Opcional: como foi o exercício?" className="flex-grow text-sm border-gray-300 rounded-md shadow-sm" value={feedback[ex.id] || ''} onChange={(e) => handleFeedbackChange(ex.id, e.target.value)} />
+                                                            <button onClick={() => handleSendFeedback(workout.id, ex.id)} disabled={isSubmittingFeedback === ex.id} className="p-2 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400"><SendIcon className="w-4 h-4"/></button>
                                                         </div>
                                                      )}
                                                 </div>

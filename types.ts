@@ -67,17 +67,35 @@ export interface Trainer {
     whatsapp?: string; // e.g., '5511999998888'
 }
 
+export type ExerciseSetType =
+  | 'reps_load' // Repetições e Carga
+  | 'reps_load_time' // Repetições, Carga e Tempo
+  | 'reps_time' // Repetições e Tempo
+  | 'run' // Corrida
+  | 'cadence' // Cadência com reps e carga
+  | 'observation'; // Apenas uma observação
+
+export interface ExerciseSet {
+  id: string;
+  type: ExerciseSetType;
+  reps?: string;
+  load?: string;
+  time?: string;
+  distance?: string;
+  cadence?: string;
+  observation?: string;
+}
+
 export interface Exercise {
     id: string;
     name: string;
-    sets: string;
-    reps: string;
-    rest: string;
-    notes: string;
+    rest: string; // Rest between sets
     youtubeUrl?: string;
     isHidden?: boolean;
     studentFeedback?: string;
+    sets: ExerciseSet[]; // Array of sets
 }
+
 
 export interface Workout {
     id: string;
@@ -147,11 +165,9 @@ export interface Invoice {
 export interface LibraryExercise {
   id: string;
   name: string;
-  sets: string;
-  reps: string;
   rest: string;
-  notes: string;
   youtubeUrl?: string;
+  sets: ExerciseSet[];
 }
 
 export interface TrainerSuggestion {
@@ -161,9 +177,7 @@ export interface TrainerSuggestion {
   submittedAt: string; // ISO String
   // Denormalized exercise data for easier display and searching
   name: string;
-  sets: string;
-  reps: string;
   rest: string;
-  notes: string;
   youtubeUrl?: string;
+  sets: ExerciseSet[];
 }
