@@ -1,6 +1,7 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Workout, Student, Trainer, ExerciseSet } from '../../types';
-import { DumbbellIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, SendIcon, PrintIcon } from '../icons';
+import { DumbbellIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, SendIcon, PrintIcon, CheckCircleIcon } from '../icons';
 import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { jsPDF } from 'jspdf';
@@ -173,12 +174,27 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                         const isCompleted = workout.completedExerciseIds?.includes(ex.id);
                         const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
 
+                        if (isCompleted) {
+                            return (
+                                <div key={ex.id} className="p-3 rounded-lg border bg-green-100 flex items-center justify-between transition-all duration-300 col-span-1">
+                                    <div className="flex items-center gap-3">
+                                        <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" />
+                                        <h3 className="font-semibold text-gray-800">{ex.name}</h3>
+                                    </div>
+                                    <button
+                                        onClick={() => toggleExerciseCompleted(ex.id)}
+                                        className="px-3 py-1 text-sm font-bold text-yellow-900 bg-yellow-400 rounded-md hover:bg-yellow-500"
+                                    >
+                                        Desfazer
+                                    </button>
+                                </div>
+                            )
+                        }
+
                         return (
-                            <div key={ex.id} className={`p-4 rounded-lg border relative flex flex-col transition-all duration-300 ${isCompleted ? 'bg-green-50 opacity-60' : 'bg-gray-50'}`}>
+                            <div key={ex.id} className={`p-4 rounded-lg border relative flex flex-col transition-all duration-300 bg-gray-50`}>
                                 <h3 className="font-bold text-lg mb-3 text-brand-secondary">{ex.name}</h3>
-                                {isCompleted && (
-                                    <div className="absolute top-3 right-3 text-green-600 font-bold text-sm">Concluído ✔</div>
-                                )}
+                                
                                 {embedUrl && (<div className="mb-4"><iframe className="w-full aspect-video rounded-md shadow" src={embedUrl} title={ex.name} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe></div>)}
                                 
                                 <div className="mb-3 overflow-x-auto">
@@ -206,9 +222,9 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                                      )}
                                      <button 
                                         onClick={() => toggleExerciseCompleted(ex.id)}
-                                        className={`w-full mt-3 py-2 px-4 text-sm font-bold rounded-lg shadow-sm transition-colors ${isCompleted ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500' : 'bg-green-500 text-white hover:bg-green-600'}`}
+                                        className={`w-full mt-3 py-2 px-4 text-sm font-bold rounded-lg shadow-sm transition-colors bg-green-500 text-white hover:bg-green-600`}
                                      >
-                                         {isCompleted ? 'Desfazer' : 'Concluir Exercício'}
+                                         {'Concluir Exercício'}
                                      </button>
                                 </div>
                             </div>

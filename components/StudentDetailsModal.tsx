@@ -781,7 +781,12 @@ const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Work
                 </button>
             </div>
             <div className="space-y-3">
-                {workouts.length > 0 ? workouts.map(w => (
+                {workouts.length > 0 ? workouts.map(w => {
+                    const totalExercises = w.exercises?.length || 0;
+                    const completedCount = w.completedExerciseIds?.length || 0;
+                    const progress = totalExercises > 0 ? (completedCount / totalExercises) * 100 : 0;
+                    
+                    return (
                     <div key={w.id} className="p-4 border rounded-lg bg-white shadow-sm">
                         <div className="flex justify-between items-start">
                             <p className="font-bold text-lg text-brand-dark">{w.title}</p>
@@ -792,16 +797,21 @@ const WorkoutsTab: React.FC<{ student: Student; trainer: Trainer; workouts: Work
                                 <button onClick={() => handleDeleteWorkout(w.id)} className="text-gray-400 hover:text-red-500"><TrashIcon className="w-5 h-5"/></button>
                             </div>
                         </div>
-                        <div className="mt-2">
-                           <p className="text-sm text-gray-500">{w.exercises?.length || 0} exercícios</p>
+                        <div className="mt-3 space-y-2">
+                           <div className="flex items-center gap-4">
+                                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                    <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
+                                </div>
+                                <span className="text-sm font-semibold text-gray-600 whitespace-nowrap">{completedCount}/{totalExercises} concluídos</span>
+                            </div>
                            {(w.exercises || []).some(ex => ex.studentFeedback) && (
-                               <div className="mt-2 text-sm text-blue-600 font-semibold bg-blue-50 p-2 rounded-md">
+                               <div className="text-sm text-blue-600 font-semibold bg-blue-50 p-2 rounded-md">
                                    <p>🔔 Um ou mais exercícios têm feedback do aluno!</p>
                                </div>
                            )}
                         </div>
                     </div>
-                )) : <p className="text-center text-gray-500 p-8">Nenhuma planilha de treino criada.</p>}
+                )}) : <p className="text-center text-gray-500 p-8">Nenhuma planilha de treino criada.</p>}
             </div>
         </div>
     );
