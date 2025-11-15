@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Plan, Student, DaySchedule, Trainer } from '../types';
 import { PlusIcon, TrashIcon } from './icons';
@@ -64,10 +63,7 @@ const initialStudentState = {
 };
 
 const AddStudentView: React.FC<AddStudentViewProps> = ({ plans, onBack, onAdd, allStudents, trainer }) => {
-  const [view, setView] = useState<'form' | 'success'>('form');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [createdStudent, setCreatedStudent] = useState<Omit<Student, 'id'> | null>(null);
-
   const [newStudent, setNewStudent] = useState(initialStudentState);
   const [sendLoginEmail, setSendLoginEmail] = useState(true);
 
@@ -165,26 +161,14 @@ const AddStudentView: React.FC<AddStudentViewProps> = ({ plans, onBack, onAdd, a
     setIsSubmitting(true);
     try {
         await onAdd(studentToAdd);
-        setCreatedStudent(studentToAdd);
         if (sendLoginEmail && studentToAdd.email) {
             await sendWelcomeEmail(studentToAdd);
         }
-        // Instead of showing a success view here, we let the parent component
-        // handle the navigation to the new student's detail page.
-        // setView('success'); // No longer needed
     } catch (error) {
         console.error("Failed to add student:", error);
         alert("Houve um erro ao salvar o aluno.");
         setIsSubmitting(false);
     }
-    // isSubmitting will be reset by parent component re-render
-  };
-
-  const resetForm = () => {
-    setNewStudent(initialStudentState);
-    setSendLoginEmail(true);
-    setCreatedStudent(null);
-    setView('form');
   };
 
   return (

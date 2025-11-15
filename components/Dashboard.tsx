@@ -1,11 +1,12 @@
-
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { db } from '../firebase';
+import { db, storage } from '../firebase';
 // FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
 import { collection, getDocs, doc, setDoc, addDoc, deleteDoc, Timestamp, query, orderBy, updateDoc, getDoc, where } from '@firebase/firestore';
+// FIX: Changed firebase import path to use the scoped package '@firebase/storage' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
+import { ref, uploadBytes, getDownloadURL } from '@firebase/storage';
 import { AUTH_SESSION_KEY } from '../constants';
 import { Student, Plan, Payment, Trainer, DaySchedule, WorkoutTemplate, PendingStudent, StudentGroup } from '../types';
-import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon, MailIcon, ClipboardListIcon, LinkIcon, UsersIcon, CheckCircleIcon } from './icons';
+import { UserIcon, DollarSignIcon, BriefcaseIcon, LogoutIcon, PlusIcon, ChartBarIcon, ExclamationCircleIcon, SettingsIcon, CalendarIcon, MailIcon, ClipboardListIcon, LinkIcon, UsersIcon, CheckCircleIcon, UploadCloudIcon, ClockIcon } from './icons';
 import StudentDetailsView from './StudentDetailsModal';
 import PlanManagementView from './PlanManagementModal';
 import AddStudentView from './AddStudentModal';
@@ -13,7 +14,7 @@ import FinancialReportView from './modals/FinancialReportModal';
 import Modal from './modals/Modal';
 import ScheduleView from './ScheduleView';
 import BulkEmailModal from './modals/BulkEmailModal';
-import WorkoutTemplateModal from './modals/WorkoutTemplateModal';
+import WorkoutTemplateView from './modals/WorkoutTemplateModal';
 import GroupManagementModal from './modals/GroupManagementModal';
 
 interface DashboardProps {
@@ -24,7 +25,7 @@ interface DashboardProps {
 type SortKey = 'name' | 'plan' | 'status';
 type SortDirection = 'asc' | 'desc';
 
-type ActiveView = 'dashboard' | 'schedule' | 'studentDetails' | 'planManagement' | 'addStudent' | 'financialReport' | 'profile' | 'workoutTemplates';
+type ActiveView = 'welcome' | 'studentList' | 'schedule' | 'studentDetails' | 'planManagement' | 'addStudent' | 'financialReport' | 'profile' | 'workoutTemplates';
 
 
 const Loader: React.FC = () => (
@@ -37,7 +38,7 @@ const Loader: React.FC = () => (
 const TrainerProfileView: React.FC<{
   onBack: () => void;
   trainer: Trainer;
-  onSave: (profileData: Omit<Trainer, 'id' | 'username' | 'password'>) => Promise<void>;
+  onSave: (profileData: Omit<Trainer, 'id' | 'username' | 'password'>, logoFile?: File | null) => Promise<void>;
   onUpdatePassword: (currentPassword: string, newPassword: string) => Promise<{success: boolean, message: string}>;
 }> = ({ onBack, trainer, onSave, onUpdatePassword }) => {
   const [formData, setFormData] = useState({
@@ -45,7 +46,10 @@ const TrainerProfileView: React.FC<{
     contactEmail: trainer.contactEmail || '',
     instagram: trainer.instagram || '',
     whatsapp: trainer.whatsapp || '',
+    logoUrl: trainer.logoUrl || ''
   });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(trainer.logoUrl || null);
 
   const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: ''});
   const [passwordMessage, setPasswordMessage] = useState({type: '', text: ''});
@@ -54,6 +58,14 @@ const TrainerProfileView: React.FC<{
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({...prev, [name]: value}));
+  };
+  
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setLogoFile(file);
+      setLogoPreview(URL.createObjectURL(file));
+    }
   };
   
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,8 +77,8 @@ const TrainerProfileView: React.FC<{
     e.preventDefault();
     setIsSaving(true);
     try {
-        await onSave(formData);
-        onBack();
+        await onSave(formData, logoFile);
+        alert("Perfil salvo com sucesso!");
     } catch (err) {
         // Error is alerted to user in the onSave function
     } finally {
@@ -97,26 +109,40 @@ const TrainerProfileView: React.FC<{
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
         <div className="flex justify-between items-center mb-6 border-b pb-4">
-            <h2 className="text-2xl font-bold text-brand-dark">Meu Perfil e Contato</h2>
+            <h2 className="text-2xl font-bold text-brand-dark">Meu Perfil e Marca</h2>
             <button onClick={onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">Voltar</button>
         </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Nome Completo (Exibição)</label>
-          <input type="text" name="fullName" value={formData.fullName} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
+        
+        <div className="flex items-center gap-6">
+          <div className="w-24 h-24 rounded-full bg-gray-100 flex-shrink-0 flex items-center justify-center border">
+            {logoPreview ? <img src={logoPreview} alt="Logo preview" className="w-full h-full rounded-full object-cover" /> : <UserIcon className="w-12 h-12 text-gray-400" />}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Logo Pessoal</label>
+            <p className="text-xs text-gray-500 mb-2">Aparecerá nos PDFs e no portal do aluno.</p>
+            <input type="file" accept="image/*" onChange={handleLogoChange} className="text-sm" />
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Email de Contato (Para respostas dos alunos)</label>
-          <input type="email" name="contactEmail" value={formData.contactEmail} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Instagram (apenas usuário, sem @)</label>
-          <input type="text" name="instagram" value={formData.instagram} onChange={handleInputChange} placeholder="ex: seunome" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">WhatsApp (com código do país)</label>
-          <input type="tel" name="whatsapp" value={formData.whatsapp} onChange={handleInputChange} placeholder="ex: 5511999998888" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Nome Completo (Exibição)</label>
+              <input type="text" name="fullName" value={formData.fullName} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Email de Contato</label>
+              <input type="email" name="contactEmail" value={formData.contactEmail} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Instagram (apenas usuário)</label>
+              <input type="text" name="instagram" value={formData.instagram} onChange={handleInputChange} placeholder="ex: seunome" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">WhatsApp (com código do país)</label>
+              <input type="tel" name="whatsapp" value={formData.whatsapp} onChange={handleInputChange} placeholder="ex: 5511999998888" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm" />
+            </div>
         </div>
         
         <div className="flex justify-end gap-4 pt-4">
@@ -157,6 +183,181 @@ const TrainerProfileView: React.FC<{
   );
 };
 
+const WelcomeDashboardView: React.FC<{
+    students: Student[];
+    payments: Payment[];
+    plans: Plan[];
+    onStudentClick: (studentId: string) => void;
+}> = ({ students, payments, plans, onStudentClick }) => {
+    const kpis = useMemo(() => {
+        const now = new Date();
+        const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
+        const activeStudents = students.filter(s => {
+            const plan = plans.find(p => p.id === s.planId);
+            if (!plan || s.accessBlocked) return false;
+            if (plan.type === 'duration') return s.paymentDueDate && new Date(s.paymentDueDate) >= now;
+            if (plan.type === 'session') return s.remainingSessions != null && s.remainingSessions > 0;
+            return false;
+        });
+
+        const revenueThisMonth = payments
+            .filter(p => new Date(p.paymentDate) >= firstDayThisMonth)
+            .reduce((sum, p) => sum + p.amount, 0);
+
+        const revenueLastMonth = payments
+            .filter(p => {
+                const pDate = new Date(p.paymentDate);
+                return pDate >= firstDayLastMonth && pDate <= lastDayLastMonth;
+            })
+            .reduce((sum, p) => sum + p.amount, 0);
+
+        const revenueChange = revenueLastMonth > 0 ? ((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100 : revenueThisMonth > 0 ? 100 : 0;
+        
+        return {
+            totalStudents: students.length,
+            activeStudents: activeStudents.length,
+            inactiveStudents: students.length - activeStudents.length,
+            revenueThisMonth,
+            revenueChange
+        };
+    }, [students, payments, plans]);
+
+    const upcomingAlerts = useMemo(() => {
+        const now = new Date();
+        const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const alerts: {student: Student, message: string}[] = [];
+
+        students.forEach(s => {
+            const plan = plans.find(p => p.id === s.planId);
+            if (!plan || s.accessBlocked) return;
+            if (plan.type === 'duration' && s.paymentDueDate) {
+                const dueDate = new Date(s.paymentDueDate);
+                if (dueDate < now) {
+                    alerts.push({student: s, message: 'Plano vencido!'});
+                } else if (dueDate <= nextWeek) {
+                    alerts.push({student: s, message: `Vence em ${dueDate.toLocaleDateString('pt-BR')}`});
+                }
+            } else if (plan.type === 'session' && s.remainingSessions != null && s.remainingSessions <= 3) {
+                 if (s.remainingSessions <= 0) {
+                     alerts.push({student: s, message: 'Aulas esgotadas!'});
+                 } else {
+                    alerts.push({student: s, message: `Restam ${s.remainingSessions} aulas`});
+                 }
+            }
+        });
+
+        return alerts.slice(0, 5); // Limit to 5 alerts
+    }, [students, plans]);
+    
+    const todaySchedule = useMemo(() => {
+        const today = new Date();
+        const dayKey = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][today.getDay()];
+        return students
+            .filter(s => s.schedule?.some(item => item.day === dayKey && item.startTime))
+            .map(s => {
+                const todayItem = s.schedule?.find(item => item.day === dayKey)!;
+                return {
+                    studentId: s.id,
+                    name: s.name,
+                    time: todayItem.startTime,
+                };
+            })
+            .sort((a, b) => a.time.localeCompare(b.time));
+    }, [students]);
+
+    return (
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* KPI Cards */}
+                <div className="bg-white p-6 rounded-lg shadow-md flex items-center gap-4"><div className="bg-blue-100 p-3 rounded-full"><UsersIcon className="w-8 h-8 text-blue-500"/></div><div><p className="text-gray-500 text-sm">Total de Alunos</p><p className="text-2xl font-bold text-brand-dark">{kpis.totalStudents}</p></div></div>
+                <div className="bg-white p-6 rounded-lg shadow-md flex items-center gap-4"><div className="bg-green-100 p-3 rounded-full"><CheckCircleIcon className="w-8 h-8 text-green-500"/></div><div><p className="text-gray-500 text-sm">Alunos Ativos</p><p className="text-2xl font-bold text-brand-dark">{kpis.activeStudents}</p></div></div>
+                <div className="bg-white p-6 rounded-lg shadow-md flex items-center gap-4"><div className="bg-red-100 p-3 rounded-full"><ExclamationCircleIcon className="w-8 h-8 text-red-500"/></div><div><p className="text-gray-500 text-sm">Alunos Inativos</p><p className="text-2xl font-bold text-brand-dark">{kpis.inactiveStudents}</p></div></div>
+                <div className="bg-white p-6 rounded-lg shadow-md flex items-center gap-4"><div className="bg-purple-100 p-3 rounded-full"><DollarSignIcon className="w-8 h-8 text-purple-500"/></div><div><p className="text-gray-500 text-sm">Receita do Mês</p><p className="text-2xl font-bold text-brand-dark">R$ {kpis.revenueThisMonth.toFixed(2)}</p><span className={`text-xs font-bold ${kpis.revenueChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>{kpis.revenueChange.toFixed(0)}% vs. mês anterior</span></div></div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                 {/* Agenda do Dia */}
+                <div className="bg-white p-6 rounded-lg shadow-md lg:col-span-1">
+                     <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><CalendarIcon className="w-6 h-6 text-brand-dark"/> Agenda de Hoje</h3>
+                     {todaySchedule.length > 0 ? (
+                        <div className="space-y-3 max-h-64 overflow-y-auto">
+                            {todaySchedule.map(item => (
+                                <button key={item.studentId} onClick={() => onStudentClick(item.studentId)} className="w-full text-left flex items-center gap-3 p-3 bg-gray-50 rounded-md hover:bg-gray-100">
+                                    <div className="bg-brand-primary text-white font-bold text-sm rounded-md h-8 w-12 flex items-center justify-center">{item.time}</div>
+                                    <p className="font-semibold">{item.name}</p>
+                                </button>
+                            ))}
+                        </div>
+                     ) : <p className="text-center text-gray-500 pt-8">Nenhum aluno agendado para hoje.</p>}
+                </div>
+                 {/* Alertas Rápidos */}
+                <div className="bg-white p-6 rounded-lg shadow-md lg:col-span-2">
+                     <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><ExclamationCircleIcon className="w-6 h-6 text-yellow-500"/> Alertas Rápidos</h3>
+                     {upcomingAlerts.length > 0 ? (
+                         <div className="space-y-2">
+                            {upcomingAlerts.map(({student, message}) => (
+                                <button key={student.id} onClick={() => onStudentClick(student.id)} className="w-full text-left flex justify-between items-center p-3 bg-yellow-50 rounded-md hover:bg-yellow-100">
+                                    <p className="font-semibold">{student.name}</p>
+                                    <p className="text-sm font-medium text-yellow-800">{message}</p>
+                                </button>
+                            ))}
+                         </div>
+                     ) : <p className="text-center text-gray-500 pt-8">Nenhum aviso importante no momento.</p>}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+const Sidebar: React.FC<{
+    activeView: ActiveView,
+    setActiveView: (view: ActiveView) => void,
+    onLogout: () => void,
+    pendingStudentsCount: number
+}> = ({ activeView, setActiveView, onLogout, pendingStudentsCount }) => {
+    const NavItem: React.FC<{view: ActiveView, label: string, Icon: React.FC<{className?: string}>, alertCount?: number}> = ({view, label, Icon, alertCount}) => (
+        <button
+            onClick={() => setActiveView(view)}
+            className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-colors ${
+                activeView === view ? 'bg-brand-accent text-white' : 'text-gray-300 hover:bg-brand-secondary hover:text-white'
+            }`}
+        >
+            <Icon className="w-6 h-6"/>
+            <span className="font-semibold">{label}</span>
+            {alertCount && alertCount > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">{alertCount}</span>
+            )}
+        </button>
+    );
+
+    return (
+        <aside className="w-64 bg-brand-dark text-white flex flex-col p-4 flex-shrink-0">
+            <nav className="flex-grow space-y-2">
+                <NavItem view="welcome" label="Dashboard" Icon={ChartBarIcon} />
+                <NavItem view="studentList" label="Alunos" Icon={UserIcon} alertCount={pendingStudentsCount} />
+                <NavItem view="schedule" label="Agenda" Icon={CalendarIcon} />
+                <NavItem view="planManagement" label="Planos" Icon={BriefcaseIcon} />
+                <NavItem view="workoutTemplates" label="Modelos de Treino" Icon={ClipboardListIcon} />
+                <NavItem view="financialReport" label="Financeiro" Icon={DollarSignIcon} />
+            </nav>
+            <div className="mt-auto space-y-2">
+                <NavItem view="profile" label="Meu Perfil" Icon={SettingsIcon} />
+                <button
+                    onClick={onLogout}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg text-gray-300 hover:bg-brand-secondary hover:text-white transition-colors"
+                >
+                    <LogoutIcon className="w-6 h-6"/>
+                    <span className="font-semibold">Sair</span>
+                </button>
+            </div>
+        </aside>
+    );
+};
+
 
 const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -169,7 +370,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
-  const [activeView, setActiveView] = useState<ActiveView>('dashboard');
+  const [activeView, setActiveView] = useState<ActiveView>('welcome');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   const [isBulkEmailModalOpen, setBulkEmailModalOpen] = useState(false);
@@ -185,32 +386,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     try {
       const toISO = (ts: any) => ts && ts.toDate ? ts.toDate().toISOString() : null;
       
-      const studentsSnapshot = await getDocs(collection(db, 'students'));
-      const plansSnapshot = await getDocs(collection(db, 'plans'));
-      const paymentsSnapshot = await getDocs(query(collection(db, 'payments'), orderBy('paymentDate', 'desc')));
-      const templatesSnapshot = await getDocs(collection(db, 'workoutTemplates'));
+      const studentsSnapshot = await getDocs(query(collection(db, 'students'), where("trainerId", "==", currentTrainer.id)));
+      const plansSnapshot = await getDocs(query(collection(db, 'plans'), where("trainerId", "==", currentTrainer.id)));
+      const paymentsSnapshot = await getDocs(query(collection(db, 'payments'), where("trainerId", "==", currentTrainer.id), orderBy('paymentDate', 'desc')));
+      const templatesSnapshot = await getDocs(query(collection(db, 'workoutTemplates'), where("trainerId", "==", currentTrainer.id)));
       const pendingStudentsQuery = query(collection(db, 'pendingStudents'), where("trainerId", "==", currentTrainer.id), where("status", "==", "pending"));
       const pendingStudentsSnapshot = await getDocs(pendingStudentsQuery);
       const groupsQuery = query(collection(db, 'studentGroups'), where("trainerId", "==", currentTrainer.id));
       const groupsSnapshot = await getDocs(groupsQuery);
 
-
-      const filterByTrainer = (doc: any) => {
-          const data = doc.data();
-          return data.trainerId === currentTrainer.id || (currentTrainer.username === 'bruno' && !data.trainerId);
-      };
-
-      const studentsList = studentsSnapshot.docs.filter(filterByTrainer).map(docSnapshot => {
+      const studentsList = studentsSnapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data();
-        let scheduleData = data.schedule || null;
-        if (scheduleData && !Array.isArray(scheduleData)) {
-            if (typeof scheduleData === 'object' && scheduleData.day && scheduleData.startTime) {
-                scheduleData = [scheduleData];
-            } else {
-                scheduleData = null;
-            }
-        }
-
         return {
           ...data,
           id: docSnapshot.id,
@@ -218,15 +404,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
           paymentDueDate: toISO(data.paymentDueDate),
           birthDate: toISO(data.birthDate),
           sessions: (data.sessions || []).filter(Boolean).map((s: any) => ({ ...s, date: toISO(s.date) })),
-          schedule: scheduleData,
         } as Student;
       });
 
-      const plansList = plansSnapshot.docs.filter(filterByTrainer).map(docSnapshot => ({ ...docSnapshot.data(), id: docSnapshot.id } as Plan));
+      const plansList = plansSnapshot.docs.map(docSnapshot => ({ ...docSnapshot.data(), id: docSnapshot.id } as Plan));
       
-      const templatesList = templatesSnapshot.docs.filter(filterByTrainer).map(docSnapshot => ({ ...docSnapshot.data(), id: docSnapshot.id } as WorkoutTemplate));
+      const templatesList = templatesSnapshot.docs.map(docSnapshot => ({ ...docSnapshot.data(), id: docSnapshot.id } as WorkoutTemplate));
 
-      const paymentsList = paymentsSnapshot.docs.filter(filterByTrainer).map(docSnapshot => {
+      const paymentsList = paymentsSnapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data();
         return {
             ...data,
@@ -247,16 +432,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       
       let groupsList = groupsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as StudentGroup));
 
-      if (groupsList.length === 0) {
-        // If no groups exist, create the defaults and refetch
-        await Promise.all([
-          addDoc(collection(db, 'studentGroups'), { name: 'Presencial', trainerId: currentTrainer.id }),
-          addDoc(collection(db, 'studentGroups'), { name: 'Online', trainerId: currentTrainer.id })
-        ]);
-        const newGroupsSnapshot = await getDocs(groupsQuery);
-        groupsList = newGroupsSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as StudentGroup));
-      }
-
       setStudents(studentsList);
       setPlans(plansList);
       setPayments(paymentsList);
@@ -270,95 +445,80 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     } finally {
       setLoading(false);
     }
-  }, [currentTrainer.id, currentTrainer.username]);
+  }, [currentTrainer.id]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const handleApproveStudent = async (pendingStudent: PendingStudent) => {
-      // 1. Check for duplicate email
       const emailExists = students.some(
           student => student.email.toLowerCase() === pendingStudent.email.toLowerCase()
       );
-
       if (emailExists) {
-          alert(
-              `Erro: O e-mail "${pendingStudent.email}" já está cadastrado para outro aluno. ` +
-              `Por favor, rejeite esta solicitação.`
-          );
+          alert(`Erro: O e-mail "${pendingStudent.email}" já está cadastrado.`);
           return;
       }
-
       try {
-          // 2. Create a complete student object with defaults for optional fields
           const newStudentData: Omit<Student, 'id'> = {
               name: pendingStudent.name,
               email: pendingStudent.email,
               phone: pendingStudent.phone,
               birthDate: pendingStudent.birthDate,
               startDate: new Date().toISOString(),
-              planId: null,
-              paymentDueDate: null,
-              sessions: [],
-              remainingSessions: null,
-              profilePictureUrl: pendingStudent.profilePictureUrl || null,
-              schedule: null,
-              remindersSent: {},
-              accessBlocked: false,
-              groupIds: [],
-              trainerId: pendingStudent.trainerId,
+              planId: null, paymentDueDate: null, sessions: [],
+              remainingSessions: null, profilePictureUrl: pendingStudent.profilePictureUrl || null,
+              schedule: null, remindersSent: {}, accessBlocked: false,
+              groupIds: [], trainerId: pendingStudent.trainerId,
           };
-          
-          // 3. Add to Firestore with correct Timestamp conversion
           await addDoc(collection(db, 'students'), {
               ...newStudentData,
               startDate: Timestamp.fromDate(new Date(newStudentData.startDate)),
               birthDate: newStudentData.birthDate ? Timestamp.fromDate(new Date(newStudentData.birthDate)) : null
           });
-
-          // 4. Delete the pending request
           await deleteDoc(doc(db, 'pendingStudents', pendingStudent.id));
-          
-          // 5. Refresh data and notify user
-          fetchData(); // Refresh all data
-          alert(`${pendingStudent.name} foi aprovado(a) e adicionado(a) à sua lista de alunos.`);
+          fetchData();
+          alert(`${pendingStudent.name} foi aprovado(a).`);
       } catch (error) {
           console.error("Error approving student:", error);
-          alert("Ocorreu um erro ao aprovar o aluno. Verifique o console para mais detalhes.");
+          alert("Ocorreu um erro ao aprovar o aluno.");
       }
   };
 
 
   const handleRejectStudent = async (pendingStudentId: string) => {
-    if (window.confirm("Tem certeza que deseja rejeitar esta solicitação? A ação não pode ser desfeita.")) {
+    if (window.confirm("Tem certeza que deseja rejeitar esta solicitação?")) {
         try {
             await deleteDoc(doc(db, 'pendingStudents', pendingStudentId));
             fetchData();
-            alert("Solicitação rejeitada com sucesso.");
+            alert("Solicitação rejeitada.");
         } catch(error) {
             console.error("Error rejecting student:", error);
-            alert("Ocorreu um erro ao rejeitar a solicitação.");
+            alert("Ocorreu um erro ao rejeitar.");
         }
     }
   };
 
   const handleSaveProfile = async (
-    profileData: Omit<Trainer, 'id' | 'username' | 'password'>
+    profileData: Omit<Trainer, 'id' | 'username' | 'password'>,
+    logoFile?: File | null
   ) => {
     try {
         const trainerRef = doc(db, 'trainers', currentTrainer.id);
+        let updatedProfileData = { ...profileData };
 
-        await updateDoc(trainerRef, profileData);
+        if (logoFile) {
+            const logoRef = ref(storage, `trainer_logos/${currentTrainer.id}/${logoFile.name}`);
+            const snapshot = await uploadBytes(logoRef, logoFile);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            updatedProfileData.logoUrl = downloadURL;
+        }
 
-        // Update local state for immediate UI feedback without a page reload
-        const updatedTrainer = { ...currentTrainer, ...profileData };
+        await updateDoc(trainerRef, updatedProfileData);
+
+        const updatedTrainer = { ...currentTrainer, ...updatedProfileData };
         setCurrentTrainer(updatedTrainer);
-        
-        // Update session storage so a future refresh still has the data
         sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(updatedTrainer));
-        
-        alert("Perfil salvo com sucesso!");
 
     } catch (error) {
         console.error("Failed to save profile:", error);
@@ -390,40 +550,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       }
   }
   
-  const upcomingExpirations = useMemo(() => {
-    const now = new Date();
-    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const lowSessionThreshold = 3;
-
-    return students.filter(s => {
-      const plan = plans.find(p => p.id === s.planId);
-      if (!plan) return false;
-
-      if (plan.type === 'duration') {
-        return s.paymentDueDate && new Date(s.paymentDueDate) <= nextWeek;
-      }
-      if (plan.type === 'session') {
-        return s.remainingSessions != null && s.remainingSessions > 0 && s.remainingSessions <= lowSessionThreshold;
-      }
-      return false;
-    });
-  }, [students, plans]);
-
-  const activeStudents = useMemo(() => {
-    return students.filter(s => {
-       const plan = plans.find(p => p.id === s.planId);
-       if (!plan) return false;
-       if (s.accessBlocked) return false; // Exclude blocked students
-       if (plan.type === 'duration') {
-           return s.paymentDueDate && new Date(s.paymentDueDate) > new Date();
-       }
-       if (plan.type === 'session') {
-           return s.remainingSessions != null && s.remainingSessions > 0;
-       }
-       return false;
-    });
-  }, [students, plans]);
-
   const handleUpdateStudent = async (updatedStudent: Student) => {
     const studentRef = doc(db, 'students', updatedStudent.id);
     const dataToUpdate = {
@@ -434,8 +560,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         birthDate: updatedStudent.birthDate ? Timestamp.fromDate(new Date(updatedStudent.birthDate)) : null,
         sessions: updatedStudent.sessions.map(s => ({ ...s, date: Timestamp.fromDate(new Date(s.date))}))
     };
-    delete (dataToUpdate as any).id;
-    await setDoc(studentRef, dataToUpdate, { merge: true });
+    const { id, ...rest } = dataToUpdate;
+    await setDoc(studentRef, rest, { merge: true });
     setStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
     setSelectedStudent(updatedStudent);
   };
@@ -451,7 +577,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     const docRef = await addDoc(collection(db, 'students'), studentWithTimestamps);
     const newStudentWithId = { ...newStudentData, id: docRef.id, trainerId: currentTrainer.id };
     setStudents(prev => [...prev, newStudentWithId]);
-    fetchData(); // Refresh to get all data consistent
+    fetchData(); 
     setSelectedStudent(newStudentWithId);
     setActiveView('studentDetails');
   };
@@ -460,7 +586,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       await deleteDoc(doc(db, 'students', studentId));
       setStudents(prev => prev.filter(s => s.id !== studentId));
       setSelectedStudent(null);
-      setActiveView('dashboard');
+      setActiveView('studentList');
   }
 
   const handleAddPlan = async (planData: Omit<Plan, 'id'>) => {
@@ -471,23 +597,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
 
   const handleUpdatePlan = async (updatedPlan: Plan) => {
       const planRef = doc(db, 'plans', updatedPlan.id);
-      // Ensure trainerId is always set to the current trainer. This prevents errors when updating
-      // legacy plans that might not have a trainerId, which would cause Firestore to reject
-      // an 'undefined' value. It also correctly assigns ownership.
       const dataToUpdate = { 
           ...updatedPlan,
           trainerId: currentTrainer.id 
       };
-      delete (dataToUpdate as any).id;
-      await setDoc(planRef, dataToUpdate);
-
-      // Create a final version of the plan with the correct trainerId for local state update
+      const { id, ...rest } = dataToUpdate;
+      await setDoc(planRef, rest);
       const finalUpdatedPlan = { ...updatedPlan, trainerId: currentTrainer.id };
       setPlans(prev => prev.map(p => p.id === updatedPlan.id ? finalUpdatedPlan : p));
   }
 
   const handleDeletePlan = async (planId: string) => {
-      if(window.confirm("Tem certeza que deseja excluir este plano? Alunos associados a ele não serão afetados, mas você não poderá adicioná-lo a novos alunos.")) {
+      if(window.confirm("Tem certeza que deseja excluir este plano?")) {
           await deleteDoc(doc(db, 'plans', planId));
           setPlans(prev => prev.filter(p => p.id !== planId));
       }
@@ -505,13 +626,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   };
 
   const handleDeletePayment = async (paymentId: string) => {
-    if (window.confirm("Tem certeza que deseja excluir este lançamento financeiro? Esta ação não pode ser desfeita.")) {
+    if (window.confirm("Tem certeza que deseja excluir este lançamento?")) {
       try {
         await deleteDoc(doc(db, 'payments', paymentId));
         setPayments(prev => prev.filter(p => p.id !== paymentId));
       } catch (err) {
         console.error("Error deleting payment:", err);
-        alert("Não foi possível excluir o lançamento. Tente novamente.");
+        alert("Não foi possível excluir o lançamento.");
       }
     }
   };
@@ -542,7 +663,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
           if (dueDate < now) return { text: 'Vencido', color: 'red', situation: situationText };
           
           const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-          if (dueDate <= nextWeek) return { text: 'Vence em breve', color: 'yellow', situation: situationText };
+          if (dueDate <= nextWeek) return { text: 'Vence breve', color: 'yellow', situation: situationText };
 
           return { text: 'Ativo', color: 'green', situation: situationText };
       }
@@ -550,20 +671,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       if (plan.type === 'session') {
           const remaining = student.remainingSessions;
           if (remaining == null || isNaN(remaining)) {
-              return { text: 'Ativo', color: 'green', situation: 'Sessões não monitoradas' };
+              return { text: 'Ativo', color: 'green', situation: 'Sessões N/A' };
           }
           if (remaining < 0) {
               const plural = Math.abs(remaining) > 1;
               return { text: 'Devendo', color: 'red', situation: `${Math.abs(remaining)} aula${plural ? 's' : ''} a deduzir` };
           }
           if (remaining === 0) {
-              return { text: 'Sem Aulas', color: 'red', situation: 'Nenhuma aula restante' };
+              return { text: 'Sem Aulas', color: 'red', situation: 'Nenhuma aula' };
           }
           if (remaining <= 3) {
               const plural = remaining > 1;
-              return { text: 'Aulas Acabando', color: 'yellow', situation: `${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}` };
+              return { text: 'Acabando', color: 'yellow', situation: `${remaining} aula${plural ? 's' : ''}` };
           }
-          return { text: 'Ativo', color: 'green', situation: `${remaining} aulas restantes` };
+          return { text: 'Ativo', color: 'green', situation: `${remaining} aulas` };
       }
       
       return { text: 'N/A', color: 'gray', situation: 'N/A' };
@@ -629,82 +750,34 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     </th>
   );
   
-  const renderDashboard = () => (
+  const renderStudentList = () => (
     <>
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white p-6 rounded-lg shadow-md flex items-center gap-4">
-                <div className="bg-blue-100 p-3 rounded-full"><UserIcon className="w-8 h-8 text-blue-500"/></div>
-                <div>
-                    <p className="text-gray-500 text-sm">Total de Alunos</p>
-                    <p className="text-2xl font-bold text-brand-dark">{students.length}</p>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b pb-4 gap-4">
+                <h2 className="text-2xl font-bold text-brand-dark">Meus Alunos</h2>
+                 <div className="flex flex-wrap items-center gap-4">
+                    <button onClick={() => setActiveView('addStudent')} className="flex items-center gap-2 bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-accent transition-colors shadow">
+                        <PlusIcon className="w-5 h-5" /> Adicionar Aluno
+                    </button>
+                    <div>
+                        <label htmlFor="group-filter" className="text-sm font-medium text-gray-700 mr-2">Filtrar por Grupo:</label>
+                        <select id="group-filter" value={groupFilter} onChange={e => setGroupFilter(e.target.value)} className="border-gray-300 rounded-md shadow-sm text-sm">
+                            <option value="all">Todos os Grupos</option>
+                            {studentGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        </select>
+                    </div>
                 </div>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow-md flex items-center gap-4">
-                <div className="bg-green-100 p-3 rounded-full"><DollarSignIcon className="w-8 h-8 text-green-500"/></div>
-                <div>
-                    <p className="text-gray-500 text-sm">Alunos Ativos</p>
-                    <p className="text-2xl font-bold text-brand-dark">{activeStudents.length}</p>
-                </div>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow-md flex items-center gap-4">
-                <div className="bg-yellow-100 p-3 rounded-full"><DollarSignIcon className="w-8 h-8 text-yellow-500"/></div>
-                <div>
-                    <p className="text-gray-500 text-sm">Avisos Próximos</p>
-                    <p className="text-2xl font-bold text-brand-dark">{upcomingExpirations.length}</p>
-                </div>
-            </div>
-        </div>
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-4 mb-8">
-            <button onClick={() => setActiveView('addStudent')} className="flex items-center gap-2 bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-accent transition-colors shadow">
-                <PlusIcon className="w-5 h-5" /> Adicionar Aluno
-            </button>
-            <button onClick={() => setActiveView('planManagement')} className="flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors shadow">
-                <BriefcaseIcon className="w-5 h-5" /> Gerenciar Planos
-            </button>
-            <button onClick={() => setGroupModalOpen(true)} className="flex items-center gap-2 bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition-colors shadow">
-                <UsersIcon className="w-5 h-5" /> Gerenciar Grupos
-            </button>
-            <button onClick={() => setCopyLinkModalOpen(true)} className="flex items-center gap-2 bg-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors shadow">
-                <LinkIcon className="w-5 h-5" /> Link de Cadastro
-            </button>
-             <button onClick={() => setActiveView('workoutTemplates')} className="flex items-center gap-2 bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-600 transition-colors shadow">
-                <ClipboardListIcon className="w-5 h-5" /> Modelos de Treino
-            </button>
-             <button onClick={() => setActiveView('schedule')} className="flex items-center gap-2 bg-blue-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors shadow">
-                <CalendarIcon className="w-5 h-5" /> Ver Agenda
-            </button>
-             <button onClick={() => setBulkEmailModalOpen(true)} className="flex items-center gap-2 bg-orange-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-orange-600 transition-colors shadow">
-                <MailIcon className="w-5 h-5" /> Enviar E-mail
-            </button>
-            <button onClick={() => setActiveView('financialReport')} className="flex items-center gap-2 bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors shadow">
-                <ChartBarIcon className="w-5 h-5" /> Controle Financeiro
-            </button>
-            <button onClick={() => setActiveView('profile')} className="relative flex items-center gap-2 bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 transition-colors shadow">
-                <SettingsIcon className="w-5 h-5" /> Meu Perfil
-            </button>
-        </div>
-        
-        {pendingStudents.length > 0 && (
+            {pendingStudents.length > 0 && (
             <div className="mb-8 p-4 bg-yellow-50 border border-yellow-300 rounded-lg shadow-sm">
                 <h3 className="font-bold text-lg text-yellow-900 mb-3">{pendingStudents.length} Nova(s) Solicitação(ões) de Cadastro</h3>
                 <div className="space-y-2">
                     {pendingStudents.map(ps => (
                         <div key={ps.id} className="flex items-center justify-between p-3 bg-white rounded-md border">
                             <div className="flex items-center gap-3">
-                                {ps.profilePictureUrl ? (
-                                    <img src={ps.profilePictureUrl} alt={ps.name} className="w-10 h-10 rounded-full object-cover"/>
-                                ) : (
-                                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                                        <UserIcon className="w-6 h-6 text-gray-500"/>
-                                    </div>
-                                )}
-                                <div>
-                                    <p className="font-semibold">{ps.name}</p>
-                                    <p className="text-sm text-gray-500">{ps.email}</p>
-                                </div>
+                                {ps.profilePictureUrl ? (<img src={ps.profilePictureUrl} alt={ps.name} className="w-10 h-10 rounded-full object-cover"/>) : (<div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center"><UserIcon className="w-6 h-6 text-gray-500"/></div>)}
+                                <div><p className="font-semibold">{ps.name}</p><p className="text-sm text-gray-500">{ps.email}</p></div>
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={() => handleApproveStudent(ps)} className="px-3 py-1 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Aprovar</button>
@@ -714,182 +787,94 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                     ))}
                 </div>
             </div>
-        )}
+            )}
 
-          <div className="bg-white rounded-lg shadow-md overflow-hidden">
-              <div className="p-6 border-b flex justify-between items-center">
-                  <h2 className="text-xl font-bold">Lista de Alunos</h2>
-                  <div>
-                    <label htmlFor="group-filter" className="text-sm font-medium text-gray-700 mr-2">Filtrar por Grupo:</label>
-                    <select id="group-filter" value={groupFilter} onChange={e => setGroupFilter(e.target.value)} className="border-gray-300 rounded-md shadow-sm text-sm">
-                        <option value="all">Todos os Grupos</option>
-                        {studentGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                    </select>
-                  </div>
-              </div>
               {loading ? <Loader /> : error ? (
-                  <div className="m-4 sm:m-6 lg:m-8 bg-red-50 border border-red-200 p-6 rounded-lg shadow-sm">
-                      <div className="flex items-start">
-                          <div className="flex-shrink-0">
-                              <ExclamationCircleIcon className="h-8 w-8 text-red-500" />
-                          </div>
-                          <div className="ml-4 flex-1">
-                              <h3 className="text-lg font-bold text-red-800">Ação Necessária: Erro de Acesso ao Banco de Dados</h3>
-                              {error === "CONNECTION_ERROR" ? (
-                                  <div className="mt-2 text-sm text-red-700 space-y-4">
-                                      <p>A aplicação não conseguiu se conectar ou ler os dados do seu banco de dados Firebase. A causa exata está no console do seu navegador.</p>
-                                      
-                                      <div className="p-3 bg-red-100 rounded-md border border-red-300">
-                                          <h4 className="font-bold text-red-900">Como Diagnosticar o Erro Exato</h4>
-                                          <ol className="list-decimal list-inside space-y-1 mt-1 text-red-800">
-                                              <li>Pressione a tecla <strong className="font-mono bg-white text-red-900 px-1 py-0.5 rounded">F12</strong> no seu teclado para abrir o "Console do Desenvolvedor".</li>
-                                              <li>Recarregue a página e tente realizar a ação novamente.</li>
-                                              <li>Procure por uma mensagem de erro em vermelho que começa com <strong className="font-mono">"Firebase Connection Error Details:"</strong>. O texto que se segue é o erro real.</li>
-                                          </ol>
-                                      </div>
-                                      
-                                      <div>
-                                          <h4 className="font-bold">Soluções Para Erros Comuns</h4>
-                                          <p className="mb-2">Com base no erro que você encontrou no console, aqui estão as soluções:</p>
-                                          <div className="space-y-3 pl-2">
-                                              
-                                              <div className="border-l-4 border-red-300 pl-3">
-                                                  <p className="font-semibold text-red-800">SE O ERRO DIZ: <strong className="font-mono">"The query requires an index"</strong></p>
-                                                  <p className="mt-1">Este é o erro mais comum após a configuração inicial. Significa que o banco de dados precisa de um "índice" para buscar os dados de forma eficiente.</p>
-                                                  <ol className="list-decimal list-inside space-y-1 mt-2 text-red-800">
-                                                      <li>A própria mensagem de erro no console contém um <strong>link longo</strong>.</li>
-                                                      <li><strong>Clique nesse link.</strong> Ele o levará diretamente ao Firebase Console.</li>
-                                                      <li>Uma janela aparecerá para criar o índice. Apenas clique em <strong>"Criar"</strong>.</li>
-                                                      <li>A criação do índice pode levar alguns minutos. Aguarde e depois atualize a aplicação. O problema estará resolvido.</li>
-                                                  </ol>
-                                              </div>
-
-                                              <div className="border-l-4 border-red-300 pl-3 pt-2">
-                                                  <p className="font-semibold text-red-800">SE O ERRO DIZ: <strong className="font-mono">"permission-denied"</strong></p>
-                                                  <p className="mt-1">Isto significa que suas <strong>Regras de Segurança</strong> do Firestore estão bloqueando o acesso. Para desenvolvimento, você pode usar regras abertas.</p>
-                                                  <p className="mt-1">Vá para a seção <strong>Firestore Database &gt; Rules</strong> no seu Firebase Console e cole as seguintes regras:</p>
-                                                  <pre className="mt-1 p-2 bg-red-100 text-red-900 rounded text-xs whitespace-pre-wrap font-mono">
-                                                      {`rules_version = '2';\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if true;\n    }\n  }\n}`}
-                                                  </pre>
-                                              </div>
-
-                                              <div className="border-l-4 border-red-300 pl-3 pt-2">
-                                                  <p className="font-semibold text-red-800">OUTROS ERROS (ex: <strong className="font-mono">invalid-api-key</strong>, <strong className="font-mono">NOT_FOUND</strong>)</p>
-                                                  <p className="mt-1">Estes erros geralmente indicam um problema de configuração no arquivo <strong>\`firebase.ts\`</strong>. Verifique se você copiou e colou <strong>exatamente</strong> as credenciais do seu projeto Firebase.</p>
-                                              </div>
-                                              
-                                          </div>
-                                      </div>
-                                  </div>
-                              ) : (
-                                  <div className="mt-2 text-sm text-red-700">
-                                    <p>{error}</p>
-                                  </div>
-                              )}
-                          </div>
-                      </div>
+                  <div className="m-4 bg-red-50 border border-red-200 p-6 rounded-lg shadow-sm">
+                      <div className="flex items-start"><div className="flex-shrink-0"><ExclamationCircleIcon className="h-8 w-8 text-red-500" /></div><div className="ml-4 flex-1"><h3 className="text-lg font-bold text-red-800">Erro de Acesso ao Banco de Dados</h3>{error === "CONNECTION_ERROR" ? (<div className="mt-2 text-sm text-red-700 space-y-4"><p>A aplicação não conseguiu se conectar ou ler os dados do seu banco de dados Firebase.</p><p><strong>Causa Mais Comum:</strong> O Firestore requer um "índice" para consultas complexas. A mensagem de erro no console do navegador (<strong className="font-mono">F12</strong>) geralmente contém um link para criar este índice automaticamente.</p></div>) : (<div className="mt-2 text-sm text-red-700"><p>{error}</p></div>)}</div></div>
                   </div>
               ) : (
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
-                        <thead className="bg-brand-light">
-                            <tr>
-                                <SortableHeader sortKey="name" label="Nome" />
-                                <SortableHeader sortKey="plan" label="Plano" />
-                                <th className="p-4 font-semibold">Grupos</th>
-                                <th className="p-4 font-semibold">Situação</th>
-                                <SortableHeader sortKey="status" label="Status" />
-                            </tr>
-                        </thead>
+                        <thead className="bg-brand-light"><tr><SortableHeader sortKey="name" label="Nome" /><SortableHeader sortKey="plan" label="Plano" /><th className="p-4 font-semibold">Grupos</th><th className="p-4 font-semibold">Situação</th><SortableHeader sortKey="status" label="Status" /></tr></thead>
                         <tbody>
                             {sortedStudents.length > 0 ? sortedStudents.map(student => {
                                 const status = getStudentStatus(student);
-                                const colorClasses: { [key: string]: string } = {
-                                    red: 'text-red-800 bg-red-100',
-                                    yellow: 'text-yellow-800 bg-yellow-100',
-                                    green: 'text-green-800 bg-green-100',
-                                    gray: 'text-gray-800 bg-gray-100',
-                                }
+                                const colorClasses: { [key: string]: string } = { red: 'text-red-800 bg-red-100', yellow: 'text-yellow-800 bg-yellow-100', green: 'text-green-800 bg-green-100', gray: 'text-gray-800 bg-gray-100' }
                                 const groups = student.groupIds?.map(gid => studentGroups.find(g => g.id === gid)?.name).filter(Boolean) || [];
                                 return (
                                     <tr key={student.id} onClick={() => handleSelectStudent(student.id)} className="border-t hover:bg-gray-50 cursor-pointer">
-                                        <td className="p-4 font-medium">
-                                            <div className="flex items-center gap-3">
-                                                {student.profilePictureUrl ? (
-                                                    <img src={student.profilePictureUrl} alt={student.name} className="w-10 h-10 rounded-full object-cover"/>
-                                                ) : (
-                                                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                                                        <UserIcon className="w-6 h-6 text-gray-500"/>
-                                                    </div>
-                                                )}
-                                                <span>{student.name}</span>
-                                            </div>
-                                        </td>
+                                        <td className="p-4 font-medium"><div className="flex items-center gap-3">{student.profilePictureUrl ? (<img src={student.profilePictureUrl} alt={student.name} className="w-10 h-10 rounded-full object-cover"/>) : (<div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center"><UserIcon className="w-6 h-6 text-gray-500"/></div>)}<span>{student.name}</span></div></td>
                                         <td className="p-4 text-gray-600">{getPlan(student.planId)?.name || 'N/A'}</td>
-                                        <td className="p-4 text-gray-600 text-sm">
-                                            {groups.length > 0 ? groups.map(g => <span key={g} className="inline-block bg-gray-200 rounded-full px-2 py-1 text-xs mr-1 mb-1">{g}</span>) : 'N/A'}
-                                        </td>
+                                        <td className="p-4 text-gray-600 text-sm">{groups.length > 0 ? groups.map(g => <span key={g} className="inline-block bg-gray-200 rounded-full px-2 py-1 text-xs mr-1 mb-1">{g}</span>) : 'N/A'}</td>
                                         <td className="p-4 text-gray-600">{status.situation}</td>
-                                        <td className="p-4">
-                                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${colorClasses[status.color]}`}>{status.text}</span>
-                                        </td>
+                                        <td className="p-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${colorClasses[status.color]}`}>{status.text}</span></td>
                                     </tr>
                                 )
-                            }) : (
-                                  <tr>
-                                    <td colSpan={5} className="text-center p-8 text-gray-500">Nenhum aluno encontrado.</td>
-                                </tr>
-                            )}
+                            }) : (<tr><td colSpan={5} className="text-center p-8 text-gray-500">Nenhum aluno encontrado.</td></tr>)}
                         </tbody>
                     </table>
                 </div>
               )}
-          </div>
+        </div>
     </>
   );
   
   const renderActiveView = () => {
-    const onBack = () => {
-      setActiveView('dashboard');
-      setSelectedStudent(null);
-    }
+    const onBackToWelcome = () => setActiveView('welcome');
+    const onBackToStudentList = () => setActiveView('studentList');
 
     switch(activeView) {
+      case 'studentList':
+          return renderStudentList();
       case 'studentDetails':
-        return selectedStudent && <StudentDetailsView student={selectedStudent} plans={plans} trainer={currentTrainer} workoutTemplates={workoutTemplates} groups={studentGroups} onBack={onBack} onUpdate={handleUpdateStudent} onDelete={handleDeleteStudent} onAddPayment={handleAddPayment} allStudents={students} />;
+        return selectedStudent && <StudentDetailsView student={selectedStudent} plans={plans} trainer={currentTrainer} workoutTemplates={workoutTemplates} groups={studentGroups} onBack={onBackToStudentList} onUpdate={handleUpdateStudent} onDelete={handleDeleteStudent} onAddPayment={handleAddPayment} allStudents={students} />;
       case 'planManagement':
-        return <PlanManagementView plans={plans} onAddPlan={handleAddPlan} onUpdatePlan={handleUpdatePlan} onDeletePlan={handleDeletePlan} onBack={onBack} />;
+        return <PlanManagementView plans={plans} onAddPlan={handleAddPlan} onUpdatePlan={handleUpdatePlan} onDeletePlan={handleDeletePlan} onBack={onBackToWelcome} />;
       case 'workoutTemplates':
-        return <WorkoutTemplateModal onBack={onBack} templates={workoutTemplates} trainerId={currentTrainer.id} onUpdate={fetchData} students={students} groups={studentGroups} />;
+        return <WorkoutTemplateView onBack={onBackToWelcome} templates={workoutTemplates} trainerId={currentTrainer.id} onUpdate={fetchData} students={students} groups={studentGroups} />;
       case 'addStudent':
-        return <AddStudentView plans={plans} onBack={onBack} onAdd={handleAddStudent} allStudents={students} trainer={currentTrainer} />;
+        return <AddStudentView plans={plans} onBack={onBackToStudentList} onAdd={handleAddStudent} allStudents={students} trainer={currentTrainer} />;
       case 'financialReport':
-        return <FinancialReportView onBack={onBack} payments={payments} students={students} onDeletePayment={handleDeletePayment} />;
+        return <FinancialReportView onBack={onBackToWelcome} payments={payments} students={students} onDeletePayment={handleDeletePayment} />;
       case 'profile':
-        return <TrainerProfileView onBack={onBack} trainer={currentTrainer} onSave={handleSaveProfile} onUpdatePassword={handleUpdateTrainerPassword} />;
+        return <TrainerProfileView onBack={onBackToWelcome} trainer={currentTrainer} onSave={handleSaveProfile} onUpdatePassword={handleUpdateTrainerPassword} />;
       case 'schedule':
         return <ScheduleView students={students} plans={plans} onStudentClick={handleSelectStudent} />;
-      case 'dashboard':
+      case 'welcome':
       default:
-        return renderDashboard();
+        return <WelcomeDashboardView students={students} payments={payments} plans={plans} onStudentClick={handleSelectStudent} />;
     }
   };
 
   return (
-    <>
-      <div className="bg-brand-dark">
-          <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-white">Dashboard do Personal - [{currentTrainer.fullName || currentTrainer.username}]</h1>
-            <button onClick={onLogout} className="flex items-center gap-2 text-white hover:text-red-400 transition-colors">
-              <LogoutIcon className="w-5 h-5" />
-              <span>Sair</span>
-            </button>
-          </header>
-      </div>
+    <div className="min-h-screen flex flex-col">
+      <header className="bg-white shadow-md z-20">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
+            <div className="flex items-center gap-4">
+                {currentTrainer.logoUrl ? 
+                    <img src={currentTrainer.logoUrl} alt="Logo" className="h-10 w-auto" /> :
+                    <h1 className="text-xl font-bold text-brand-dark">Dashboard</h1>
+                }
+            </div>
+            <div className="text-right">
+                <p className="font-semibold text-brand-dark">{currentTrainer.fullName || currentTrainer.username}</p>
+                <p className="text-xs text-gray-500">Personal Trainer</p>
+            </div>
+          </div>
+      </header>
 
-      <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-        {renderActiveView()}
-      </main>
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar 
+            activeView={activeView} 
+            setActiveView={setActiveView} 
+            onLogout={onLogout} 
+            pendingStudentsCount={pendingStudents.length}
+        />
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto bg-brand-light">
+          {renderActiveView()}
+        </main>
+      </div>
 
       {isGroupModalOpen && (
           <GroupManagementModal isOpen={isGroupModalOpen} onClose={() => setGroupModalOpen(false)} groups={studentGroups} trainerId={currentTrainer.id} onUpdate={fetchData} />
@@ -901,25 +886,12 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         <Modal title="Link de Cadastro para Alunos" isOpen={isCopyLinkModalOpen} onClose={() => setCopyLinkModalOpen(false)}>
             <div className="space-y-4">
                 <p>Compartilhe este link com novos alunos para que eles possam se cadastrar. As solicitações aparecerão no seu painel para aprovação.</p>
-                <input 
-                    type="text" 
-                    readOnly 
-                    value={`${window.location.origin}?trainer=${currentTrainer.id}`}
-                    className="w-full p-2 border rounded bg-gray-100"
-                />
-                <button
-                    onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}?trainer=${currentTrainer.id}`);
-                        alert('Link copiado!');
-                    }}
-                    className="w-full px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent"
-                >
-                    Copiar Link
-                </button>
+                <input type="text" readOnly value={`${window.location.origin}?trainer=${currentTrainer.id}`} className="w-full p-2 border rounded bg-gray-100"/>
+                <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}?trainer=${currentTrainer.id}`); alert('Link copiado!'); }} className="w-full px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Copiar Link</button>
             </div>
         </Modal>
       )}
-    </>
+    </div>
   );
 };
 

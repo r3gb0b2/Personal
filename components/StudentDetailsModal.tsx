@@ -1,11 +1,11 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer, Exercise, WorkoutTemplate, StudentGroup } from '../types';
-import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon, EyeIcon, EyeOffIcon, CloneIcon, UsersIcon, PrintIcon, DollarSignIcon } from './icons';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer, Exercise, WorkoutTemplate, StudentGroup, PhysicalAssessment } from '../types';
+import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon, EyeIcon, EyeOffIcon, CloneIcon, UsersIcon, PrintIcon, DollarSignIcon, ChartBarIcon } from './icons';
 import Modal from './modals/Modal';
 import PaymentModal from './modals/PaymentModal';
 import ProfilePictureModal from './modals/ProfilePictureModal';
-import { db, storage } from '../firebase';
+import { db, storage } from '../../firebase';
 // FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
 import { collection, addDoc, getDocs, query, where, orderBy, deleteDoc, doc, updateDoc, Timestamp, setDoc } from '@firebase/firestore';
 // FIX: Changed firebase import path to use the scoped package '@firebase/storage' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
@@ -17,6 +17,8 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import WorkoutPDFLayout from './pdf/WorkoutPDFLayout';
 import FinancialTab from './FinancialTab';
+import Chart from 'chart.js';
+
 
 interface StudentDetailsViewProps {
   student: Student;
@@ -31,7 +33,7 @@ interface StudentDetailsViewProps {
   allStudents: Student[];
 }
 
-type Tab = 'details' | 'workouts' | 'files' | 'progress' | 'financeiro';
+type Tab = 'details' | 'workouts' | 'files' | 'progress' | 'financeiro' | 'assessment';
 
 const timeToMinutes = (time: string): number => {
     if (!time) return 0;
@@ -88,6 +90,7 @@ const StudentDetailsView: React.FC<StudentDetailsViewProps> = ({ student, plans,
   const [studentFiles, setStudentFiles] = useState<StudentFile[]>([]);
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
   const [paymentHistory, setPaymentHistory] = useState<Payment[]>([]);
+  const [physicalAssessments, setPhysicalAssessments] = useState<PhysicalAssessment[]>([]);
   const [isLoadingFeatures, setIsLoadingFeatures] = useState(true);
 
   const [workoutToPrint, setWorkoutToPrint] = useState<Workout | null>(null);
@@ -114,6 +117,10 @@ const StudentDetailsView: React.FC<StudentDetailsViewProps> = ({ student, plans,
         const paymentsQuery = query(collection(db, 'payments'), where("studentId", "==", student.id), orderBy("paymentDate", "desc"));
         const paymentsSnapshot = await getDocs(paymentsQuery);
         setPaymentHistory(paymentsSnapshot.docs.map(d => ({ ...d.data(), id: d.id, paymentDate: toISO(d.data().paymentDate) } as Payment)));
+        
+        const assessmentsQuery = query(collection(db, 'physicalAssessments'), where("studentId", "==", student.id), orderBy("date", "desc"));
+        const assessmentsSnapshot = await getDocs(assessmentsQuery);
+        setPhysicalAssessments(assessmentsSnapshot.docs.map(d => ({ ...d.data(), id: d.id, date: toISO(d.data().date) } as PhysicalAssessment)));
 
 
     } catch (e) {
@@ -324,6 +331,7 @@ const StudentDetailsView: React.FC<StudentDetailsViewProps> = ({ student, plans,
         case 'files': return <FilesTab student={student} files={studentFiles} onUpdate={fetchFeatureData} />;
         case 'progress': return <ProgressTab student={student} photos={progressPhotos} onUpdate={fetchFeatureData} />;
         case 'financeiro': return <FinancialTab student={editableStudent} payments={paymentHistory} plans={plans} />;
+        case 'assessment': return <PhysicalAssessmentTab studentId={student.id} assessments={physicalAssessments} onUpdate={fetchFeatureData} />;
         case 'details':
         default:
             return <DetailsTab student={student} plans={plans} trainer={trainer} groups={groups} isEditing={isEditing} setIsEditing={setIsEditing} editableStudent={editableStudent} setEditableStudent={setEditableStudent} handleSave={handleSave} handleDelete={handleDelete} setPictureModalOpen={setPictureModalOpen} setPaymentModalOpen={setPaymentModalOpen} handleAddSession={handleAddSession} handleDeleteSession={handleDeleteSession} onUpdate={onUpdate} />;
@@ -341,6 +349,7 @@ const StudentDetailsView: React.FC<StudentDetailsViewProps> = ({ student, plans,
         <div className="flex border-b overflow-x-auto">
             <TabButton tab="details" label="Detalhes" Icon={UserIcon} />
             <TabButton tab="workouts" label="Treinos" Icon={DumbbellIcon} />
+            <TabButton tab="assessment" label="Avaliação Física" Icon={ChartBarIcon} />
             <TabButton tab="financeiro" label="Financeiro" Icon={DollarSignIcon} />
             <TabButton tab="files" label="Arquivos" Icon={FileTextIcon} />
             <TabButton tab="progress" label="Progresso" Icon={ImageIcon} />
@@ -885,6 +894,139 @@ const ProgressTab: React.FC<{student: Student, photos: ProgressPhoto[], onUpdate
                         </div>
                     </div>
                 )) : <p className="text-center text-gray-500 p-8 col-span-full">Nenhuma foto de progresso enviada.</p>}
+            </div>
+        </div>
+    );
+};
+
+const PhysicalAssessmentTab: React.FC<{ studentId: string, assessments: PhysicalAssessment[], onUpdate: () => void}> = ({ studentId, assessments, onUpdate }) => {
+    const today = new Date().toISOString().split('T')[0];
+    const initialFormState: Omit<PhysicalAssessment, 'id' | 'studentId'> = {
+        date: today,
+        weightKg: undefined, heightCm: undefined, bodyFatPercentage: undefined,
+        chest: undefined, waist: undefined, hips: undefined,
+        rightArm: undefined, leftArm: undefined,
+        rightThigh: undefined, leftThigh: undefined, notes: ''
+    };
+    const [formData, setFormData] = useState(initialFormState);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const chartRef = useRef<HTMLCanvasElement>(null);
+    const chartInstance = useRef<Chart | null>(null);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value, type } = e.target;
+        setFormData(prev => ({ ...prev, [name]: type === 'number' ? (value ? parseFloat(value) : undefined) : value }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        try {
+            await addDoc(collection(db, 'physicalAssessments'), {
+                studentId,
+                ...formData,
+                date: Timestamp.fromDate(new Date(formData.date)),
+            });
+            onUpdate();
+            setFormData(initialFormState);
+        } catch (error) {
+            console.error("Error saving assessment:", error);
+            alert("Erro ao salvar avaliação.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (window.confirm("Tem certeza que deseja excluir esta avaliação?")) {
+            await deleteDoc(doc(db, "physicalAssessments", id));
+            onUpdate();
+        }
+    };
+
+    const chartData = useMemo(() => {
+        const sortedAssessments = [...assessments].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        return {
+            labels: sortedAssessments.map(a => new Date(a.date).toLocaleDateString('pt-BR')),
+            weight: sortedAssessments.map(a => a.weightKg),
+            bodyFat: sortedAssessments.map(a => a.bodyFatPercentage),
+        };
+    }, [assessments]);
+
+    useEffect(() => {
+        if (chartRef.current && chartData.labels.length > 0) {
+            if (chartInstance.current) {
+                chartInstance.current.destroy();
+            }
+            const ctx = chartRef.current.getContext('2d');
+            if (ctx) {
+                chartInstance.current = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: chartData.labels,
+                        datasets: [
+                            { label: 'Peso (kg)', data: chartData.weight, borderColor: 'rgb(75, 192, 192)', tension: 0.1, yAxisID: 'y' },
+                            { label: '% Gordura Corporal', data: chartData.bodyFat, borderColor: 'rgb(255, 99, 132)', tension: 0.1, yAxisID: 'y1' }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Peso (kg)' } },
+                            y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: '% Gordura' } }
+                        }
+                    }
+                });
+            }
+        }
+        return () => {
+            if (chartInstance.current) {
+                chartInstance.current.destroy();
+            }
+        };
+    }, [chartData]);
+    
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-4">
+                <h3 className="font-bold text-lg">Evolução Corporal</h3>
+                {assessments.length > 1 ? <canvas ref={chartRef}></canvas> : <p className="text-center text-gray-500 p-8">Adicione pelo menos duas avaliações para ver o gráfico de progresso.</p>}
+                
+                <div className="max-h-60 overflow-y-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-gray-100"><tr><th className="p-2">Data</th><th className="p-2">Peso</th><th className="p-2">Gordura %</th><th className="p-2">Cintura</th><th className="p-2"></th></tr></thead>
+                        <tbody>
+                            {assessments.map(a => (
+                                <tr key={a.id} className="border-b">
+                                    <td className="p-2 font-semibold">{new Date(a.date).toLocaleDateString('pt-BR')}</td>
+                                    <td className="p-2">{a.weightKg || '-'} kg</td>
+                                    <td className="p-2">{a.bodyFatPercentage || '-'} %</td>
+                                    <td className="p-2">{a.waist || '-'} cm</td>
+                                    <td className="p-2"><button onClick={() => handleDelete(a.id)} className="text-gray-400 hover:text-red-500"><TrashIcon className="w-4 h-4"/></button></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div>
+                <h3 className="font-bold text-lg mb-2">Registrar Nova Avaliação</h3>
+                <form onSubmit={handleSubmit} className="p-4 bg-gray-50 border rounded-lg space-y-3">
+                    <input type="date" name="date" value={formData.date} onChange={handleInputChange} required className="w-full border-gray-300 rounded"/>
+                    <div className="grid grid-cols-2 gap-2">
+                        <input type="number" step="0.1" name="weightKg" value={formData.weightKg || ''} onChange={handleInputChange} placeholder="Peso (kg)" className="w-full border-gray-300 rounded"/>
+                        <input type="number" step="0.1" name="bodyFatPercentage" value={formData.bodyFatPercentage || ''} onChange={handleInputChange} placeholder="% Gordura" className="w-full border-gray-300 rounded"/>
+                        <input type="number" step="0.1" name="chest" value={formData.chest || ''} onChange={handleInputChange} placeholder="Peito (cm)" className="w-full border-gray-300 rounded"/>
+                        <input type="number" step="0.1" name="waist" value={formData.waist || ''} onChange={handleInputChange} placeholder="Cintura (cm)" className="w-full border-gray-300 rounded"/>
+                        <input type="number" step="0.1" name="hips" value={formData.hips || ''} onChange={handleInputChange} placeholder="Quadril (cm)" className="w-full border-gray-300 rounded"/>
+                        <input type="number" step="0.1" name="rightArm" value={formData.rightArm || ''} onChange={handleInputChange} placeholder="Braço D (cm)" className="w-full border-gray-300 rounded"/>
+                        <input type="number" step="0.1" name="leftArm" value={formData.leftArm || ''} onChange={handleInputChange} placeholder="Braço E (cm)" className="w-full border-gray-300 rounded"/>
+                        <input type="number" step="0.1" name="rightThigh" value={formData.rightThigh || ''} onChange={handleInputChange} placeholder="Coxa D (cm)" className="w-full border-gray-300 rounded"/>
+                        <input type="number" step="0.1" name="leftThigh" value={formData.leftThigh || ''} onChange={handleInputChange} placeholder="Coxa E (cm)" className="w-full border-gray-300 rounded"/>
+                    </div>
+                    <textarea name="notes" value={formData.notes} onChange={handleInputChange} placeholder="Notas adicionais..." rows={2} className="w-full border-gray-300 rounded"></textarea>
+                    <button type="submit" disabled={isSubmitting} className="w-full bg-brand-primary text-white py-2 rounded disabled:bg-gray-400">{isSubmitting ? 'Salvando...' : 'Salvar Avaliação'}</button>
+                </form>
             </div>
         </div>
     );

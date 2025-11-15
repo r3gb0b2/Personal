@@ -1,9 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Workout, Student, Trainer, ExerciseSet } from '../../types';
+import { Workout, Student, Trainer, ExerciseSet, ExerciseLog, LoggedSet } from '../../types';
 import { DumbbellIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, SendIcon, PrintIcon, CheckCircleIcon } from '../icons';
 import { db } from '../../firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, orderBy, limit, getDocs, addDoc, Timestamp, deleteDoc } from 'firebase/firestore';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import WorkoutPDFLayout from '../pdf/WorkoutPDFLayout';
@@ -52,30 +52,58 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState<string | null>(null);
     const [workoutToPrint, setWorkoutToPrint] = useState<Workout | null>(null);
     const pdfLayoutRef = useRef<HTMLDivElement>(null);
+    const [sessionLogs, setSessionLogs] = useState<{ [exerciseId: string]: { logData: { [setId: string]: LoggedSet }, logDocId?: string } }>({});
+    const [historicalLogs, setHistoricalLogs] = useState<{ [exerciseId: string]: ExerciseLog }>({});
+    const [showSuccess, setShowSuccess] = useState(false);
+
 
     useEffect(() => {
         if (workoutToPrint && pdfLayoutRef.current && student && trainer) {
             const generatePdf = async () => {
                 const element = pdfLayoutRef.current;
                 if (!element) return;
-
                 const canvas = await html2canvas(element, { scale: 2 });
                 const imgData = canvas.toDataURL('image/png');
-                
                 const pdf = new jsPDF('p', 'mm', 'a4');
                 const pdfWidth = pdf.internal.pageSize.getWidth();
                 const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-                
                 pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
                 pdf.save(`treino-${student.name.replace(/\s/g, '_')}-${workoutToPrint.title.replace(/\s/g, '_')}.pdf`);
-
                 setWorkoutToPrint(null);
             };
             setTimeout(generatePdf, 100);
         }
     }, [workoutToPrint, student, trainer]);
 
-    // This function was missing, causing a crash when opening a workout.
+    useEffect(() => {
+        const fetchHistoricalLogs = async () => {
+            if (!selectedWorkout) return;
+            const exerciseIds = selectedWorkout.exercises.map(e => e.id);
+            const logs: { [exerciseId: string]: ExerciseLog } = {};
+
+            for (const exId of exerciseIds) {
+                const q = query(
+                    collection(db, "exerciseLogs"),
+                    where("studentId", "==", student.id),
+                    where("exerciseId", "==", exId),
+                    orderBy("date", "desc"),
+                    limit(1)
+                );
+                const querySnapshot = await getDocs(q);
+                if (!querySnapshot.empty) {
+                    const doc = querySnapshot.docs[0];
+                    logs[exId] = { id: doc.id, ...doc.data() } as ExerciseLog;
+                }
+            }
+            setHistoricalLogs(logs);
+        };
+
+        if (selectedWorkout) {
+            fetchHistoricalLogs();
+            setSessionLogs({}); // Reset logs for the new session
+        }
+    }, [selectedWorkout, student.id]);
+
     const handleFeedbackChange = (exerciseId: string, text: string) => {
         setFeedback(prev => ({...prev, [exerciseId]: text}));
     };
@@ -83,237 +111,255 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
     const handleSendFeedback = async (workoutId: string, exerciseId: string) => {
         const feedbackText = feedback[exerciseId];
         if (!feedbackText || !feedbackText.trim()) return;
-
         setIsSubmittingFeedback(exerciseId);
         try {
-            const workoutRef = doc(db, 'workouts', workoutId);
-            // Find the correct, up-to-date workout object from the main list
             const workout = workouts.find(w => w.id === workoutId);
-            if (!workout || !workout.exercises) throw new Error("Workout not found");
-
-            const updatedExercises = workout.exercises.map(ex => 
-                ex.id === exerciseId ? { ...ex, studentFeedback: feedbackText } : ex
-            );
-
-            await updateDoc(workoutRef, { exercises: updatedExercises });
+            if (!workout) throw new Error("Workout not found");
+            const updatedExercises = workout.exercises.map(ex => ex.id === exerciseId ? { ...ex, studentFeedback: feedbackText } : ex);
+            await updateDoc(doc(db, 'workouts', workoutId), { exercises: updatedExercises });
             alert("Feedback enviado com sucesso!");
             setFeedback(prev => ({...prev, [exerciseId]: ''}));
-
-            // Propagate the change up to keep all states in sync
             const updatedWorkout = { ...workout, exercises: updatedExercises };
             onWorkoutUpdate(updatedWorkout);
-
-            // Also update the local selectedWorkout state
-            if (selectedWorkout && selectedWorkout.id === workoutId) {
-                setSelectedWorkout(updatedWorkout);
-            }
-
+            if (selectedWorkout?.id === workoutId) setSelectedWorkout(updatedWorkout);
         } catch (error) {
-            console.error("Error sending feedback:", error);
-            alert("Não foi possível enviar o feedback. Tente novamente.");
+            alert("Não foi possível enviar o feedback.");
         } finally {
             setIsSubmittingFeedback(null);
         }
     };
 
-    const toggleExerciseCompleted = async (exerciseId: string) => {
-        if (!selectedWorkout) return;
+// FIX: Rewrote state update to be more type-safe and avoid spreading potentially undefined values.
+    const handleLogChange = (exerciseId: string, setId: string, field: 'reps' | 'load', value: string) => {
+        setSessionLogs(prev => {
+            const exerciseLog = prev[exerciseId] || { logData: {} };
+            const setLog: LoggedSet = exerciseLog.logData[setId] || { reps: '', load: '' };
+    
+            return {
+                ...prev,
+                [exerciseId]: {
+                    ...exerciseLog,
+                    logData: {
+                        ...exerciseLog.logData,
+                        [setId]: {
+                            ...setLog,
+                            [field]: value,
+                        },
+                    },
+                },
+            };
+        });
+    };
 
-        // Defensively get the latest workout data from props instead of relying on local state
-        const currentWorkoutFromProps = workouts.find(w => w.id === selectedWorkout.id);
-        if (!currentWorkoutFromProps) {
-            alert("Erro: O treino selecionado não foi encontrado. Tente recarregar a página.");
-            return;
+    const handleLogAndComplete = async (exerciseId: string, exerciseName: string) => {
+        if (!selectedWorkout) return;
+        const currentWorkout = workouts.find(w => w.id === selectedWorkout.id);
+        if (!currentWorkout) return;
+
+// FIX: Explicitly handle potentially undefined `logData` and use `Object.values` on a correctly typed object to prevent TypeScript from inferring `unknown[]`.
+        const logData = sessionLogs[exerciseId]?.logData;
+        const loggedSets = logData ? Object.values(logData).filter(s => s.reps || s.load) : [];
+        let logDocId: string | undefined = undefined;
+
+        if (loggedSets.length > 0) {
+            const logData: Omit<ExerciseLog, 'id'> = {
+                studentId: student.id,
+                workoutId: currentWorkout.id,
+                exerciseId, exerciseName,
+                date: new Date().toISOString(),
+                loggedSets,
+            };
+            const docRef = await addDoc(collection(db, "exerciseLogs"), {
+                ...logData, date: Timestamp.now()
+            });
+            logDocId = docRef.id;
+            setSessionLogs(prev => ({...prev, [exerciseId]: { ...prev[exerciseId], logDocId }}));
         }
+
+        const currentCompleted = currentWorkout.completedExerciseIds || [];
+        const newCompleted = [...currentCompleted, exerciseId];
         
-        const currentCompleted = currentWorkoutFromProps.completedExerciseIds || [];
-        const isCompleted = currentCompleted.includes(exerciseId);
-        
-        const newCompleted = isCompleted 
-            ? currentCompleted.filter(id => id !== exerciseId)
-            : [...currentCompleted, exerciseId];
-            
         try {
-            // Use the ID from the props version, which is safer
-            const workoutRef = doc(db, 'workouts', currentWorkoutFromProps.id);
-            await updateDoc(workoutRef, { completedExerciseIds: newCompleted });
-            
-            // Create the updated object based on the props version
-            const updatedWorkout = { ...currentWorkoutFromProps, completedExerciseIds: newCompleted };
-            
-            // Update both the local selected state and the main list in the parent
+            await updateDoc(doc(db, 'workouts', currentWorkout.id), { completedExerciseIds: newCompleted });
+            const updatedWorkout = { ...currentWorkout, completedExerciseIds: newCompleted };
             setSelectedWorkout(updatedWorkout);
             onWorkoutUpdate(updatedWorkout);
-            
+
+            const allExercisesDone = updatedWorkout.exercises.filter(ex => !ex.isHidden).every(ex => newCompleted.includes(ex.id));
+            if (allExercisesDone) {
+                setShowSuccess(true);
+            }
         } catch (error) {
-            console.error("Error updating exercise status:", error);
-            alert("Não foi possível salvar o status do exercício.");
+            console.error("Error completing exercise:", error);
         }
     };
 
+    const handleUndoCompletion = async (exerciseId: string) => {
+        if (!selectedWorkout) return;
+        const currentWorkout = workouts.find(w => w.id === selectedWorkout.id);
+        if (!currentWorkout) return;
 
-    const renderSelectedWorkout = (workout: Workout) => {
-        const visibleExercises = (workout.exercises || []).filter(ex => !ex.isHidden);
-        return (
-            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
-                 <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-4">
-                        <button onClick={() => setSelectedWorkout(null)} className="text-brand-primary hover:underline text-sm">&larr; Voltar para a lista</button>
-                        <h2 className="text-2xl font-bold text-brand-dark">{workout.title}</h2>
-                        <button 
-                            onClick={() => setWorkoutToPrint(workout)}
-                            className="text-gray-500 hover:text-brand-primary"
-                            title="Baixar Treino em PDF"
-                        >
-                            <PrintIcon className="w-6 h-6" />
-                        </button>
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
-                    {visibleExercises.map(ex => {
-                        const isCompleted = workout.completedExerciseIds?.includes(ex.id);
-                        const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
-
-                        if (isCompleted) {
-                            return (
-                                <div key={ex.id} className="p-3 rounded-lg border bg-green-100 flex items-center justify-between transition-all duration-300 col-span-1">
-                                    <div className="flex items-center gap-3">
-                                        <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" />
-                                        <h3 className="font-semibold text-gray-800">{ex.name}</h3>
-                                    </div>
-                                    <button
-                                        onClick={() => toggleExerciseCompleted(ex.id)}
-                                        className="px-3 py-1 text-sm font-bold text-yellow-900 bg-yellow-400 rounded-md hover:bg-yellow-500"
-                                    >
-                                        Desfazer
-                                    </button>
-                                </div>
-                            )
-                        }
-
-                        return (
-                            <div key={ex.id} className={`p-4 rounded-lg border relative flex flex-col transition-all duration-300 bg-gray-50`}>
-                                <h3 className="font-bold text-lg mb-3 text-brand-secondary">{ex.name}</h3>
-                                
-                                {embedUrl && (<div className="mb-4"><iframe className="w-full aspect-video rounded-md shadow" src={embedUrl} title={ex.name} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe></div>)}
-                                
-                                <div className="mb-3 overflow-x-auto">
-                                    <table className="w-full text-sm text-left">
-                                        <thead className="bg-gray-200"><tr><th className="p-2 w-12 text-center">Série</th><th className="p-2">Detalhes</th></tr></thead>
-                                        <tbody>
-                                            {(ex.sets || []).map((set, index) => (
-                                                <tr key={set.id} className="border-b"><td className="p-2 text-center font-medium">{index + 1}</td><td className="p-2">{renderSetDetails(set)}</td></tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {ex.rest && (<div className="text-sm"><span className="font-semibold">Descanso:</span> {ex.rest}</div>)}
-
-                                <div className="mt-4 pt-4 border-t space-y-2 flex-grow flex flex-col justify-end">
-                                     <p className="text-sm font-semibold text-gray-600">Feedback para o Personal:</p>
-                                     {ex.studentFeedback ? (
-                                        <p className="text-sm italic text-gray-500 bg-gray-100 p-2 rounded-md">"Enviado: {ex.studentFeedback}"</p>
-                                     ) : (
-                                        <div className="flex items-center gap-2">
-                                            <input type="text" placeholder="Opcional: como foi o exercício?" className="flex-grow text-sm border-gray-300 rounded-md shadow-sm" value={feedback[ex.id] || ''} onChange={(e) => handleFeedbackChange(ex.id, e.target.value)} />
-                                            <button onClick={() => handleSendFeedback(workout.id, ex.id)} disabled={isSubmittingFeedback === ex.id} className="p-2 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400"><SendIcon className="w-4 h-4"/></button>
-                                        </div>
-                                     )}
-                                     <button 
-                                        onClick={() => toggleExerciseCompleted(ex.id)}
-                                        className={`w-full mt-3 py-2 px-4 text-sm font-bold rounded-lg shadow-sm transition-colors bg-green-500 text-white hover:bg-green-600`}
-                                     >
-                                         {'Concluir Exercício'}
-                                     </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        )
-    };
-    
-    const renderWorkoutList = () => {
-        return (
-            <div className="space-y-4">
-                {workouts.map(w => {
-                    const totalExercises = w.exercises?.filter(ex => !ex.isHidden).length || 0;
-                    const completedCount = w.completedExerciseIds?.length || 0;
-                    const progress = totalExercises > 0 ? (completedCount / totalExercises) * 100 : 0;
-                    return(
-                        <button key={w.id} onClick={() => setSelectedWorkout(w)} className="w-full text-left p-6 bg-white rounded-lg shadow-md hover:shadow-lg hover:border-brand-primary border-2 border-transparent transition-all">
-                            <h3 className="text-xl font-bold text-brand-dark">{w.title}</h3>
-                            <div className="mt-3 flex items-center gap-4">
-                                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                    <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
-                                </div>
-                                <span className="text-sm font-semibold text-gray-600">{completedCount}/{totalExercises}</span>
-                            </div>
-                        </button>
-                    );
-                })}
-            </div>
-        );
-    };
-
-    const renderContent = () => {
-        if (!isPlanActive) {
-            return (
-                <div className="text-center py-16 bg-white p-6 rounded-lg shadow-md">
-                    <ExclamationCircleIcon className="w-16 h-16 mx-auto text-red-400"/>
-                    <h3 className="mt-4 text-xl font-semibold text-gray-700">Acesso à Ficha de Treino Bloqueado</h3>
-                    <p className="mt-2 text-gray-500">Seu plano está inativo ou vencido. Por favor, entre em contato com seu personal para regularizar sua situação.</p>
-                </div>
-            );
+        const logDocIdToDelete = sessionLogs[exerciseId]?.logDocId;
+        if (logDocIdToDelete) {
+            try {
+                await deleteDoc(doc(db, "exerciseLogs", logDocIdToDelete));
+                setSessionLogs(prev => {
+                    const newLogs = {...prev};
+                    delete newLogs[exerciseId];
+                    return newLogs;
+                })
+            } catch (error) {
+                console.error("Failed to delete exercise log:", error);
+            }
         }
         
-        if (selectedWorkout) {
-            return renderSelectedWorkout(selectedWorkout);
-        }
+        const newCompleted = (currentWorkout.completedExerciseIds || []).filter(id => id !== exerciseId);
+        await updateDoc(doc(db, 'workouts', currentWorkout.id), { completedExerciseIds: newCompleted });
+        const updatedWorkout = { ...currentWorkout, completedExerciseIds: newCompleted };
+        setSelectedWorkout(updatedWorkout);
+        onWorkoutUpdate(updatedWorkout);
+    };
 
-        if (workouts.length > 0) {
-            return renderWorkoutList();
-        }
+    if (showSuccess) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen bg-green-50 text-center p-4">
+                <CheckCircleIcon className="w-24 h-24 text-green-500 mb-4"/>
+                <h2 className="text-3xl font-bold text-green-800">Parabéns!</h2>
+                <p className="text-lg text-gray-700 mt-2">Você concluiu seu treino de hoje com sucesso. Ótimo trabalho!</p>
+                <button 
+                    onClick={() => {
+                        setShowSuccess(false);
+                        setSelectedWorkout(null);
+                    }}
+                    className="mt-8 px-6 py-3 bg-brand-primary text-white font-bold rounded-lg shadow-md hover:bg-brand-accent"
+                >
+                    Voltar para a Lista de Treinos
+                </button>
+            </div>
+        )
+    }
+
+    if (selectedWorkout) {
+        const completedExercises = selectedWorkout.completedExerciseIds || [];
+        const exercisesToShow = selectedWorkout.exercises.filter(ex => !ex.isHidden);
+        const sortedExercises = [...exercisesToShow].sort((a, b) => {
+            const aDone = completedExercises.includes(a.id);
+            const bDone = completedExercises.includes(b.id);
+            return aDone === bDone ? 0 : aDone ? 1 : -1;
+        });
 
         return (
-            <div className="text-center py-16">
-                <DumbbellIcon className="w-16 h-16 mx-auto text-gray-300"/>
-                <h3 className="mt-4 text-xl font-semibold text-gray-700">Nenhuma ficha de treino encontrada.</h3>
-                <p className="mt-2 text-gray-500">Peça ao seu personal para cadastrar seus treinos.</p>
-            </div>
-        );
-    };
+            <>
+                <div className="bg-brand-dark sticky top-0 z-20">
+                    <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                        <h1 className="text-xl sm:text-2xl font-bold text-white truncate">{selectedWorkout.title}</h1>
+                        <div>
+                            <button onClick={() => setWorkoutToPrint(selectedWorkout)} className="text-white hover:text-gray-300 mr-4" title="Baixar PDF"><PrintIcon className="w-6 h-6"/></button>
+                            <button onClick={() => setSelectedWorkout(null)} className="text-white hover:text-gray-300">&times; Voltar</button>
+                        </div>
+                    </header>
+                </div>
+                <main className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-4">
+                    {sortedExercises.map(ex => {
+                         const isCompleted = completedExercises.includes(ex.id);
+                         const historicalLog = historicalLogs[ex.id];
+                         if (isCompleted) {
+                            return (
+                                <div key={ex.id} className="p-4 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
+                                    <div className="flex items-center gap-3">
+                                        <CheckCircleIcon className="w-6 h-6 text-green-500"/>
+                                        <p className="font-semibold text-gray-700">{ex.name}</p>
+                                    </div>
+                                    <button onClick={() => handleUndoCompletion(ex.id)} className="text-sm font-medium text-gray-600 hover:text-red-600">Desfazer</button>
+                                </div>
+                            )
+                         }
+
+                         return (
+                            <div key={ex.id} className="p-4 bg-white rounded-lg shadow-md border">
+                                <h3 className="text-lg font-bold">{ex.name}</h3>
+                                {ex.youtubeUrl && getYoutubeEmbedUrl(ex.youtubeUrl) && (
+                                    <div className="mt-2 aspect-video"><iframe width="100%" height="100%" src={getYoutubeEmbedUrl(ex.youtubeUrl)!} title={ex.name} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe></div>
+                                )}
+                                {historicalLog && (
+                                    <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                                        <p className="text-xs font-bold text-blue-800">Última vez ({new Date(historicalLog.date).toLocaleDateString('pt-BR')}):</p>
+                                        <div className="text-xs text-blue-700 space-y-1 mt-1">
+                                        {historicalLog.loggedSets.map((s, i) => (
+                                            <p key={i}><strong>Série {i+1}:</strong> {s.reps} reps @ {s.load}</p>
+                                        ))}
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="mt-3 space-y-2">
+                                    {ex.sets.map((set, setIndex) => (
+                                        <div key={set.id} className="grid grid-cols-[auto,1fr,auto] items-center gap-x-3 p-2 bg-gray-50 rounded-md">
+                                            <span className="font-bold text-sm">Série {setIndex + 1}</span>
+                                            <span className="text-sm text-gray-600">{renderSetDetails(set)}</span>
+                                            {set.type === 'reps_load' && (
+                                                <div className="col-start-2 col-span-2 grid grid-cols-2 gap-2 mt-1">
+                                                    <input type="text" placeholder="Reps" onChange={(e) => handleLogChange(ex.id, set.id, 'reps', e.target.value)} className="w-full text-sm border-gray-300 rounded-md"/>
+                                                    <input type="text" placeholder="Carga" onChange={(e) => handleLogChange(ex.id, set.id, 'load', e.target.value)} className="w-full text-sm border-gray-300 rounded-md"/>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                                 <div className="mt-4 pt-4 border-t">
+                                     <button onClick={() => handleLogAndComplete(ex.id, ex.name)} className="w-full py-2 bg-green-600 text-white font-bold rounded-md hover:bg-green-700">Registrar e Concluir Exercício</button>
+                                </div>
+
+                                <div className="mt-4 pt-4 border-t">
+                                     <h4 className="text-sm font-semibold mb-2">Feedback para o Personal (opcional)</h4>
+                                     <div className="flex items-center gap-2">
+                                         <textarea value={feedback[ex.id] || ''} onChange={(e) => handleFeedbackChange(ex.id, e.target.value)} placeholder="Ex: Senti dor no ombro, achei muito pesado..." className="flex-1 text-sm border-gray-300 rounded-md shadow-sm" rows={2}/>
+                                         <button onClick={() => handleSendFeedback(selectedWorkout.id, ex.id)} disabled={!feedback[ex.id] || isSubmittingFeedback === ex.id} className="p-2 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400"><SendIcon className="w-5 h-5"/></button>
+                                     </div>
+                                 </div>
+                            </div>
+                         )
+                    })}
+                </main>
+            </>
+        )
+    }
 
     return (
         <>
             <div className="bg-brand-dark">
                 <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                        <DumbbellIcon className="w-8 h-8 text-white"/>
-                        <h1 className="text-xl sm:text-2xl font-bold text-white">Minha Ficha de Treino</h1>
-                    </div>
-                    <button onClick={onBack} className="flex items-center gap-2 text-white hover:text-gray-300 transition-colors">
-                        <span>Voltar ao Painel</span>
-                    </button>
+                    <h1 className="text-xl sm:text-2xl font-bold text-white">Minhas Fichas de Treino</h1>
+                    <button onClick={onBack} className="text-white hover:text-gray-300">&times; Voltar</button>
                 </header>
             </div>
-
             <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-               {renderContent()}
+                 {workouts.length > 0 ? (
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         {workouts.map(w => {
+                             const completedCount = w.completedExerciseIds?.length || 0;
+                             const totalExercises = (w.exercises || []).filter(ex => !ex.isHidden).length;
+                             const progress = totalExercises > 0 ? (completedCount / totalExercises) * 100 : 0;
+                             return (
+                                <button key={w.id} onClick={() => setSelectedWorkout(w)} className="text-left p-6 bg-white rounded-lg shadow-md hover:shadow-xl hover:-translate-y-1 transition-all">
+                                    <h2 className="text-xl font-bold text-brand-dark">{w.title}</h2>
+                                    <p className="text-sm text-gray-500">Criado em: {new Date(w.createdAt).toLocaleDateString('pt-BR')}</p>
+                                    <div className="mt-4">
+                                        <div className="flex justify-between items-center text-sm font-semibold text-gray-600 mb-1">
+                                            <span>Progresso</span>
+                                            <span>{completedCount}/{totalExercises}</span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                            <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${progress}%`}}></div>
+                                        </div>
+                                    </div>
+                                </button>
+                             )
+                         })}
+                     </div>
+                 ) : (
+                     <p className="text-center text-gray-500 py-16">Nenhuma ficha de treino foi criada para você ainda.</p>
+                 )}
             </main>
-            
-            <div style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1 }}>
-                {workoutToPrint && student && trainer && (
-                    <WorkoutPDFLayout
-                        ref={pdfLayoutRef}
-                        student={student}
-                        trainer={trainer}
-                        workout={workoutToPrint}
-                    />
-                )}
-            </div>
         </>
     );
 };

@@ -65,6 +65,7 @@ export interface Trainer {
     contactEmail?: string;
     instagram?: string; // e.g., 'username' without @
     whatsapp?: string; // e.g., '5511999998888'
+    logoUrl?: string;
 }
 
 export type ExerciseSetType =
@@ -194,4 +195,37 @@ export interface TrainerSuggestion {
   rest: string;
   youtubeUrl?: string;
   sets: ExerciseSet[];
+}
+
+export interface PhysicalAssessment {
+    id: string;
+    studentId: string;
+    date: string; // ISO string
+    weightKg?: number;
+    heightCm?: number;
+    bodyFatPercentage?: number;
+    // Circumferences in cm
+    chest?: number;
+    waist?: number;
+    hips?: number;
+    rightArm?: number;
+    leftArm?: number;
+    rightThigh?: number;
+    leftThigh?: number;
+    notes?: string;
+}
+
+export interface LoggedSet {
+    reps: string;
+    load: string;
+}
+
+export interface ExerciseLog {
+    id: string;
+    studentId: string;
+    workoutId: string;
+    exerciseId: string;
+    exerciseName: string;
+    date: string; // ISO String
+    loggedSets: LoggedSet[];
 }

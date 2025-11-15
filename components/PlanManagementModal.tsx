@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Plan, PlanType } from '../types';
 import { PencilIcon, TrashIcon } from './icons';

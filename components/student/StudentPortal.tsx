@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Student, Plan, Payment, Workout, StudentFile, ProgressPhoto, Trainer } from '../../types';
 import { UserIcon, LogoutIcon, CalendarIcon, DollarSignIcon, BriefcaseIcon, CheckCircleIcon, ExclamationCircleIcon, InstagramIcon, WhatsAppIcon, LinkIcon, FileTextIcon, ImageIcon, UploadCloudIcon, SendIcon, CameraIcon, DumbbellIcon } from '../icons';
@@ -193,7 +192,10 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
         <>
             <div className="bg-brand-dark">
                 <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                    <h1 className="text-xl sm:text-2xl font-bold text-white">Portal do Aluno</h1>
+                    {trainer?.logoUrl ? 
+                        <img src={trainer.logoUrl} alt="Logo" className="h-10 w-auto" /> :
+                        <h1 className="text-xl sm:text-2xl font-bold text-white">Portal do Aluno</h1>
+                    }
                     <button onClick={onLogout} className="flex items-center gap-2 text-white hover:text-red-400 transition-colors">
                         <LogoutIcon className="w-5 h-5" />
                         <span className="hidden sm:inline">Sair</span>
