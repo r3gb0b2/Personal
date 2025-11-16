@@ -184,11 +184,8 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
           <div className={`fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)} />
           
           <aside className={`fixed inset-y-0 left-0 w-64 bg-brand-dark text-white flex flex-col p-4 z-40 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:flex-shrink-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-              <div className="flex items-center justify-between p-4 border-b border-gray-700">
-                  {trainer?.logoUrl ? <img src={trainer.logoUrl} alt="Logo" className="h-10 w-auto" /> : <h1 className="text-xl font-bold text-white">Portal do Aluno</h1>}
-                  <button onClick={() => setIsSidebarOpen(false)} className="p-1 text-gray-300 hover:text-white lg:hidden">
-                    <XIcon className="w-6 h-6" />
-                  </button>
+              <div className="flex items-center justify-center p-4 border-b border-gray-700">
+                  {trainer?.logoUrl ? <img src={trainer.logoUrl} alt="Logo" className="h-12 w-auto" /> : <h1 className="text-xl font-bold text-white">Portal do Aluno</h1>}
               </div>
               <nav className="flex-grow space-y-2 mt-6">
                   <NavItem view="dashboard" label="Início" Icon={HomeIcon} />
