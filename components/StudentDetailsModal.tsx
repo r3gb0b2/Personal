@@ -919,16 +919,31 @@ const PhysicalAssessmentTab: React.FC<{ studentId: string, assessments: Physical
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
-        setFormData(prev => ({ ...prev, [name]: type === 'number' ? (value ? parseFloat(value) : undefined) : value }));
+        if (type === 'number') {
+            const parsed = parseFloat(value);
+            // Store undefined if the value is empty or not a number to prevent NaN
+            setFormData(prev => ({ ...prev, [name]: (value === '' || isNaN(parsed)) ? undefined : parsed }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
         try {
+            const dataToSave: { [key: string]: any } = { ...formData };
+            // Firestore doesn't allow `undefined` values. We remove them before saving.
+            Object.keys(dataToSave).forEach(key => {
+                const typedKey = key as keyof typeof dataToSave;
+                if (dataToSave[typedKey] === undefined) {
+                    delete dataToSave[typedKey];
+                }
+            });
+            
             await addDoc(collection(db, 'physicalAssessments'), {
                 studentId,
-                ...formData,
+                ...dataToSave,
                 date: Timestamp.fromDate(new Date(formData.date)),
             });
             onUpdate();
