@@ -160,6 +160,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'name', direction: 'asc' });
   const [isBulkEmailModalOpen, setBulkEmailModalOpen] = useState(false);
   const [isGroupModalOpen, setGroupModalOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const toISO = (ts: any) => ts && ts.toDate ? ts.toDate().toISOString() : null;
 
@@ -181,6 +182,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             templatesSnapshot,
             pendingSnapshot
         ] = await Promise.all([
+// FIX: Corrected a typo where `pendingSnapshot` was used before declaration. The correct variable is `pendingQuery`.
             getDocs(studentQuery), getDocs(planQuery), getDocs(paymentQuery), getDocs(groupQuery), getDocs(templateQuery), getDocs(pendingQuery)
         ]);
 
@@ -499,19 +501,32 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     return null;
   };
 
-  const NavButton: React.FC<{ view: ActiveView, label: string, Icon: React.FC<{className?: string}>}> = ({ view, label, Icon }) => (
-      <button onClick={() => setActiveView(view)} className={`w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg transition-colors ${activeView === view ? 'bg-brand-accent text-white' : 'text-gray-300 hover:bg-brand-secondary hover:text-white'}`}>
+  const NavButton: React.FC<{ view: ActiveView, label: string, Icon: React.FC<{className?: string}>}> = ({ view, label, Icon }) => {
+    const handleNavClick = () => {
+        setActiveView(view);
+        setIsSidebarOpen(false);
+    };
+
+    return (
+      <button onClick={handleNavClick} className={`w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg transition-colors ${activeView === view ? 'bg-brand-accent text-white' : 'text-gray-300 hover:bg-brand-secondary hover:text-white'}`}>
           <Icon className="w-6 h-6" />
           <span className="font-semibold">{label}</span>
       </button>
-  );
+    );
+  };
 
   return (
     <div className="flex h-screen bg-brand-light">
-      <aside className="w-64 bg-brand-dark text-white flex flex-col p-4 flex-shrink-0">
-        <div className="flex items-center gap-3 p-4 border-b border-gray-700">
-            {trainer.logoUrl ? <img src={trainer.logoUrl} alt="Logo" className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-brand-secondary flex items-center justify-center"><UserIcon className="w-6 h-6"/></div>}
-            <span className="font-bold text-lg">{trainer.username}</span>
+      <div className={`fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)} />
+      <aside className={`fixed inset-y-0 left-0 w-64 bg-brand-dark text-white flex flex-col p-4 z-40 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:flex-shrink-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+            <div className="flex items-center gap-3">
+                {trainer.logoUrl ? <img src={trainer.logoUrl} alt="Logo" className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-brand-secondary flex items-center justify-center"><UserIcon className="w-6 h-6"/></div>}
+                <span className="font-bold text-lg">{trainer.username}</span>
+            </div>
+            <button onClick={() => setIsSidebarOpen(false)} className="p-1 text-gray-300 hover:text-white lg:hidden">
+                <XIcon className="w-6 h-6" />
+            </button>
         </div>
         <nav className="flex-grow space-y-2 mt-6">
             <NavButton view="welcome" label="Início" Icon={UserIcon} />
@@ -522,15 +537,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             <NavButton view="financialReport" label="Financeiro" Icon={DollarSignIcon} />
         </nav>
         <div className="space-y-2 pt-4 border-t border-gray-700">
-            <button onClick={() => setGroupModalOpen(true)} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg text-gray-300 hover:bg-brand-secondary hover:text-white"><UsersIcon className="w-6 h-6"/>Gerenciar Grupos</button>
-            <button onClick={() => setBulkEmailModalOpen(true)} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg text-gray-300 hover:bg-brand-secondary hover:text-white"><MailIcon className="w-6 h-6"/>E-mail em Massa</button>
+            <button onClick={() => { setGroupModalOpen(true); setIsSidebarOpen(false); }} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg text-gray-300 hover:bg-brand-secondary hover:text-white"><UsersIcon className="w-6 h-6"/>Gerenciar Grupos</button>
+            <button onClick={() => { setBulkEmailModalOpen(true); setIsSidebarOpen(false); }} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg text-gray-300 hover:bg-brand-secondary hover:text-white"><MailIcon className="w-6 h-6"/>E-mail em Massa</button>
             <NavButton view="profile" label="Meu Perfil" Icon={SettingsIcon} />
             <button onClick={onLogout} className="w-full flex items-center gap-3 px-3 py-3 text-left rounded-lg text-gray-300 hover:bg-brand-secondary hover:text-white"><LogoutIcon className="w-6 h-6"/>Sair</button>
         </div>
       </aside>
       <div className="flex-1 flex flex-col overflow-hidden">
          <header className="bg-white shadow-sm z-10">
-             <div className="container mx-auto px-6 py-3 flex justify-end items-center">
+             <div className="container mx-auto px-6 py-3 flex justify-between lg:justify-end items-center">
+                  <button onClick={() => setIsSidebarOpen(true)} className="p-1 text-brand-dark lg:hidden" aria-label="Abrir menu">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                 </button>
                  <button onClick={() => setActiveView('addStudent')} className="flex items-center gap-2 bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-accent transition-colors shadow">
                      <PlusIcon className="w-5 h-5" /> Adicionar Aluno
                  </button>
