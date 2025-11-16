@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ExclamationCircleIcon } from './icons';
 
@@ -56,7 +55,6 @@ class ErrorBoundary extends React.Component<Props, State> {
         </div>
       );
     }
-    // FIX: This line was outside the render method, causing a syntax error. It has been moved back inside.
     return this.props.children;
   }
 }

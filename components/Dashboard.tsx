@@ -715,9 +715,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
     activeView: ActiveView,
     setActiveView: (view: ActiveView) => void,
     onLogout: () => void,
-    pendingStudentsCount: number
-}> = ({ activeView, setActiveView, onLogout, pendingStudentsCount }) => {
-    const NavItem: React.FC<{view: ActiveView, label: string, Icon: React.FC<{className?: string}>, alertCount?: number}> = ({view, label, Icon, alertCount}) => {
+    pendingStudentsCount: number,
+    studentCount: number
+}> = ({ activeView, setActiveView, onLogout, pendingStudentsCount, studentCount }) => {
+    const NavItem: React.FC<{
+        view: ActiveView,
+        label: string,
+        Icon: React.FC<{className?: string}>,
+        alertCount?: number,
+        totalCount?: number
+    }> = ({view, label, Icon, alertCount, totalCount}) => {
         const handleNavClick = (view: ActiveView) => {
             setActiveView(view);
             setIsSidebarOpen(false); // Close sidebar on navigation in mobile
@@ -731,6 +738,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             >
                 <Icon className="w-6 h-6"/>
                 <span className="font-semibold">{label}</span>
+                {totalCount !== undefined && (
+                    <span className="ml-2 text-xs font-semibold bg-gray-600 text-white rounded-full px-2 py-0.5">{totalCount}</span>
+                )}
                 {alertCount && alertCount > 0 && (
                     <span className="ml-auto bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">{alertCount}</span>
                 )}
@@ -760,7 +770,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                 </div>
                 <nav className="flex-grow space-y-2">
                     <NavItem view="welcome" label="Dashboard" Icon={ChartBarIcon} />
-                    <NavItem view="studentList" label="Alunos" Icon={UserIcon} alertCount={pendingStudentsCount} />
+                    <NavItem view="studentList" label="Alunos" Icon={UserIcon} totalCount={studentCount} alertCount={pendingStudentsCount} />
                     <NavItem view="schedule" label="Agenda" Icon={CalendarIcon} />
                     <NavItem view="planManagement" label="Planos" Icon={BriefcaseIcon} />
                     <NavItem view="workoutTemplates" label="Modelos de Treino" Icon={ClipboardListIcon} />
@@ -911,6 +921,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             setActiveView={setActiveView} 
             onLogout={onLogout} 
             pendingStudentsCount={pendingStudents.length}
+            studentCount={students.length}
         />
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto bg-brand-light">
           {renderActiveView()}
