@@ -798,6 +798,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b pb-4 gap-4">
                 <h2 className="text-2xl font-bold text-brand-dark">Meus Alunos</h2>
                  <div className="flex flex-wrap items-center gap-4">
+                     <button onClick={() => setCopyLinkModalOpen(true)} className="flex items-center gap-2 bg-gray-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors shadow">
+                        <LinkIcon className="w-5 h-5" /> Link de Cadastro
+                    </button>
                     <button onClick={() => setActiveView('addStudent')} className="flex items-center gap-2 bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-accent transition-colors shadow">
                         <PlusIcon className="w-5 h-5" /> Adicionar Aluno
                     </button>
