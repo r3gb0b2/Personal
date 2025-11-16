@@ -3,9 +3,12 @@ import { Payment, Student, Plan } from '../../types';
 import { PrintIcon, TrashIcon, ExclamationCircleIcon } from '../icons';
 import ReceiptModal from './ReceiptModal';
 
-// Declare the global Chart object made available by the UMD script in index.html.
-// This bypasses ES module import issues that were causing a white screen.
-declare const Chart: any;
+// FIX: Declare Chart on the global window object to resolve TypeScript errors where Chart.js is used from a script tag.
+declare global {
+  interface Window {
+    Chart: any;
+  }
+}
 
 interface FinancialReportProps {
   onBack: () => void;
@@ -27,8 +30,8 @@ const BarChart: React.FC<{ labels: string[], data: number[], title: string }> = 
                 chartInstance.current.destroy();
             }
             const ctx = chartRef.current.getContext('2d');
-            if (ctx) {
-                chartInstance.current = new Chart(ctx, {
+            if (ctx && typeof window.Chart !== 'undefined') {
+                chartInstance.current = new window.Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: labels,

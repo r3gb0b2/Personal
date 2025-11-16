@@ -17,10 +17,12 @@ import html2canvas from 'html2canvas';
 import WorkoutPDFLayout from './pdf/WorkoutPDFLayout';
 import FinancialTab from './FinancialTab';
 
-// Declare the global Chart object made available by the UMD script in index.html.
-// This bypasses ES module import issues that were causing a white screen.
-declare const Chart: any;
-
+// FIX: Declare Chart on the global window object to resolve TypeScript errors where Chart.js is used from a script tag.
+declare global {
+  interface Window {
+    Chart: any;
+  }
+}
 
 interface StudentDetailsViewProps {
   student: Student;
@@ -961,8 +963,8 @@ const PhysicalAssessmentTab: React.FC<{ studentId: string, assessments: Physical
                 chartInstance.current.destroy();
             }
             const ctx = chartRef.current.getContext('2d');
-            if (ctx) {
-                chartInstance.current = new Chart(ctx, {
+            if (ctx && typeof window.Chart !== 'undefined') {
+                chartInstance.current = new window.Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: chartData.labels,
