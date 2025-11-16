@@ -419,16 +419,6 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, groups, isEditing,
         setEditableStudent((prev: Student) => ({ ...prev, [name]: inputValue }));
     };
 
-    const handleDateChange = (field: 'birthDate' | 'paymentDueDate', value: string) => {
-        if (value) {
-            const [year, month, day] = value.split('-').map(Number);
-            const utcDate = new Date(Date.UTC(year, month - 1, day));
-            setEditableStudent((prev: Student) => ({ ...prev, [field]: utcDate.toISOString() }));
-        } else {
-            setEditableStudent((prev: Student) => ({ ...prev, [field]: null }));
-        }
-    };
-
     const handleGroupToggle = (groupId: string) => {
         const currentGroupIds = editableStudent.groupIds || [];
         const newGroupIds = currentGroupIds.includes(groupId)
@@ -558,21 +548,8 @@ const DetailsTab: React.FC<any> = ({ student, plans, trainer, groups, isEditing,
                 <div><label className="block text-sm font-medium text-gray-700">Nome</label><input type="text" name="name" value={editableStudent.name} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"/></div>
                 <div><label className="block text-sm font-medium text-gray-700">Email</label><input type="email" name="email" value={editableStudent.email} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"/></div>
                 <div><label className="block text-sm font-medium text-gray-700">Telefone</label><input type="tel" name="phone" value={editableStudent.phone} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"/></div>
-                <div><label className="block text-sm font-medium text-gray-700">Data de Nascimento</label><input type="date" name="birthDate" value={editableStudent.birthDate ? new Date(editableStudent.birthDate).toISOString().split('T')[0] : ''} onChange={e => handleDateChange('birthDate', e.target.value)} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"/></div>
+                <div><label className="block text-sm font-medium text-gray-700">Data de Nascimento</label><input type="date" name="birthDate" value={editableStudent.birthDate ? new Date(editableStudent.birthDate).toISOString().split('T')[0] : ''} onChange={e => setEditableStudent((prev: Student) => ({...prev, birthDate: e.target.value ? new Date(e.target.value).toISOString() : null}))} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"/></div>
                 <div><label className="block text-sm font-medium text-gray-700">Plano</label><select name="planId" value={editableStudent.planId ?? ''} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"><option value="">Sem Plano</option>{plans.map((p: Plan) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Data de Vencimento do Plano</label>
-                    <input
-                        type="date"
-                        name="paymentDueDate"
-                        value={editableStudent.paymentDueDate ? new Date(editableStudent.paymentDueDate).toISOString().split('T')[0] : ''}
-                        onChange={e => handleDateChange('paymentDueDate', e.target.value)}
-                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-brand-accent focus:border-brand-accent sm:text-sm"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                        Apenas para planos por duração. Altere para ajustar a data de cobrança.
-                    </p>
-                </div>
                 <div className="flex items-center"><input id="accessBlocked" name="accessBlocked" type="checkbox" checked={!!editableStudent.accessBlocked} onChange={handleInputChange} className="h-4 w-4 text-brand-primary focus:ring-brand-accent border-gray-300 rounded" /><label htmlFor="accessBlocked" className="ml-2 block text-sm text-gray-900">Bloquear acesso do aluno ao portal</label></div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700">Grupos</label>

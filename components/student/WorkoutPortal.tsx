@@ -9,7 +9,7 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import WorkoutPDFLayout from '../pdf/WorkoutPDFLayout';
 
-interface WorkoutPortalProps {
+interface StudentWorkoutViewProps {
     workouts: Workout[];
     onBack: () => void;
     isPlanActive: boolean;
@@ -47,7 +47,7 @@ const renderSetDetails = (set: ExerciseSet): string => {
 };
 
 
-const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanActive, onWorkoutUpdate, student, trainer }) => {
+const StudentWorkoutView: React.FC<StudentWorkoutViewProps> = ({ workouts, onBack, isPlanActive, onWorkoutUpdate, student, trainer }) => {
     const [selectedWorkout, setSelectedWorkout] = useState<Workout | null>(null);
     const [feedback, setFeedback] = useState<{ [exerciseId: string]: string }>({});
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState<string | null>(null);
@@ -231,7 +231,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
 
     if (showSuccess) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-brand-light text-center p-4">
+            <div className="flex flex-col items-center justify-center min-h-full text-center p-4">
                 <CheckCircleIcon className="w-24 h-24 text-green-500 mb-4" />
                 <h2 className="text-3xl font-bold text-brand-dark">Treino Concluído!</h2>
                 <p className="text-gray-600 mt-2">Parabéns por finalizar sua ficha de treino. Excelente trabalho!</p>
@@ -249,133 +249,131 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
     }
 
     return (
-        <>
-            <div className="bg-brand-light min-h-screen">
-                <header className="bg-white shadow-md">
-                    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                        <h1 className="text-xl sm:text-2xl font-bold text-brand-dark flex items-center gap-2">
-                            <DumbbellIcon className="w-7 h-7" />
-                            {selectedWorkout ? selectedWorkout.title : 'Minhas Fichas de Treino'}
-                        </h1>
-                        <button onClick={selectedWorkout ? () => setSelectedWorkout(null) : onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
-                            {selectedWorkout ? 'Voltar para a Lista' : 'Voltar ao Painel'}
-                        </button>
+        <div className="bg-white p-6 rounded-lg shadow-md">
+             <div className="flex justify-between items-center mb-6 border-b pb-4">
+                <h2 className="text-2xl font-bold text-brand-dark flex items-center gap-2">
+                    <DumbbellIcon className="w-7 h-7" />
+                    {selectedWorkout ? selectedWorkout.title : 'Minhas Fichas de Treino'}
+                </h2>
+                {selectedWorkout && (
+                    <button onClick={() => setSelectedWorkout(null)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                        Voltar para a Lista
+                    </button>
+                )}
+            </div>
+            <main>
+                {!isPlanActive ? (
+                    <div className="text-center p-8 bg-white rounded-lg shadow-md">
+                        <ExclamationCircleIcon className="w-12 h-12 mx-auto text-red-500 mb-4" />
+                        <h2 className="text-2xl font-bold text-red-700">Acesso Bloqueado</h2>
+                        <p className="mt-2 text-gray-600">Seu plano não está ativo. Por favor, entre em contato com seu personal para regularizar a situação.</p>
                     </div>
-                </header>
-                <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-                    {!isPlanActive ? (
-                        <div className="text-center p-8 bg-white rounded-lg shadow-md">
-                            <ExclamationCircleIcon className="w-12 h-12 mx-auto text-red-500 mb-4" />
-                            <h2 className="text-2xl font-bold text-red-700">Acesso Bloqueado</h2>
-                            <p className="mt-2 text-gray-600">Seu plano não está ativo. Por favor, entre em contato com seu personal para regularizar a situação.</p>
+                ) : selectedWorkout ? (
+                    // DETAILED WORKOUT VIEW
+                    <div className="space-y-4">
+                        <div className="flex justify-end">
+                            <button onClick={() => setWorkoutToPrint(selectedWorkout)} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-600 rounded-md hover:bg-gray-700">
+                                <PrintIcon className="w-5 h-5" /> Baixar PDF
+                            </button>
                         </div>
-                    ) : selectedWorkout ? (
-                        // DETAILED WORKOUT VIEW
-                        <div className="space-y-4">
-                            <div className="flex justify-end">
-                                <button onClick={() => setWorkoutToPrint(selectedWorkout)} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-600 rounded-md hover:bg-gray-700">
-                                    <PrintIcon className="w-5 h-5" /> Baixar PDF
-                                </button>
-                            </div>
-                            {(selectedWorkout.exercises || []).filter(ex => !ex.isHidden).map(ex => {
-                                const isCompleted = selectedWorkout.completedExerciseIds?.includes(ex.id);
+                        {(selectedWorkout.exercises || []).filter(ex => !ex.isHidden).map(ex => {
+                            const isCompleted = selectedWorkout.completedExerciseIds?.includes(ex.id);
 
-                                if (isCompleted) {
-                                    return (
-                                        <div key={ex.id} className="p-4 border rounded-lg shadow-sm bg-green-50 border-green-200 flex justify-between items-center transition-all duration-300">
-                                            <div className="flex items-center gap-3">
-                                                <CheckCircleIcon className="w-6 h-6 text-green-500 flex-shrink-0" />
-                                                <h3 className="text-md font-bold text-green-800">{ex.name}</h3>
-                                            </div>
-                                            <button onClick={() => handleUndoCompletion(ex.id)} className="px-3 py-1 text-xs font-semibold text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 whitespace-nowrap">
-                                                Desfazer
-                                            </button>
-                                        </div>
-                                    );
-                                }
-                                
-                                const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
-                                const lastLog = historicalLogs[ex.id];
-
+                            if (isCompleted) {
                                 return (
-                                    <div key={ex.id} className="p-4 border rounded-lg shadow-sm transition-all duration-300 bg-white">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <h3 className="text-xl font-bold text-brand-dark">{ex.name}</h3>
-                                                <p className="text-sm text-gray-500">{ex.category} | {ex.muscleGroup}</p>
-                                            </div>
+                                    <div key={ex.id} className="p-4 border rounded-lg shadow-sm bg-green-50 border-green-200 flex justify-between items-center transition-all duration-300">
+                                        <div className="flex items-center gap-3">
+                                            <CheckCircleIcon className="w-6 h-6 text-green-500 flex-shrink-0" />
+                                            <h3 className="text-md font-bold text-green-800">{ex.name}</h3>
                                         </div>
-                                        {embedUrl && (
-                                            <div className="mt-3 aspect-w-16 aspect-h-9">
-                                                <iframe src={embedUrl} title={ex.name} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full rounded-md"></iframe>
-                                            </div>
-                                        )}
-                                        <div className="mt-3 space-y-2">
-                                            <div className="grid grid-cols-[50px,1fr,auto] gap-x-4 items-center font-semibold text-sm text-gray-500">
-                                                <span>Série</span>
-                                                <span>Execução</span>
-                                                <span className="text-right">Seu Log</span>
-                                            </div>
-                                            {ex.sets.map((set, index) => (
-                                                <div key={set.id} className="grid grid-cols-[50px,1fr,120px] gap-x-4 items-center p-2 bg-gray-50 rounded-md">
-                                                    <span className="font-bold text-center">{index + 1}</span>
-                                                    <span className="text-sm">{renderSetDetails(set)}</span>
-                                                    <div className="flex gap-1">
-                                                        <input type="text" placeholder="Reps" onChange={e => handleLogChange(ex.id, set.id, 'reps', e.target.value)} className="w-1/2 text-sm border-gray-300 rounded-md"/>
-                                                        <input type="text" placeholder="Carga" onChange={e => handleLogChange(ex.id, set.id, 'load', e.target.value)} className="w-1/2 text-sm border-gray-300 rounded-md"/>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {lastLog && (
-                                                <div className="text-xs text-gray-500 italic p-2 bg-blue-50 border-l-4 border-blue-200 rounded-r-md">
-                                                    Último treino ({new Date(lastLog.date).toLocaleDateString('pt-BR')}):
-                                                    {lastLog.loggedSets.map((s, i) => ` ${s.reps}x${s.load}`).join(' | ')}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="mt-4 pt-4 border-t">
-                                            <button onClick={() => handleLogAndComplete(ex.id, ex.name)} className="w-full py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700">
-                                                Marcar como Concluído
-                                            </button>
-                                        </div>
-                                        <div className="mt-4">
-                                            <textarea value={feedback[ex.id] || ''} onChange={e => handleFeedbackChange(ex.id, e.target.value)} placeholder="Deixar um feedback sobre o exercício..." rows={2} className="w-full text-sm border-gray-300 rounded-md"></textarea>
-                                            <button onClick={() => handleSendFeedback(selectedWorkout.id, ex.id)} disabled={isSubmittingFeedback === ex.id} className="mt-2 flex items-center gap-2 px-3 py-1 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent disabled:bg-gray-400">
-                                                <SendIcon className="w-4 h-4" /> {isSubmittingFeedback === ex.id ? 'Enviando...' : 'Enviar Feedback'}
-                                            </button>
-                                        </div>
+                                        <button onClick={() => handleUndoCompletion(ex.id)} className="px-3 py-1 text-xs font-semibold text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 whitespace-nowrap">
+                                            Desfazer
+                                        </button>
                                     </div>
                                 );
-                            })}
-                        </div>
-                    ) : (
-                        // WORKOUT LIST VIEW
-                        <div className="space-y-4">
-                            {workouts.length > 0 ? workouts.map(w => (
-                                <div key={w.id} className="p-4 border rounded-lg bg-white shadow-sm flex justify-between items-center">
-                                    <div>
-                                        <p className="font-bold text-lg text-brand-dark">{w.title}</p>
-                                        <p className="text-sm text-gray-500">Criado em: {new Date(w.createdAt).toLocaleDateString('pt-BR')}</p>
+                            }
+                            
+                            const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
+                            const lastLog = historicalLogs[ex.id];
+
+                            return (
+                                <div key={ex.id} className="p-4 border rounded-lg shadow-sm transition-all duration-300 bg-white">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h3 className="text-xl font-bold text-brand-dark">{ex.name}</h3>
+                                            <p className="text-sm text-gray-500">{ex.category} | {ex.muscleGroup}</p>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-4">
-                                        <button onClick={() => setWorkoutToPrint(w)} className="text-gray-500 hover:text-purple-600" title="Baixar PDF do Treino">
-                                            <PrintIcon className="w-6 h-6"/>
+                                    {embedUrl && (
+                                        <div className="mt-3 aspect-w-16 aspect-h-9">
+                                            <iframe src={embedUrl} title={ex.name} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full rounded-md"></iframe>
+                                        </div>
+                                    )}
+                                    <div className="mt-3 space-y-2">
+                                        <div className="grid grid-cols-[50px,1fr,auto] gap-x-4 items-center font-semibold text-sm text-gray-500">
+                                            <span>Série</span>
+                                            <span>Execução</span>
+                                            <span className="text-right">Seu Log</span>
+                                        </div>
+                                        {ex.sets.map((set, index) => (
+                                            <div key={set.id} className="grid grid-cols-[50px,1fr,120px] gap-x-4 items-center p-2 bg-gray-50 rounded-md">
+                                                <span className="font-bold text-center">{index + 1}</span>
+                                                <span className="text-sm">{renderSetDetails(set)}</span>
+                                                <div className="flex gap-1">
+                                                    <input type="text" placeholder="Reps" onChange={e => handleLogChange(ex.id, set.id, 'reps', e.target.value)} className="w-1/2 text-sm border-gray-300 rounded-md"/>
+                                                    <input type="text" placeholder="Carga" onChange={e => handleLogChange(ex.id, set.id, 'load', e.target.value)} className="w-1/2 text-sm border-gray-300 rounded-md"/>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {lastLog && (
+                                            <div className="text-xs text-gray-500 italic p-2 bg-blue-50 border-l-4 border-blue-200 rounded-r-md">
+                                                Último treino ({new Date(lastLog.date).toLocaleDateString('pt-BR')}):
+                                                {lastLog.loggedSets.map((s, i) => ` ${s.reps}x${s.load}`).join(' | ')}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="mt-4 pt-4 border-t">
+                                        <button onClick={() => handleLogAndComplete(ex.id, ex.name)} className="w-full py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700">
+                                            Marcar como Concluído
                                         </button>
-                                        <button onClick={() => setSelectedWorkout(w)} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">
-                                            Iniciar Treino
+                                    </div>
+                                    <div className="mt-4">
+                                        <textarea value={feedback[ex.id] || ''} onChange={e => handleFeedbackChange(ex.id, e.target.value)} placeholder="Deixar um feedback sobre o exercício..." rows={2} className="w-full text-sm border-gray-300 rounded-md"></textarea>
+                                        <button onClick={() => handleSendFeedback(selectedWorkout.id, ex.id)} disabled={isSubmittingFeedback === ex.id} className="mt-2 flex items-center gap-2 px-3 py-1 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent disabled:bg-gray-400">
+                                            <SendIcon className="w-4 h-4" /> {isSubmittingFeedback === ex.id ? 'Enviando...' : 'Enviar Feedback'}
                                         </button>
                                     </div>
                                 </div>
-                            )) : (
-                                <div className="text-center p-8 bg-white rounded-lg shadow-md">
-                                    <p className="text-gray-500">Nenhuma ficha de treino foi criada para você ainda.</p>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    // WORKOUT LIST VIEW
+                    <div className="space-y-4">
+                        {workouts.length > 0 ? workouts.map(w => (
+                            <div key={w.id} className="p-4 border rounded-lg bg-white shadow-sm flex justify-between items-center">
+                                <div>
+                                    <p className="font-bold text-lg text-brand-dark">{w.title}</p>
+                                    <p className="text-sm text-gray-500">Criado em: {new Date(w.createdAt).toLocaleDateString('pt-BR')}</p>
                                 </div>
-                            )}
-                        </div>
-                    )}
-                </main>
-            </div>
-            {/* HIDDEN PDF LAYOUT - a single instance for the whole component */}
+                                <div className="flex items-center gap-4">
+                                    <button onClick={() => setWorkoutToPrint(w)} className="text-gray-500 hover:text-purple-600" title="Baixar PDF do Treino">
+                                        <PrintIcon className="w-6 h-6"/>
+                                    </button>
+                                    <button onClick={() => setSelectedWorkout(w)} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">
+                                        Iniciar Treino
+                                    </button>
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="text-center p-8 bg-white rounded-lg shadow-md">
+                                <p className="text-gray-500">Nenhuma ficha de treino foi criada para você ainda.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </main>
+            {/* HIDDEN PDF LAYOUT */}
             <div style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1 }}>
                 {workoutToPrint && student && trainer && (
                     <WorkoutPDFLayout
@@ -386,8 +384,8 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
                     />
                 )}
             </div>
-        </>
+        </div>
     );
 };
 
-export default WorkoutPortal;
+export default StudentWorkoutView;

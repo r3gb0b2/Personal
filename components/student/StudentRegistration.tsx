@@ -91,18 +91,12 @@ const StudentRegistration: React.FC<StudentRegistrationProps> = ({ trainerId, on
             const snapshot = await uploadBytes(storageRef, imageFile);
             profilePictureUrl = await getDownloadURL(snapshot.ref);
         }
-        
-        const getUtcIsoString = (dateString: string): string | null => {
-            if (!dateString) return null;
-            const [year, month, day] = dateString.split('-').map(Number);
-            return new Date(Date.UTC(year, month - 1, day)).toISOString();
-        };
 
         const pendingStudentData: Omit<PendingStudent, 'id'> = {
             name: formData.name.trim(),
             email: formData.email.trim().toLowerCase(),
             phone: formData.phone.trim(),
-            birthDate: getUtcIsoString(formData.birthDate),
+            birthDate: formData.birthDate ? new Date(formData.birthDate).toISOString() : null,
             trainerId: trainerId,
             status: 'pending',
             submittedAt: new Date().toISOString(),

@@ -1,13 +1,18 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Student, Plan, Payment, Workout, StudentFile, ProgressPhoto, Trainer } from '../../types';
-import { UserIcon, LogoutIcon, CalendarIcon, DollarSignIcon, BriefcaseIcon, CheckCircleIcon, ExclamationCircleIcon, InstagramIcon, WhatsAppIcon, LinkIcon, FileTextIcon, ImageIcon, UploadCloudIcon, SendIcon, CameraIcon, DumbbellIcon } from '../icons';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Student, Plan, Payment, Workout, StudentFile, ProgressPhoto, Trainer, PhysicalAssessment } from '../../types';
+import { UserIcon, LogoutIcon, CheckCircleIcon, ExclamationCircleIcon, InstagramIcon, WhatsAppIcon, FileTextIcon, ImageIcon, UploadCloudIcon, CameraIcon, DumbbellIcon, HomeIcon, ChartBarIcon, DollarSignIcon, XIcon } from '../icons';
 import { db, storage } from '../../firebase';
-// FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
 import { collection, addDoc, getDocs, query, where, orderBy, Timestamp } from '@firebase/firestore';
-// FIX: Changed firebase import path to use the scoped package '@firebase/storage' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
 import { ref, uploadBytes, getDownloadURL } from '@firebase/storage';
-import WorkoutPortal from './WorkoutPortal';
+import StudentWorkoutView from './WorkoutPortal';
 import { STUDENT_PORTAL_VIEW_KEY } from '../../constants';
+
+// FIX: Declare Chart on the global window object to resolve TypeScript errors where Chart.js is used from a script tag.
+declare global {
+  interface Window {
+    Chart: any;
+  }
+}
 
 interface StudentPortalProps {
     studentData: {
@@ -19,26 +24,26 @@ interface StudentPortalProps {
     onLogout: () => void;
 }
 
+type PortalView = 'dashboard' | 'workouts' | 'assessments' | 'progress' | 'financial' | 'files';
+
 const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLogout }) => {
     const { student, payments, trainer } = studentData;
     const [workouts, setWorkouts] = useState<Workout[]>([]);
     const [studentFiles, setStudentFiles] = useState<StudentFile[]>([]);
     const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
+    const [assessments, setAssessments] = useState<PhysicalAssessment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [view, setView] = useState<'dashboard' | 'workouts'>(() => {
+    
+    const [view, setView] = useState<PortalView>(() => {
         const savedView = sessionStorage.getItem(STUDENT_PORTAL_VIEW_KEY);
-        // Ensure that only valid values are used from sessionStorage
-        if (savedView === 'workouts') {
-            return 'workouts';
+        const validViews: PortalView[] = ['dashboard', 'workouts', 'assessments', 'progress', 'financial', 'files'];
+        if (savedView && validViews.includes(savedView as PortalView)) {
+            return savedView as PortalView;
         }
         return 'dashboard';
     });
-
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const photoInputRef = useRef<HTMLInputElement>(null);
-    const [uploadingFile, setUploadingFile] = useState(false);
-    const [uploadingPhoto, setUploadingPhoto] = useState(false);
-    const [photoNotes, setPhotoNotes] = useState('');
+    
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     useEffect(() => {
         sessionStorage.setItem(STUDENT_PORTAL_VIEW_KEY, view);
@@ -48,17 +53,19 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
         setIsLoading(true);
         const toISO = (ts: any) => ts?.toDate ? ts.toDate().toISOString() : new Date().toISOString();
         try {
-            const workoutsQuery = query(collection(db, 'workouts'), where("studentId", "==", student.id), orderBy("createdAt", "desc"));
-            const workoutsSnapshot = await getDocs(workoutsQuery);
-            setWorkouts(workoutsSnapshot.docs.map(d => ({ ...d.data(), id: d.id, createdAt: toISO(d.data().createdAt) } as Workout)));
+            const queries = [
+                getDocs(query(collection(db, 'workouts'), where("studentId", "==", student.id), orderBy("createdAt", "desc"))),
+                getDocs(query(collection(db, 'studentFiles'), where("studentId", "==", student.id), orderBy("uploadedAt", "desc"))),
+                getDocs(query(collection(db, 'progressPhotos'), where("studentId", "==", student.id), orderBy("uploadedAt", "desc"))),
+                getDocs(query(collection(db, 'physicalAssessments'), where("studentId", "==", student.id), orderBy("date", "desc"))),
+            ];
+            const [workoutsSnap, filesSnap, photosSnap, assessmentsSnap] = await Promise.all(queries);
+            
+            setWorkouts(workoutsSnap.docs.map(d => ({ ...d.data(), id: d.id, createdAt: toISO(d.data().createdAt) } as Workout)));
+            setStudentFiles(filesSnap.docs.map(d => ({ ...d.data(), id: d.id, uploadedAt: toISO(d.data().uploadedAt) } as StudentFile)));
+            setProgressPhotos(photosSnap.docs.map(d => ({ ...d.data(), id: d.id, uploadedAt: toISO(d.data().uploadedAt) } as ProgressPhoto)));
+            setAssessments(assessmentsSnap.docs.map(d => ({...d.data(), id: d.id, date: toISO(d.data().date) } as PhysicalAssessment)));
 
-            const filesQuery = query(collection(db, 'studentFiles'), where("studentId", "==", student.id), orderBy("uploadedAt", "desc"));
-            const filesSnapshot = await getDocs(filesQuery);
-            setStudentFiles(filesSnapshot.docs.map(d => ({ ...d.data(), id: d.id, uploadedAt: toISO(d.data().uploadedAt) } as StudentFile)));
-
-            const photosQuery = query(collection(db, 'progressPhotos'), where("studentId", "==", student.id), orderBy("uploadedAt", "desc"));
-            const photosSnapshot = await getDocs(photosQuery);
-            setProgressPhotos(photosSnapshot.docs.map(d => ({ ...d.data(), id: d.id, uploadedAt: toISO(d.data().uploadedAt) } as ProgressPhoto)));
         } catch (error) {
             console.error("Error fetching data:", error);
         } finally {
@@ -76,31 +83,181 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
         );
     };
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setUploadingFile(true);
-        try {
-            const storageRef = ref(storage, `student_files/${student.id}/${Date.now()}-${file.name}`);
-            const snapshot = await uploadBytes(storageRef, file);
-            const fileUrl = await getDownloadURL(snapshot.ref);
-            await addDoc(collection(db, 'studentFiles'), {
-                studentId: student.id,
-                trainerId: student.trainerId,
-                fileName: file.name,
-                fileUrl,
-                uploadedAt: Timestamp.now(),
-            });
-            fetchData();
-        } catch (error: any) {
-            console.error("File upload error:", error);
-            alert(`Erro ao enviar arquivo. Verifique suas permissões e conexão. Detalhes: ${error.message}`);
-        } finally {
-            setUploadingFile(false);
-            if (e.target) e.target.value = '';
+    const studentPlan = plans.find(p => p.id === student.planId);
+    const formatDate = (dateString: string | null) => dateString ? new Date(dateString).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A';
+    
+    const getStatusInfo = () => {
+        if (!studentPlan) return { text: 'Aluno sem plano ativo', Icon: ExclamationCircleIcon, color: 'text-red-600', isActive: false };
+        if (studentPlan.type === 'duration') {
+            if (!student.paymentDueDate) return { text: 'Status do plano não definido', Icon: ExclamationCircleIcon, color: 'text-yellow-600', isActive: true };
+            const isExpired = new Date(student.paymentDueDate) < new Date();
+            return { text: `Seu plano vence em ${formatDate(student.paymentDueDate)}`, Icon: isExpired ? ExclamationCircleIcon : CheckCircleIcon, color: isExpired ? 'text-red-600' : 'text-green-600', isActive: !isExpired };
+        }
+        if (studentPlan.type === 'session') {
+            const remaining = student.remainingSessions;
+            if (remaining == null || isNaN(remaining)) return { text: "Contagem de aulas não iniciada", Icon: CheckCircleIcon, color: 'text-yellow-600', isActive: true };
+            const isDepleted = remaining <= 0;
+            let statusText = '';
+            if (remaining < 0) statusText = `Você deve ${Math.abs(remaining)} aula${Math.abs(remaining) !== 1 ? 's' : ''}`;
+            else if (remaining === 0) statusText = 'Você não tem mais aulas restantes';
+            else statusText = `Você tem ${remaining} aula${remaining > 1 ? 's' : ''} restante${remaining > 1 ? 's' : ''}`;
+            return { text: statusText, Icon: isDepleted ? ExclamationCircleIcon : CheckCircleIcon, color: isDepleted ? 'text-red-600' : 'text-green-600', isActive: !isDepleted };
+        }
+        return { text: 'Status indisponível', Icon: ExclamationCircleIcon, color: 'text-gray-600', isActive: false };
+    };
+
+    const status = getStatusInfo();
+    const isPlanActive = status.isActive;
+
+    const NavItem: React.FC<{ view: PortalView, label: string, Icon: React.FC<{className?: string}> }> = ({ view: viewName, label, Icon }) => {
+        const handleNavClick = () => {
+            setView(viewName);
+            setIsSidebarOpen(false);
+        };
+        return (
+            <button onClick={handleNavClick} className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-colors ${view === viewName ? 'bg-brand-accent text-white' : 'text-gray-300 hover:bg-brand-secondary hover:text-white'}`}>
+                <Icon className="w-6 h-6"/>
+                <span className="font-semibold">{label}</span>
+            </button>
+        );
+    };
+
+    const renderContent = () => {
+        if (isLoading) return <div className="text-center p-8">Carregando...</div>;
+        switch(view) {
+            case 'workouts': return <StudentWorkoutView workouts={workouts} onBack={() => {}} isPlanActive={isPlanActive} onWorkoutUpdate={handleUpdateWorkout} student={student} trainer={trainer} />;
+            case 'assessments': return <AssessmentsContent assessments={assessments} />;
+            case 'progress': return <ProgressContent photos={progressPhotos} student={student} onUpdate={fetchData} />;
+            case 'financial': return <FinancialContent payments={payments} />;
+            case 'files': return <FilesContent files={studentFiles} student={student} onUpdate={fetchData} />;
+            case 'dashboard':
+            default: return <DashboardContent setView={setView} status={status} workoutsCount={workouts.length} lastPhoto={progressPhotos[0]} trainer={trainer} student={student} />;
         }
     };
     
+    return (
+      <div className="flex h-screen bg-brand-light font-sans text-brand-dark">
+          {/* Overlay for mobile */}
+          <div className={`fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)} />
+          
+          <aside className={`fixed inset-y-0 left-0 w-64 bg-brand-dark text-white flex flex-col p-4 z-40 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:flex-shrink-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+              <div className="flex items-center justify-center p-4 border-b border-gray-700">
+                  {trainer?.logoUrl ? <img src={trainer.logoUrl} alt="Logo" className="h-12 w-auto" /> : <h1 className="text-xl font-bold text-white">Portal do Aluno</h1>}
+              </div>
+              <nav className="flex-grow space-y-2 mt-6">
+                  <NavItem view="dashboard" label="Início" Icon={HomeIcon} />
+                  <NavItem view="workouts" label="Meus Treinos" Icon={DumbbellIcon} />
+                  <NavItem view="assessments" label="Avaliações" Icon={ChartBarIcon} />
+                  <NavItem view="progress" label="Progresso" Icon={ImageIcon} />
+                  <NavItem view="financial" label="Financeiro" Icon={DollarSignIcon} />
+                  <NavItem view="files" label="Arquivos" Icon={FileTextIcon} />
+              </nav>
+          </aside>
+
+          <div className="flex-1 flex flex-col overflow-hidden">
+              <header className="bg-white shadow-sm z-20">
+                  <div className="container mx-auto px-6 py-3 flex justify-between items-center">
+                      <button onClick={() => setIsSidebarOpen(true)} className="p-1 text-brand-dark lg:hidden" aria-label="Abrir menu">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                      </button>
+                      <div className="lg:hidden"></div> {/* Spacer */}
+                      <div className="flex items-center gap-4">
+                          <span className="font-semibold">{student.name}</span>
+                          {student.profilePictureUrl ? <img src={student.profilePictureUrl} alt="Perfil" className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center"><UserIcon className="w-6 h-6 text-gray-500"/></div>}
+                          <button onClick={onLogout} title="Sair" className="p-2 rounded-full text-gray-500 hover:bg-gray-100"><LogoutIcon className="w-6 h-6" /></button>
+                      </div>
+                  </div>
+              </header>
+              <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6 lg:p-8">
+                  {renderContent()}
+              </main>
+          </div>
+      </div>
+    );
+};
+
+// --- Sub-components for each view ---
+
+const DashboardContent: React.FC<{setView: (v: PortalView) => void, status: any, workoutsCount: number, lastPhoto: ProgressPhoto | undefined, trainer: Trainer | null, student: Student}> = ({setView, status, workoutsCount, lastPhoto, trainer, student}) => (
+    <div className="space-y-8">
+        <div>
+            {/* FIX: Changed studentData.student.name to student.name as studentData is not in scope, but the student object is passed as a prop. */}
+            <h2 className="text-3xl font-bold text-brand-dark">Olá, {student.name}!</h2>
+            <p className="text-gray-600">Bem-vindo(a) de volta ao seu painel.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-lg shadow-md flex flex-col justify-between"><h3 className="font-bold text-lg text-brand-dark mb-2">Meu Plano</h3><div className="bg-gray-50 p-4 rounded-md"><div className={`flex items-center gap-2 font-semibold ${status.color}`}><status.Icon className="w-5 h-5" /><span>{status.text}</span></div></div></div>
+            <button onClick={() => setView('workouts')} className="bg-white p-6 rounded-lg shadow-md text-left hover:shadow-lg transition-shadow"><h3 className="font-bold text-lg text-brand-dark mb-2">Fichas de Treino</h3><p className="text-3xl font-extrabold text-brand-primary">{workoutsCount}</p><p className="text-sm text-gray-500">planilhas disponíveis</p></button>
+            {lastPhoto ? <button onClick={() => setView('progress')} className="bg-white p-6 rounded-lg shadow-md text-left hover:shadow-lg transition-shadow"><h3 className="font-bold text-lg text-brand-dark mb-2">Último Progresso</h3><img src={lastPhoto.photoUrl} alt="progresso" className="w-full h-24 object-cover rounded-md mt-2" /><p className="text-xs text-gray-500 mt-1">Enviado em {new Date(lastPhoto.uploadedAt).toLocaleDateString('pt-BR')}</p></button> : <div className="bg-white p-6 rounded-lg shadow-md flex flex-col justify-center text-center"><h3 className="font-bold text-lg text-brand-dark mb-2">Meu Progresso</h3><p className="text-gray-500 text-sm">Nenhuma foto enviada ainda. Envie uma para começar a acompanhar!</p></div>}
+        </div>
+        {trainer && (
+            <div className="bg-white p-6 rounded-lg shadow-md">
+                <h3 className="text-xl font-bold text-brand-dark mb-4">Fale com seu Personal</h3>
+                <div className="flex flex-wrap items-center gap-4">
+                    <p className="font-semibold text-lg">{trainer.fullName || trainer.username}</p>
+                    {trainer.whatsapp && <a href={`https://wa.me/${trainer.whatsapp}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full hover:bg-green-200 font-semibold"><WhatsAppIcon className="w-5 h-5"/> WhatsApp</a>}
+                    {trainer.instagram && <a href={`https://instagram.com/${trainer.instagram}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-pink-100 text-pink-800 rounded-full hover:bg-pink-200 font-semibold"><InstagramIcon className="w-5 h-5"/> Instagram</a>}
+                </div>
+            </div>
+        )}
+    </div>
+);
+
+const AssessmentsContent: React.FC<{assessments: PhysicalAssessment[]}> = ({ assessments }) => {
+    const chartRef = useRef<HTMLCanvasElement>(null);
+    const chartInstance = useRef<any | null>(null);
+    const chartData = useMemo(() => {
+        const sorted = [...assessments].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        return {
+            labels: sorted.map(a => new Date(a.date).toLocaleDateString('pt-BR')),
+            weight: sorted.map(a => a.weightKg),
+            bodyFat: sorted.map(a => a.bodyFatPercentage),
+        };
+    }, [assessments]);
+
+    useEffect(() => {
+        if (chartRef.current && chartData.labels.length > 0 && typeof window.Chart !== 'undefined') {
+            if (chartInstance.current) chartInstance.current.destroy();
+            const ctx = chartRef.current.getContext('2d');
+            if (ctx) {
+                chartInstance.current = new window.Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: chartData.labels,
+                        datasets: [
+                            { label: 'Peso (kg)', data: chartData.weight, borderColor: 'rgb(75, 192, 192)', tension: 0.1, yAxisID: 'y' },
+                            { label: '% Gordura Corporal', data: chartData.bodyFat, borderColor: 'rgb(255, 99, 132)', tension: 0.1, yAxisID: 'y1' }
+                        ]
+                    },
+                    options: { responsive: true, scales: { y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Peso (kg)' } }, y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: '% Gordura' } } } }
+                });
+            }
+        }
+        return () => { if (chartInstance.current) chartInstance.current.destroy(); };
+    }, [chartData]);
+
+    return (
+        <div className="bg-white p-6 rounded-lg shadow-md space-y-6">
+            <h2 className="text-2xl font-bold text-brand-dark border-b pb-4">Minhas Avaliações Físicas</h2>
+            <div>
+                <h3 className="font-bold text-lg mb-2">Evolução Corporal</h3>
+                {assessments.length > 1 ? <canvas ref={chartRef}></canvas> : <p className="text-center text-gray-500 p-8 bg-gray-50 rounded-md">Adicione pelo menos duas avaliações para ver o gráfico de progresso.</p>}
+            </div>
+            <div>
+                <h3 className="font-bold text-lg mb-2">Histórico Detalhado</h3>
+                <div className="border rounded-lg max-h-96 overflow-y-auto"><table className="w-full text-sm text-left"><thead className="bg-gray-100 sticky top-0"><tr><th className="p-2">Data</th><th className="p-2">Peso</th><th className="p-2">Gordura %</th><th className="p-2">Peito</th><th className="p-2">Cintura</th><th className="p-2">Quadril</th></tr></thead><tbody>
+                {assessments.map(a => (<tr key={a.id} className="border-b"><td className="p-2 font-semibold">{new Date(a.date).toLocaleDateString('pt-BR')}</td><td className="p-2">{a.weightKg || '-'} kg</td><td className="p-2">{a.bodyFatPercentage || '-'} %</td><td className="p-2">{a.chest || '-'} cm</td><td className="p-2">{a.waist || '-'} cm</td><td className="p-2">{a.hips || '-'} cm</td></tr>))}
+                </tbody></table></div>
+            </div>
+        </div>
+    );
+};
+
+const ProgressContent: React.FC<{photos: ProgressPhoto[], student: Student, onUpdate: () => void}> = ({ photos, student, onUpdate }) => {
+    const photoInputRef = useRef<HTMLInputElement>(null);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
+    const [photoNotes, setPhotoNotes] = useState('');
+
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -109,196 +266,62 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
             const storageRef = ref(storage, `progress_photos/${student.id}/${Date.now()}-${file.name}`);
             const snapshot = await uploadBytes(storageRef, file);
             const photoUrl = await getDownloadURL(snapshot.ref);
-            await addDoc(collection(db, 'progressPhotos'), {
-                studentId: student.id,
-                trainerId: student.trainerId,
-                photoUrl,
-                studentNotes: photoNotes,
-                uploadedAt: Timestamp.now(),
-            });
+            await addDoc(collection(db, 'progressPhotos'), { studentId: student.id, trainerId: student.trainerId, photoUrl, studentNotes: photoNotes, uploadedAt: Timestamp.now() });
             setPhotoNotes('');
-            fetchData();
-        } catch (error: any) {
-            console.error("Photo upload error:", error);
-            alert(`Erro ao enviar foto. Verifique suas permissões e conexão. Detalhes: ${error.message}`);
-        } finally {
-            setUploadingPhoto(false);
-            if (e.target) e.target.value = '';
-        }
+            onUpdate();
+        } catch (error: any) { alert(`Erro ao enviar foto: ${error.message}`); }
+        finally { setUploadingPhoto(false); if (e.target) e.target.value = ''; }
     };
-
-    const studentPlan = plans.find(p => p.id === student.planId);
-    const formatDate = (dateString: string | null) => dateString ? new Date(dateString).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A';
-    
-    const getStatusInfo = () => {
-        if (!studentPlan) return { text: 'Aluno sem plano ativo', Icon: ExclamationCircleIcon, color: 'text-red-600', isActive: false };
-        
-        if (studentPlan.type === 'duration') {
-            if (!student.paymentDueDate) return { text: 'Status do plano não definido', Icon: ExclamationCircleIcon, color: 'text-yellow-600', isActive: true }; // Allow access even without due date
-            const isExpired = new Date(student.paymentDueDate) < new Date();
-            return { 
-                text: `Seu plano vence em ${formatDate(student.paymentDueDate)}`, 
-                Icon: isExpired ? ExclamationCircleIcon : CheckCircleIcon, 
-                color: isExpired ? 'text-red-600' : 'text-green-600',
-                isActive: !isExpired 
-            };
-        }
-        
-        if (studentPlan.type === 'session') {
-            const remaining = student.remainingSessions;
-             // Grant access if sessions are untracked or data is invalid (NaN)
-            if (remaining == null || isNaN(remaining)) {
-                return { text: "Contagem de aulas não iniciada", Icon: CheckCircleIcon, color: 'text-yellow-600', isActive: true };
-            }
-
-            const isDepleted = remaining <= 0;
-            let statusText = '';
-            if (remaining < 0) {
-                const plural = Math.abs(remaining) !== 1;
-                statusText = `Você deve ${Math.abs(remaining)} aula${plural ? 's' : ''}`;
-            } else if (remaining === 0) {
-                statusText = 'Você não tem mais aulas restantes';
-            } else {
-                const plural = remaining > 1;
-                statusText = `Você tem ${remaining} aula${plural ? 's' : ''} restante${plural ? 's' : ''}`;
-            }
-
-            return { 
-                text: statusText, 
-                Icon: isDepleted ? ExclamationCircleIcon : CheckCircleIcon, 
-                color: isDepleted ? 'text-red-600' : 'text-green-600',
-                isActive: !isDepleted
-            };
-        }
-
-        return { text: 'Status indisponível', Icon: ExclamationCircleIcon, color: 'text-gray-600', isActive: false };
-    };
-
-    const status = getStatusInfo();
-    const isPlanActive = status.isActive;
-    
-    if (view === 'workouts') {
-        return <WorkoutPortal 
-            workouts={workouts} 
-            onBack={() => setView('dashboard')} 
-            isPlanActive={isPlanActive} 
-            onWorkoutUpdate={handleUpdateWorkout}
-            student={student}
-            trainer={trainer}
-        />;
-    }
 
     return (
-        <>
-            <div className="bg-brand-dark">
-                <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                    {trainer?.logoUrl ? 
-                        <img src={trainer.logoUrl} alt="Logo" className="h-10 w-auto" /> :
-                        <h1 className="text-xl sm:text-2xl font-bold text-white">Portal do Aluno</h1>
-                    }
-                    <button onClick={onLogout} className="flex items-center gap-2 text-white hover:text-red-400 transition-colors">
-                        <LogoutIcon className="w-5 h-5" />
-                        <span className="hidden sm:inline">Sair</span>
-                    </button>
-                </header>
+        <div className="bg-white p-6 rounded-lg shadow-md space-y-6">
+            <h2 className="text-2xl font-bold text-brand-dark border-b pb-4">Meu Progresso</h2>
+            <div className="p-4 border rounded-md bg-gray-50">
+                <textarea value={photoNotes} onChange={e => setPhotoNotes(e.target.value)} placeholder="Adicionar uma nota sobre a foto (opcional)" className="w-full text-sm border-gray-300 rounded-md" rows={2}></textarea>
+                <button onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto} className="w-full mt-2 flex items-center justify-center gap-2 p-2 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400"><CameraIcon className="w-5 h-5"/>{uploadingPhoto ? "Enviando..." : "Enviar Foto de Progresso"}</button>
+                <input type="file" accept="image/*" ref={photoInputRef} onChange={handlePhotoUpload} className="hidden" />
             </div>
-
-            <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-                <div className="mb-8 p-6 bg-white rounded-lg shadow-md flex flex-col sm:flex-row items-center gap-6">
-                    {student.profilePictureUrl ? (<img src={student.profilePictureUrl} alt={student.name} className="w-24 h-24 rounded-full object-cover border-4 border-brand-accent"/>) : (<div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-4 border-brand-accent"><UserIcon className="w-12 h-12 text-gray-500"/></div>)}
-                    <div className="text-center sm:text-left">
-                        <h2 className="text-3xl font-bold text-brand-dark">{student.name}</h2>
-                        <p className="text-gray-600">{student.email}</p>
-                    </div>
-                </div>
-
-                 <div className="mb-8">
-                    {isPlanActive ? (
-                        <button 
-                            onClick={() => setView('workouts')} 
-                            className="w-full flex items-center justify-center gap-3 py-4 px-6 text-lg font-bold text-white bg-brand-primary rounded-lg shadow-lg hover:bg-brand-accent transition-transform transform hover:scale-105"
-                        >
-                            <DumbbellIcon className="w-8 h-8"/>
-                            Acessar Minha Ficha de Treino
-                        </button>
-                    ) : (
-                        <div className="w-full flex flex-col items-center justify-center text-center gap-2 py-4 px-6 bg-gray-400 rounded-lg shadow-inner cursor-not-allowed">
-                            <div className="flex items-center gap-3 text-lg font-bold text-white">
-                                <DumbbellIcon className="w-8 h-8"/>
-                                <span>Acessar Minha Ficha de Treino</span>
-                            </div>
-                            <p className="text-sm font-medium text-gray-100">
-                                Seu acesso está bloqueado. Motivo: <span className="font-bold">{status.text}</span>.
-                            </p>
-                            <p className="text-xs text-gray-200">Fale com seu personal para regularizar a situação.</p>
-                        </div>
-                    )}
-                </div>
-
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {/* Column 1 */}
-                    <div className="space-y-8 lg:col-span-2">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                            <div className="bg-white p-6 rounded-lg shadow-md">
-                                <h3 className="text-xl font-bold text-brand-dark mb-4 flex items-center gap-2"><BriefcaseIcon className="w-6 h-6"/> Plano Atual</h3>
-                                <div className="bg-gray-50 p-4 rounded-md"><p className="font-semibold text-lg">{studentPlan?.name || 'Nenhum plano'}</p><div className={`flex items-center gap-2 mt-2 font-medium ${status.color}`}><status.Icon className="w-5 h-5" /><span>{status.text}</span></div></div>
-                            </div>
-                             {trainer && (
-                                <div className="bg-white p-6 rounded-lg shadow-md">
-                                    <h3 className="text-xl font-bold text-brand-dark mb-4">Fale com seu Personal</h3>
-                                    <div className="space-y-3">
-                                        <p className="font-semibold text-lg">{trainer.fullName || trainer.username}</p>
-                                        <div className="flex flex-col gap-2">
-                                            {trainer.whatsapp && <a href={`https://wa.me/${trainer.whatsapp}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2 bg-green-100 text-green-800 rounded-md hover:bg-green-200"><WhatsAppIcon className="w-5 h-5"/> WhatsApp</a>}
-                                            {trainer.instagram && <a href={`https://instagram.com/${trainer.instagram}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2 bg-pink-100 text-pink-800 rounded-md hover:bg-pink-200"><InstagramIcon className="w-5 h-5"/> Instagram</a>}
-                                            {trainer.contactEmail && <a href={`mailto:${trainer.contactEmail}`} className="flex items-center gap-2 p-2 bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200"><UserIcon className="w-5 h-5"/> Email</a>}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                             <div className="bg-white p-6 rounded-lg shadow-md">
-                                <h3 className="text-xl font-bold text-brand-dark mb-4 flex items-center gap-2"><FileTextIcon className="w-6 h-6"/> Meus Arquivos</h3>
-                                <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile} className="w-full flex items-center justify-center gap-2 p-2 mb-4 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400"><UploadCloudIcon className="w-5 h-5"/>{uploadingFile ? "Enviando..." : "Enviar Arquivo"}</button>
-                                <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-                                <div className="max-h-60 overflow-y-auto space-y-2 pr-2">{studentFiles.map(f => <a key={f.id} href={f.fileUrl} target="_blank" rel="noopener noreferrer" className="block p-2 bg-gray-100 rounded-md hover:bg-gray-200 text-sm truncate">{f.fileName}</a>)}</div>
-                            </div>
-                            <div className="bg-white p-6 rounded-lg shadow-md">
-                                <h3 className="text-xl font-bold text-brand-dark mb-4 flex items-center gap-2"><DollarSignIcon className="w-6 h-6"/> Pagamentos</h3>
-                                <div className="max-h-80 overflow-y-auto pr-2">{payments.length > 0 ? <ul className="divide-y">{payments.map(p => <li key={p.id} className="py-2 flex justify-between"><span>{formatDate(p.paymentDate)} - {p.planName}</span><span className="font-semibold">R$ {p.amount.toFixed(2)}</span></li>)}</ul> : <p className="text-center text-gray-500">Nenhum pagamento.</p>}</div>
-                            </div>
-                        </div>
-                    </div>
-                    {/* Column 2 */}
-                    <div className="space-y-8">
-                        <div className="bg-white p-6 rounded-lg shadow-md">
-                            <h3 className="text-xl font-bold text-brand-dark mb-4 flex items-center gap-2"><ImageIcon className="w-6 h-6"/> Meu Progresso</h3>
-                            <div className="p-4 border rounded-md bg-gray-50 mb-4">
-                                <textarea value={photoNotes} onChange={e => setPhotoNotes(e.target.value)} placeholder="Adicionar uma nota sobre a foto (opcional)" className="w-full text-sm border-gray-300 rounded-md" rows={2}></textarea>
-                                <button onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto} className="w-full mt-2 flex items-center justify-center gap-2 p-2 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400"><CameraIcon className="w-5 h-5"/>{uploadingPhoto ? "Enviando..." : "Enviar Foto"}</button>
-                                <input type="file" accept="image/*" ref={photoInputRef} onChange={handlePhotoUpload} className="hidden" />
-                            </div>
-                            <div className="max-h-[80vh] overflow-y-auto space-y-4 pr-2">
-                                {progressPhotos.map(p => (
-                                    <div key={p.id} className="border rounded-lg overflow-hidden">
-                                        <img src={p.photoUrl} className="w-full" alt="foto de progresso"/>
-                                        <div className="p-3">
-                                            <p className="text-xs text-gray-500">{new Date(p.uploadedAt).toLocaleString('pt-BR')}</p>
-                                            {p.studentNotes && <p className="text-sm mt-1 italic">"{p.studentNotes}"</p>}
-                                            {p.trainerFeedback && <div className="mt-2 bg-green-50 p-2 rounded-md"><p className="text-sm font-semibold text-green-800">Feedback do Personal:</p><p className="text-sm text-green-700">{p.trainerFeedback}</p></div>}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </main>
-        </>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {photos.map(p => (<div key={p.id} className="border rounded-lg overflow-hidden"><img src={p.photoUrl} className="w-full h-48 object-cover" alt="foto de progresso"/><div className="p-3"><p className="text-xs text-gray-500">{new Date(p.uploadedAt).toLocaleString('pt-BR')}</p>{p.studentNotes && <p className="text-sm mt-1 italic">"{p.studentNotes}"</p>}{p.trainerFeedback && <div className="mt-2 bg-green-50 p-2 rounded-md"><p className="text-sm font-semibold text-green-800">Feedback do Personal:</p><p className="text-sm text-green-700">{p.trainerFeedback}</p></div>}</div></div>))}
+            </div>
+        </div>
     );
 };
+
+const FinancialContent: React.FC<{payments: Payment[]}> = ({ payments }) => (
+    <div className="bg-white p-6 rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold text-brand-dark border-b pb-4 mb-4">Meus Pagamentos</h2>
+        <div className="max-h-96 overflow-y-auto pr-2">{payments.length > 0 ? <ul className="divide-y">{payments.map(p => <li key={p.id} className="py-3 flex justify-between"><div><p className="font-semibold">{p.planName}</p><p className="text-sm text-gray-500">{new Date(p.paymentDate).toLocaleDateString('pt-BR')}</p></div><span className="font-bold text-lg text-green-600">R$ {p.amount.toFixed(2)}</span></li>)}</ul> : <p className="text-center text-gray-500 p-8">Nenhum pagamento registrado.</p>}</div>
+    </div>
+);
+
+const FilesContent: React.FC<{files: StudentFile[], student: Student, onUpdate: () => void}> = ({ files, student, onUpdate }) => {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploadingFile, setUploadingFile] = useState(false);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadingFile(true);
+        try {
+            const storageRef = ref(storage, `student_files/${student.id}/${Date.now()}-${file.name}`);
+            const snapshot = await uploadBytes(storageRef, file);
+            const fileUrl = await getDownloadURL(snapshot.ref);
+            await addDoc(collection(db, 'studentFiles'), { studentId: student.id, trainerId: student.trainerId, fileName: file.name, fileUrl, uploadedAt: Timestamp.now() });
+            onUpdate();
+        } catch (error: any) { alert(`Erro ao enviar arquivo: ${error.message}`); }
+        finally { setUploadingFile(false); if (e.target) e.target.value = ''; }
+    };
+    
+    return (
+        <div className="bg-white p-6 rounded-lg shadow-md space-y-6">
+            <h2 className="text-2xl font-bold text-brand-dark border-b pb-4">Meus Arquivos</h2>
+            <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile} className="w-full flex items-center justify-center gap-2 p-3 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400 font-semibold"><UploadCloudIcon className="w-5 h-5"/>{uploadingFile ? "Enviando..." : "Enviar Novo Arquivo"}</button>
+            <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+            <div className="border rounded-lg max-h-96 overflow-y-auto"><ul className="divide-y">{files.map(f => <li key={f.id}><a href={f.fileUrl} target="_blank" rel="noopener noreferrer" className="block p-3 hover:bg-gray-50 text-brand-dark font-medium truncate">{f.fileName}</a></li>)}</ul></div>
+        </div>
+    );
+};
+
 
 export default StudentPortal;
