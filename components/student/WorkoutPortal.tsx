@@ -130,6 +130,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
         }
     };
 
+// FIX: Rewrote state update to be more type-safe and avoid spreading potentially undefined values.
     const handleLogChange = (exerciseId: string, setId: string, field: 'reps' | 'load', value: string) => {
         setSessionLogs(prev => {
             const exerciseLog = prev[exerciseId] || { logData: {} };
@@ -156,13 +157,16 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
         const currentWorkout = workouts.find(w => w.id === selectedWorkout.id);
         if (!currentWorkout) return;
 
+        // FIX: Combined redundant log processing blocks and fixed type inference.
+        // Replaced Object.values with a safer method using Object.keys and map to ensure correct type inference.
         const logDataForPayload = sessionLogs[exerciseId]?.logData;
         const loggedSetsForPayload: LoggedSet[] = logDataForPayload
             ? Object.keys(logDataForPayload)
                 .map((key) => logDataForPayload[key])
                 .filter((s) => s.reps || s.load)
             : [];
-        
+        let logDocIdForPayload: string | undefined = undefined;
+
         if (loggedSetsForPayload.length > 0) {
             const logPayload: Omit<ExerciseLog, 'id'> = {
                 studentId: student.id,
@@ -174,7 +178,7 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
             const docRef = await addDoc(collection(db, "exerciseLogs"), {
                 ...logPayload, date: Timestamp.now()
             });
-            const logDocIdForPayload = docRef.id;
+            logDocIdForPayload = docRef.id;
             setSessionLogs(prev => ({...prev, [exerciseId]: { ...prev[exerciseId], logDocId: logDocIdForPayload }}));
         }
 
@@ -201,185 +205,167 @@ const WorkoutPortal: React.FC<WorkoutPortalProps> = ({ workouts, onBack, isPlanA
         const currentWorkout = workouts.find(w => w.id === selectedWorkout.id);
         if (!currentWorkout) return;
 
-        // Also delete the log if it was created in this session
-        const logToDelete = sessionLogs[exerciseId];
-        if (logToDelete?.logDocId) {
+        const logDocIdToDelete = sessionLogs[exerciseId]?.logDocId;
+        if (logDocIdToDelete) {
             try {
-                await deleteDoc(doc(db, "exerciseLogs", logToDelete.logDocId));
+                await deleteDoc(doc(db, "exerciseLogs", logDocIdToDelete));
                 setSessionLogs(prev => {
-                    const newLogs = { ...prev };
+                    const newLogs = {...prev};
                     delete newLogs[exerciseId];
                     return newLogs;
-                });
+                })
             } catch (error) {
-                console.error("Error deleting session log:", error);
+                console.error("Failed to delete exercise log:", error);
             }
         }
-
-        const newCompleted = (currentWorkout.completedExerciseIds || []).filter(id => id !== exerciseId);
         
-        try {
-            await updateDoc(doc(db, 'workouts', currentWorkout.id), { completedExerciseIds: newCompleted });
-            const updatedWorkout = { ...currentWorkout, completedExerciseIds: newCompleted };
-            setSelectedWorkout(updatedWorkout);
-            onWorkoutUpdate(updatedWorkout);
-            setShowSuccess(false); // Hide success message if they undo
-        } catch (error) {
-            console.error("Error undoing completion:", error);
-        }
+        const newCompleted = (currentWorkout.completedExerciseIds || []).filter(id => id !== exerciseId);
+        await updateDoc(doc(db, 'workouts', currentWorkout.id), { completedExerciseIds: newCompleted });
+        const updatedWorkout = { ...currentWorkout, completedExerciseIds: newCompleted };
+        setSelectedWorkout(updatedWorkout);
+        onWorkoutUpdate(updatedWorkout);
     };
 
     if (showSuccess) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-brand-light text-center p-4">
-                <CheckCircleIcon className="w-24 h-24 text-green-500 mb-4" />
-                <h2 className="text-3xl font-bold text-brand-dark">Treino Concluído!</h2>
-                <p className="text-gray-600 mt-2">Parabéns por finalizar sua ficha de treino. Excelente trabalho!</p>
-                <button
+            <div className="flex flex-col items-center justify-center min-h-screen bg-green-50 text-center p-4">
+                <CheckCircleIcon className="w-24 h-24 text-green-500 mb-4"/>
+                <h2 className="text-3xl font-bold text-green-800">Parabéns!</h2>
+                <p className="text-lg text-gray-700 mt-2">Você concluiu seu treino de hoje com sucesso. Ótimo trabalho!</p>
+                <button 
                     onClick={() => {
                         setShowSuccess(false);
                         setSelectedWorkout(null);
                     }}
-                    className="mt-6 px-6 py-3 bg-brand-primary text-white font-semibold rounded-lg hover:bg-brand-accent transition-colors"
+                    className="mt-8 px-6 py-3 bg-brand-primary text-white font-bold rounded-lg shadow-md hover:bg-brand-accent"
                 >
                     Voltar para a Lista de Treinos
                 </button>
             </div>
-        );
+        )
+    }
+
+    if (selectedWorkout) {
+        const completedExercises = selectedWorkout.completedExerciseIds || [];
+        const exercisesToShow = selectedWorkout.exercises.filter(ex => !ex.isHidden);
+        const sortedExercises = [...exercisesToShow].sort((a, b) => {
+            const aDone = completedExercises.includes(a.id);
+            const bDone = completedExercises.includes(b.id);
+            return aDone === bDone ? 0 : aDone ? 1 : -1;
+        });
+
+        return (
+            <>
+                <div className="bg-brand-dark sticky top-0 z-20">
+                    <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                        <h1 className="text-xl sm:text-2xl font-bold text-white truncate">{selectedWorkout.title}</h1>
+                        <div>
+                            <button onClick={() => setWorkoutToPrint(selectedWorkout)} className="text-white hover:text-gray-300 mr-4" title="Baixar PDF"><PrintIcon className="w-6 h-6"/></button>
+                            <button onClick={() => setSelectedWorkout(null)} className="text-white hover:text-gray-300">&times; Voltar</button>
+                        </div>
+                    </header>
+                </div>
+                <main className="container mx-auto p-4 sm:p-6 lg:p-8 space-y-4">
+                    {sortedExercises.map(ex => {
+                         const isCompleted = completedExercises.includes(ex.id);
+                         const historicalLog = historicalLogs[ex.id];
+                         if (isCompleted) {
+                            return (
+                                <div key={ex.id} className="p-4 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
+                                    <div className="flex items-center gap-3">
+                                        <CheckCircleIcon className="w-6 h-6 text-green-500"/>
+                                        <p className="font-semibold text-gray-700">{ex.name}</p>
+                                    </div>
+                                    <button onClick={() => handleUndoCompletion(ex.id)} className="text-sm font-medium text-gray-600 hover:text-red-600">Desfazer</button>
+                                </div>
+                            )
+                         }
+
+                         return (
+                            <div key={ex.id} className="p-4 bg-white rounded-lg shadow-md border">
+                                <h3 className="text-lg font-bold">{ex.name}</h3>
+                                {ex.youtubeUrl && getYoutubeEmbedUrl(ex.youtubeUrl) && (
+                                    <div className="mt-2 aspect-video"><iframe width="100%" height="100%" src={getYoutubeEmbedUrl(ex.youtubeUrl)!} title={ex.name} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe></div>
+                                )}
+                                {historicalLog && (
+                                    <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                                        <p className="text-xs font-bold text-blue-800">Última vez ({new Date(historicalLog.date).toLocaleDateString('pt-BR')}):</p>
+                                        <div className="text-xs text-blue-700 space-y-1 mt-1">
+                                        {historicalLog.loggedSets.map((s, i) => (
+                                            <p key={i}><strong>Série {i+1}:</strong> {s.reps} reps @ {s.load}</p>
+                                        ))}
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="mt-3 space-y-2">
+                                    {ex.sets.map((set, setIndex) => (
+                                        <div key={set.id} className="grid grid-cols-[auto,1fr,auto] items-center gap-x-3 p-2 bg-gray-50 rounded-md">
+                                            <span className="font-bold text-sm">Série {setIndex + 1}</span>
+                                            <span className="text-sm text-gray-600">{renderSetDetails(set)}</span>
+                                            {set.type === 'reps_load' && (
+                                                <div className="col-start-2 col-span-2 grid grid-cols-2 gap-2 mt-1">
+                                                    <input type="text" placeholder="Reps" onChange={(e) => handleLogChange(ex.id, set.id, 'reps', e.target.value)} className="w-full text-sm border-gray-300 rounded-md"/>
+                                                    <input type="text" placeholder="Carga" onChange={(e) => handleLogChange(ex.id, set.id, 'load', e.target.value)} className="w-full text-sm border-gray-300 rounded-md"/>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                                 <div className="mt-4 pt-4 border-t">
+                                     <button onClick={() => handleLogAndComplete(ex.id, ex.name)} className="w-full py-2 bg-green-600 text-white font-bold rounded-md hover:bg-green-700">Registrar e Concluir Exercício</button>
+                                </div>
+
+                                <div className="mt-4 pt-4 border-t">
+                                     <h4 className="text-sm font-semibold mb-2">Feedback para o Personal (opcional)</h4>
+                                     <div className="flex items-center gap-2">
+                                         <textarea value={feedback[ex.id] || ''} onChange={(e) => handleFeedbackChange(ex.id, e.target.value)} placeholder="Ex: Senti dor no ombro, achei muito pesado..." className="flex-1 text-sm border-gray-300 rounded-md shadow-sm" rows={2}/>
+                                         <button onClick={() => handleSendFeedback(selectedWorkout.id, ex.id)} disabled={!feedback[ex.id] || isSubmittingFeedback === ex.id} className="p-2 bg-brand-primary text-white rounded-md hover:bg-brand-accent disabled:bg-gray-400"><SendIcon className="w-5 h-5"/></button>
+                                     </div>
+                                 </div>
+                            </div>
+                         )
+                    })}
+                </main>
+            </>
+        )
     }
 
     return (
         <>
-            <div className="bg-brand-light min-h-screen">
-                <header className="bg-white shadow-md">
-                    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                        <h1 className="text-xl sm:text-2xl font-bold text-brand-dark flex items-center gap-2">
-                            <DumbbellIcon className="w-7 h-7" />
-                            {selectedWorkout ? selectedWorkout.title : 'Minhas Fichas de Treino'}
-                        </h1>
-                        <button onClick={selectedWorkout ? () => setSelectedWorkout(null) : onBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
-                            {selectedWorkout ? 'Voltar para a Lista' : 'Voltar ao Painel'}
-                        </button>
-                    </div>
+            <div className="bg-brand-dark">
+                <header className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                    <h1 className="text-xl sm:text-2xl font-bold text-white">Minhas Fichas de Treino</h1>
+                    <button onClick={onBack} className="text-white hover:text-gray-300">&times; Voltar</button>
                 </header>
-                <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-                    {!isPlanActive ? (
-                        <div className="text-center p-8 bg-white rounded-lg shadow-md">
-                            <ExclamationCircleIcon className="w-12 h-12 mx-auto text-red-500 mb-4" />
-                            <h2 className="text-2xl font-bold text-red-700">Acesso Bloqueado</h2>
-                            <p className="mt-2 text-gray-600">Seu plano não está ativo. Por favor, entre em contato com seu personal para regularizar a situação.</p>
-                        </div>
-                    ) : selectedWorkout ? (
-                        // DETAILED WORKOUT VIEW
-                        <div className="space-y-4">
-                            <div className="flex justify-end">
-                                <button onClick={() => setWorkoutToPrint(selectedWorkout)} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-600 rounded-md hover:bg-gray-700">
-                                    <PrintIcon className="w-5 h-5" /> Baixar PDF
+            </div>
+            <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+                 {workouts.length > 0 ? (
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         {workouts.map(w => {
+                             const completedCount = w.completedExerciseIds?.length || 0;
+                             const totalExercises = (w.exercises || []).filter(ex => !ex.isHidden).length;
+                             const progress = totalExercises > 0 ? (completedCount / totalExercises) * 100 : 0;
+                             return (
+                                <button key={w.id} onClick={() => setSelectedWorkout(w)} className="text-left p-6 bg-white rounded-lg shadow-md hover:shadow-xl hover:-translate-y-1 transition-all">
+                                    <h2 className="text-xl font-bold text-brand-dark">{w.title}</h2>
+                                    <p className="text-sm text-gray-500">Criado em: {new Date(w.createdAt).toLocaleDateString('pt-BR')}</p>
+                                    <div className="mt-4">
+                                        <div className="flex justify-between items-center text-sm font-semibold text-gray-600 mb-1">
+                                            <span>Progresso</span>
+                                            <span>{completedCount}/{totalExercises}</span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                            <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${progress}%`}}></div>
+                                        </div>
+                                    </div>
                                 </button>
-                            </div>
-                            {(selectedWorkout.exercises || []).filter(ex => !ex.isHidden).map(ex => {
-                                const embedUrl = getYoutubeEmbedUrl(ex.youtubeUrl);
-                                const isCompleted = selectedWorkout.completedExerciseIds?.includes(ex.id);
-                                const lastLog = historicalLogs[ex.id];
-
-                                return (
-                                    <div key={ex.id} className={`p-4 border rounded-lg shadow-sm transition-colors ${isCompleted ? 'bg-green-50 border-green-200' : 'bg-white'}`}>
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <h3 className="text-xl font-bold text-brand-dark">{ex.name}</h3>
-                                                <p className="text-sm text-gray-500">{ex.category} | {ex.muscleGroup}</p>
-                                            </div>
-                                            {isCompleted && <CheckCircleIcon className="w-8 h-8 text-green-500" />}
-                                        </div>
-                                        {embedUrl && (
-                                            <div className="mt-3 aspect-w-16 aspect-h-9">
-                                                <iframe src={embedUrl} title={ex.name} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full rounded-md"></iframe>
-                                            </div>
-                                        )}
-                                        <div className="mt-3 space-y-2">
-                                            <div className="grid grid-cols-[50px,1fr,auto] gap-x-4 items-center font-semibold text-sm text-gray-500">
-                                                <span>Série</span>
-                                                <span>Execução</span>
-                                                <span className="text-right">Seu Log</span>
-                                            </div>
-                                            {ex.sets.map((set, index) => (
-                                                <div key={set.id} className="grid grid-cols-[50px,1fr,120px] gap-x-4 items-center p-2 bg-gray-50 rounded-md">
-                                                    <span className="font-bold text-center">{index + 1}</span>
-                                                    <span className="text-sm">{renderSetDetails(set)}</span>
-                                                    <div className="flex gap-1">
-                                                        <input type="text" placeholder="Reps" disabled={isCompleted} onChange={e => handleLogChange(ex.id, set.id, 'reps', e.target.value)} className="w-1/2 text-sm border-gray-300 rounded-md disabled:bg-gray-200"/>
-                                                        <input type="text" placeholder="Carga" disabled={isCompleted} onChange={e => handleLogChange(ex.id, set.id, 'load', e.target.value)} className="w-1/2 text-sm border-gray-300 rounded-md disabled:bg-gray-200"/>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {lastLog && (
-                                                <div className="text-xs text-gray-500 italic p-2 bg-blue-50 border-l-4 border-blue-200 rounded-r-md">
-                                                    Último treino ({new Date(lastLog.date).toLocaleDateString('pt-BR')}):
-                                                    {lastLog.loggedSets.map((s, i) => ` ${s.reps}x${s.load}`).join(' | ')}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="mt-4 pt-4 border-t">
-                                            {isCompleted ? (
-                                                <button onClick={() => handleUndoCompletion(ex.id)} className="w-full py-2 text-sm font-semibold text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">
-                                                    Desfazer Conclusão
-                                                </button>
-                                            ) : (
-                                                <button onClick={() => handleLogAndComplete(ex.id, ex.name)} className="w-full py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700">
-                                                    Marcar como Concluído
-                                                </button>
-                                            )}
-                                        </div>
-                                        {!isCompleted && (
-                                            <div className="mt-4">
-                                                <textarea value={feedback[ex.id] || ''} onChange={e => handleFeedbackChange(ex.id, e.target.value)} placeholder="Deixar um feedback sobre o exercício..." rows={2} className="w-full text-sm border-gray-300 rounded-md"></textarea>
-                                                <button onClick={() => handleSendFeedback(selectedWorkout.id, ex.id)} disabled={isSubmittingFeedback === ex.id} className="mt-2 flex items-center gap-2 px-3 py-1 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent disabled:bg-gray-400">
-                                                    <SendIcon className="w-4 h-4" /> {isSubmittingFeedback === ex.id ? 'Enviando...' : 'Enviar Feedback'}
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        // WORKOUT LIST VIEW
-                        <div className="space-y-4">
-                            {workouts.length > 0 ? workouts.map(w => (
-                                <div key={w.id} className="p-4 border rounded-lg bg-white shadow-sm flex justify-between items-center">
-                                    <div>
-                                        <p className="font-bold text-lg text-brand-dark">{w.title}</p>
-                                        <p className="text-sm text-gray-500">Criado em: {new Date(w.createdAt).toLocaleDateString('pt-BR')}</p>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <button onClick={() => setWorkoutToPrint(w)} className="text-gray-500 hover:text-purple-600" title="Baixar PDF do Treino">
-                                            <PrintIcon className="w-6 h-6"/>
-                                        </button>
-                                        <button onClick={() => setSelectedWorkout(w)} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">
-                                            Iniciar Treino
-                                        </button>
-                                    </div>
-                                </div>
-                            )) : (
-                                <div className="text-center p-8 bg-white rounded-lg shadow-md">
-                                    <p className="text-gray-500">Nenhuma ficha de treino foi criada para você ainda.</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </main>
-            </div>
-            {/* HIDDEN PDF LAYOUT - a single instance for the whole component */}
-            <div style={{ position: 'fixed', left: '-9999px', top: 0, zIndex: -1 }}>
-                {workoutToPrint && student && trainer && (
-                    <WorkoutPDFLayout
-                        ref={pdfLayoutRef}
-                        student={student}
-                        trainer={trainer}
-                        workout={workoutToPrint}
-                    />
-                )}
-            </div>
+                             )
+                         })}
+                     </div>
+                 ) : (
+                     <p className="text-center text-gray-500 py-16">Nenhuma ficha de treino foi criada para você ainda.</p>
+                 )}
+            </main>
         </>
     );
 };

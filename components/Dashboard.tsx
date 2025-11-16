@@ -771,6 +771,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                 <nav className="flex-grow space-y-2">
                     <NavItem view="welcome" label="Dashboard" Icon={ChartBarIcon} />
                     <NavItem view="studentList" label="Alunos" Icon={UserIcon} totalCount={studentCount} alertCount={pendingStudentsCount} />
+                    <button
+                        onClick={() => {
+                            setGroupModalOpen(true);
+                            setIsSidebarOpen(false); // Close sidebar on navigation in mobile
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-colors text-gray-300 hover:bg-brand-secondary hover:text-white"
+                    >
+                        <UsersIcon className="w-6 h-6"/>
+                        <span className="font-semibold">Grupos</span>
+                    </button>
                     <NavItem view="schedule" label="Agenda" Icon={CalendarIcon} />
                     <NavItem view="planManagement" label="Planos" Icon={BriefcaseIcon} />
                     <NavItem view="workoutTemplates" label="Modelos de Treino" Icon={ClipboardListIcon} />

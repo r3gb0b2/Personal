@@ -11,7 +11,9 @@ interface State {
 }
 
 class ErrorBoundary extends React.Component<Props, State> {
-  // FIX: Reverted to using a public class field for state. The constructor-based initialization was causing type errors where `this.state` and `this.props` were not being recognized on the class instance. The class field syntax correctly defines the state property.
+  // FIX: Reverted to using a public class field for state initialization.
+  // The constructor-based approach was causing TypeScript errors where `this.state` and `this.props`
+  // were not being recognized. This modern syntax is cleaner and resolves the type inference problem.
   public state: State = {
     hasError: false,
     error: null,
