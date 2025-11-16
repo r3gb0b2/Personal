@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Payment, Student, Plan } from '../../types';
 import { PrintIcon, TrashIcon, ExclamationCircleIcon } from '../icons';
 import ReceiptModal from './ReceiptModal';
-import { Chart } from 'chart.js';
+import Chart from 'chart.js';
 
 interface FinancialReportProps {
   onBack: () => void;
