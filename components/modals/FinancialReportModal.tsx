@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Payment, Student, Plan } from '../../types';
 import { PrintIcon, TrashIcon, ExclamationCircleIcon } from '../icons';
 import ReceiptModal from './ReceiptModal';
-import { Chart } from 'chart.js';
+import * as ChartJS from 'chart.js';
 
 interface FinancialReportProps {
   onBack: () => void;
@@ -17,7 +17,7 @@ type FilterPeriod = 'all' | 'this_month' | 'last_month' | 'this_year';
 
 const BarChart: React.FC<{ labels: string[], data: number[], title: string }> = ({ labels, data, title }) => {
     const chartRef = useRef<HTMLCanvasElement>(null);
-    const chartInstance = useRef<Chart | null>(null);
+    const chartInstance = useRef<ChartJS.Chart | null>(null);
 
     useEffect(() => {
         if (chartRef.current) {
@@ -26,7 +26,7 @@ const BarChart: React.FC<{ labels: string[], data: number[], title: string }> = 
             }
             const ctx = chartRef.current.getContext('2d');
             if (ctx) {
-                chartInstance.current = new Chart(ctx, {
+                chartInstance.current = new ChartJS.Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: labels,

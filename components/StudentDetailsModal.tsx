@@ -17,7 +17,7 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import WorkoutPDFLayout from './pdf/WorkoutPDFLayout';
 import FinancialTab from './FinancialTab';
-import { Chart } from 'chart.js';
+import * as ChartJS from 'chart.js';
 
 
 interface StudentDetailsViewProps {
@@ -911,7 +911,7 @@ const PhysicalAssessmentTab: React.FC<{ studentId: string, assessments: Physical
     const [formData, setFormData] = useState(initialFormState);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const chartRef = useRef<HTMLCanvasElement>(null);
-    const chartInstance = useRef<Chart | null>(null);
+    const chartInstance = useRef<ChartJS.Chart | null>(null);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
@@ -960,7 +960,7 @@ const PhysicalAssessmentTab: React.FC<{ studentId: string, assessments: Physical
             }
             const ctx = chartRef.current.getContext('2d');
             if (ctx) {
-                chartInstance.current = new Chart(ctx, {
+                chartInstance.current = new ChartJS.Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: chartData.labels,
