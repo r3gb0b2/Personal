@@ -115,6 +115,7 @@ export interface Workout {
     exercises: Exercise[];
     createdAt: string; // ISO string
     completedExerciseIds?: string[];
+    completedAt?: string | null; // ISO string
 }
 
 export interface WorkoutTemplate {

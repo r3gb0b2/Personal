@@ -180,16 +180,26 @@ const StudentWorkoutView: React.FC<StudentWorkoutViewProps> = ({ workouts, onBac
 
         const currentCompleted = currentWorkout.completedExerciseIds || [];
         const newCompleted = [...currentCompleted, exerciseId];
+        const updatedWorkoutPartial = { ...currentWorkout, completedExerciseIds: newCompleted };
         
-        try {
-            await updateDoc(doc(db, 'workouts', currentWorkout.id), { completedExerciseIds: newCompleted });
-            const updatedWorkout = { ...currentWorkout, completedExerciseIds: newCompleted };
-            setSelectedWorkout(updatedWorkout);
-            onWorkoutUpdate(updatedWorkout);
+        const allExercisesDone = updatedWorkoutPartial.exercises
+            .filter(ex => !ex.isHidden)
+            .every(ex => newCompleted.includes(ex.id));
 
-            const allExercisesDone = updatedWorkout.exercises.filter(ex => !ex.isHidden).every(ex => newCompleted.includes(ex.id));
+        try {
             if (allExercisesDone) {
+                const finalWorkoutUpdate = { ...updatedWorkoutPartial, completedAt: new Date().toISOString() };
+                await updateDoc(doc(db, 'workouts', currentWorkout.id), {
+                    completedExerciseIds: newCompleted,
+                    completedAt: Timestamp.now()
+                });
+                onWorkoutUpdate(finalWorkoutUpdate);
+                setSelectedWorkout(finalWorkoutUpdate);
                 setShowSuccess(true);
+            } else {
+                await updateDoc(doc(db, 'workouts', currentWorkout.id), { completedExerciseIds: newCompleted });
+                onWorkoutUpdate(updatedWorkoutPartial);
+                setSelectedWorkout(updatedWorkoutPartial);
             }
         } catch (error) {
             console.error("Error completing exercise:", error);
@@ -217,10 +227,23 @@ const StudentWorkoutView: React.FC<StudentWorkoutViewProps> = ({ workouts, onBac
         }
 
         const newCompleted = (currentWorkout.completedExerciseIds || []).filter(id => id !== exerciseId);
+        const wasCompleted = !!currentWorkout.completedAt;
         
         try {
-            await updateDoc(doc(db, 'workouts', currentWorkout.id), { completedExerciseIds: newCompleted });
+             const dataToUpdate: { completedExerciseIds: string[]; completedAt?: any } = {
+                completedExerciseIds: newCompleted
+            };
+            if (wasCompleted) {
+                dataToUpdate.completedAt = null;
+            }
+            
+            await updateDoc(doc(db, 'workouts', currentWorkout.id), dataToUpdate);
+
             const updatedWorkout = { ...currentWorkout, completedExerciseIds: newCompleted };
+            if (wasCompleted) {
+                updatedWorkout.completedAt = null;
+            }
+
             setSelectedWorkout(updatedWorkout);
             onWorkoutUpdate(updatedWorkout);
             setShowSuccess(false); // Hide success message if they undo
@@ -247,6 +270,9 @@ const StudentWorkoutView: React.FC<StudentWorkoutViewProps> = ({ workouts, onBac
             </div>
         );
     }
+    
+    const activeWorkouts = workouts.filter(w => !w.completedAt);
+    const completedWorkouts = workouts.filter(w => w.completedAt);
 
     return (
         <div className="bg-white p-6 rounded-lg shadow-md">
@@ -349,27 +375,49 @@ const StudentWorkoutView: React.FC<StudentWorkoutViewProps> = ({ workouts, onBac
                     </div>
                 ) : (
                     // WORKOUT LIST VIEW
-                    <div className="space-y-4">
-                        {workouts.length > 0 ? workouts.map(w => (
-                            <div key={w.id} className="p-4 border rounded-lg bg-white shadow-sm flex justify-between items-center">
-                                <div>
-                                    <p className="font-bold text-lg text-brand-dark">{w.title}</p>
-                                    <p className="text-sm text-gray-500">Criado em: {new Date(w.createdAt).toLocaleDateString('pt-BR')}</p>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    <button onClick={() => setWorkoutToPrint(w)} className="text-gray-500 hover:text-purple-600" title="Baixar PDF do Treino">
-                                        <PrintIcon className="w-6 h-6"/>
-                                    </button>
-                                    <button onClick={() => setSelectedWorkout(w)} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">
-                                        Iniciar Treino
-                                    </button>
-                                </div>
+                    <div className="space-y-6">
+                        <div>
+                            <h3 className="text-xl font-semibold mb-3 text-brand-dark">Treinos Ativos</h3>
+                            <div className="space-y-4">
+                                {activeWorkouts.length > 0 ? activeWorkouts.map(w => (
+                                    <div key={w.id} className="p-4 border rounded-lg bg-white shadow-sm flex justify-between items-center">
+                                        <div>
+                                            <p className="font-bold text-lg text-brand-dark">{w.title}</p>
+                                            <p className="text-sm text-gray-500">Criado em: {new Date(w.createdAt).toLocaleDateString('pt-BR')}</p>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <button onClick={() => setWorkoutToPrint(w)} className="text-gray-500 hover:text-purple-600" title="Baixar PDF do Treino">
+                                                <PrintIcon className="w-6 h-6"/>
+                                            </button>
+                                            <button onClick={() => setSelectedWorkout(w)} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">
+                                                Iniciar Treino
+                                            </button>
+                                        </div>
+                                    </div>
+                                )) : (
+                                    <p className="text-center text-gray-500 p-4 bg-gray-50 rounded-md">Você não tem treinos ativos no momento.</p>
+                                )}
                             </div>
-                        )) : (
-                            <div className="text-center p-8 bg-white rounded-lg shadow-md">
-                                <p className="text-gray-500">Nenhuma ficha de treino foi criada para você ainda.</p>
+                        </div>
+
+                        <div>
+                            <h3 className="text-xl font-semibold mb-3 text-brand-dark">Treinos Concluídos</h3>
+                            <div className="space-y-4">
+                                {completedWorkouts.length > 0 ? completedWorkouts.map(w => (
+                                    <div key={w.id} className="p-4 border rounded-lg bg-green-50 border-green-200 flex justify-between items-center">
+                                        <div>
+                                            <p className="font-bold text-lg text-green-800">{w.title}</p>
+                                            <p className="text-sm text-green-700">Concluído em: {w.completedAt ? new Date(w.completedAt).toLocaleDateString('pt-BR') : 'Data inválida'}</p>
+                                        </div>
+                                        <button onClick={() => setSelectedWorkout(w)} className="px-4 py-2 text-sm font-medium text-green-800 bg-white border border-green-300 rounded-md hover:bg-green-100">
+                                            Ver Detalhes
+                                        </button>
+                                    </div>
+                                )) : (
+                                    <p className="text-center text-gray-500 p-4 bg-gray-50 rounded-md">Nenhum treino concluído ainda.</p>
+                                )}
                             </div>
-                        )}
+                        </div>
                     </div>
                 )}
             </main>
