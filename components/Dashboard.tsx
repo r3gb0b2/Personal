@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { db, storage } from '../firebase';
 // FIX: Changed firebase import path to use the scoped package '@firebase/firestore' to maintain consistency with the fix in `firebase.ts` and resolve potential module loading issues.
@@ -343,7 +344,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
       const toISO = (ts: any) => ts && ts.toDate ? ts.toDate().toISOString() : null;
       
       const studentsSnapshot = await getDocs(query(collection(db, 'students'), where("trainerId", "==", currentTrainer.id)));
-      const plansSnapshot = await getDocs(query(collection(db, 'plans'), where("trainerId", "==", currentTrainer.id)));
+      // FIX: Fetch all plans and filter on the client to include legacy plans without a trainerId.
+      const allPlansSnapshot = await getDocs(collection(db, 'plans'));
       const paymentsSnapshot = await getDocs(query(collection(db, 'payments'), where("trainerId", "==", currentTrainer.id), orderBy('paymentDate', 'desc')));
       const templatesSnapshot = await getDocs(query(collection(db, 'workoutTemplates'), where("trainerId", "==", currentTrainer.id)));
       const pendingStudentsQuery = query(collection(db, 'pendingStudents'), where("trainerId", "==", currentTrainer.id), where("status", "==", "pending"));
@@ -363,7 +365,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
         } as Student;
       });
 
-      const plansList = plansSnapshot.docs.map(docSnapshot => ({ ...docSnapshot.data(), id: docSnapshot.id } as Plan));
+      // FIX: Filter plans to show trainer-specific plans and global/legacy plans.
+      const plansList = allPlansSnapshot.docs
+        .map(docSnapshot => ({ ...docSnapshot.data(), id: docSnapshot.id } as Plan))
+        .filter(plan => !plan.trainerId || plan.trainerId === currentTrainer.id);
       
       const templatesList = templatesSnapshot.docs.map(docSnapshot => ({ ...docSnapshot.data(), id: docSnapshot.id } as WorkoutTemplate));
 
