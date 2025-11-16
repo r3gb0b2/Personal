@@ -145,6 +145,13 @@ const AddStudentView: React.FC<AddStudentViewProps> = ({ plans, onBack, onAdd, a
             remainingSessions = selectedPlan.numberOfSessions;
         }
     }
+
+    const getUtcIsoString = (dateString: string): string | null => {
+        if (!dateString) return null;
+        const [year, month, day] = dateString.split('-').map(Number);
+        return new Date(Date.UTC(year, month - 1, day)).toISOString();
+    };
+
     const studentToAdd: Omit<Student, 'id'> = {
       name: newStudent.name.trim(),
       email: newStudent.email.trim().toLowerCase(),
@@ -154,7 +161,7 @@ const AddStudentView: React.FC<AddStudentViewProps> = ({ plans, onBack, onAdd, a
       paymentDueDate, remainingSessions, sessions: [],
       profilePictureUrl: null, trainerId: '',
       schedule: newStudent.schedule.length > 0 ? newStudent.schedule.filter(s => s.startTime && s.endTime) : null,
-      birthDate: newStudent.birthDate ? new Date(newStudent.birthDate).toISOString() : null,
+      birthDate: getUtcIsoString(newStudent.birthDate),
       accessBlocked: newStudent.accessBlocked,
     };
 
