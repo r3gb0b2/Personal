@@ -16,7 +16,10 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import WorkoutPDFLayout from './pdf/WorkoutPDFLayout';
 import FinancialTab from './FinancialTab';
-import * as ChartJS from 'chart.js';
+
+// Declare the global Chart object made available by the UMD script in index.html.
+// This bypasses ES module import issues that were causing a white screen.
+declare const Chart: any;
 
 
 interface StudentDetailsViewProps {
@@ -959,7 +962,7 @@ const PhysicalAssessmentTab: React.FC<{ studentId: string, assessments: Physical
             }
             const ctx = chartRef.current.getContext('2d');
             if (ctx) {
-                chartInstance.current = new ChartJS.Chart(ctx, {
+                chartInstance.current = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: chartData.labels,
