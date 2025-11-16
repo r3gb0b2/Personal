@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Student, Plan, ClassSession, Payment, PaymentMethod, ClassSessionType, Workout, StudentFile, ProgressPhoto, DaySchedule, Trainer, Exercise, WorkoutTemplate, StudentGroup, PhysicalAssessment } from '../types';
 import { CalendarIcon, CheckCircleIcon, ExclamationCircleIcon, PlusIcon, TrashIcon, UserIcon, CameraIcon, FileTextIcon, ImageIcon, LinkIcon, SendIcon, BriefcaseIcon, MailIcon, DumbbellIcon, PencilIcon, EyeIcon, EyeOffIcon, CloneIcon, UsersIcon, PrintIcon, DollarSignIcon, ChartBarIcon } from './icons';
@@ -911,7 +910,7 @@ const PhysicalAssessmentTab: React.FC<{ studentId: string, assessments: Physical
     const [formData, setFormData] = useState(initialFormState);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const chartRef = useRef<HTMLCanvasElement>(null);
-    const chartInstance = useRef<ChartJS.Chart | null>(null);
+    const chartInstance = useRef<ChartJS.default | null>(null);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
@@ -960,7 +959,7 @@ const PhysicalAssessmentTab: React.FC<{ studentId: string, assessments: Physical
             }
             const ctx = chartRef.current.getContext('2d');
             if (ctx) {
-                chartInstance.current = new ChartJS.Chart(ctx, {
+                chartInstance.current = new ChartJS.default(ctx, {
                     type: 'line',
                     data: {
                         labels: chartData.labels,
