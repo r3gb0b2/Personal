@@ -33,6 +33,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
     const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
     const [assessments, setAssessments] = useState<PhysicalAssessment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     
     const [view, setView] = useState<PortalView>(() => {
         const savedView = sessionStorage.getItem(STUDENT_PORTAL_VIEW_KEY);
@@ -51,6 +52,7 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
+        setError(null);
         const toISO = (ts: any) => ts?.toDate ? ts.toDate().toISOString() : new Date().toISOString();
         try {
             const queries = [
@@ -66,8 +68,13 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
             setProgressPhotos(photosSnap.docs.map(d => ({ ...d.data(), id: d.id, uploadedAt: toISO(d.data().uploadedAt) } as ProgressPhoto)));
             setAssessments(assessmentsSnap.docs.map(d => ({...d.data(), id: d.id, date: toISO(d.data().date) } as PhysicalAssessment)));
 
-        } catch (error) {
-            console.error("Error fetching data:", error);
+        } catch (err: any) {
+            console.error("Firebase Connection Error Details:", err);
+            if (err.code === 'failed-precondition') {
+                setError("INDEX_ERROR");
+            } else {
+                setError("CONNECTION_ERROR");
+            }
         } finally {
             setIsLoading(false);
         }
@@ -124,6 +131,42 @@ const StudentPortal: React.FC<StudentPortalProps> = ({ studentData, plans, onLog
 
     const renderContent = () => {
         if (isLoading) return <div className="text-center p-8">Carregando...</div>;
+        
+        if (error) {
+            return (
+                <div className="m-4 bg-red-50 border border-red-200 p-6 rounded-lg shadow-sm">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <ExclamationCircleIcon className="h-8 w-8 text-red-500" />
+                    </div>
+                    <div className="ml-4 flex-1">
+                      <h3 className="text-lg font-bold text-red-800">Erro ao Carregar Dados</h3>
+                      <div className="mt-2 text-sm text-red-700 space-y-4">
+                        <p>A aplicação não conseguiu carregar os dados do aluno. A causa mais provável é uma configuração pendente no banco de dados.</p>
+                        {error === 'INDEX_ERROR' ? (
+                          <>
+                            <p><strong>Causa Provável:</strong> O banco de dados (Firestore) precisa de um "índice" para realizar esta consulta. A mensagem de erro completa no console do navegador contém um link para criar este índice automaticamente.</p>
+                            <div className="p-3 bg-red-100 rounded-md border border-red-300">
+                                <h4 className="font-bold text-red-900">Como Resolver (para o Personal Trainer):</h4>
+                                <ol className="list-decimal list-inside space-y-1 mt-1 text-red-800">
+                                    <li>Abra o Console do Desenvolvedor no navegador (geralmente com a tecla <strong>F12</strong>).</li>
+                                    <li>Procure por uma mensagem de erro em vermelho no "Console".</li>
+                                    <li>Essa mensagem terá um <strong>link longo</strong>. Clique nesse link.</li>
+                                    <li>Uma página do Firebase abrirá para criar o índice. Apenas clique em <strong>"Criar"</strong>.</li>
+                                    <li>Aguarde alguns minutos para a criação do índice e depois recarregue a página.</li>
+                                </ol>
+                            </div>
+                          </>
+                        ) : (
+                          <p>Verifique o console do navegador (F12) para ver os detalhes técnicos do erro e garantir que as configurações do Firebase estão corretas.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+            );
+        }
+
         switch(view) {
             case 'workouts': return <StudentWorkoutView workouts={workouts} onBack={() => {}} isPlanActive={isPlanActive} onWorkoutUpdate={handleUpdateWorkout} student={student} trainer={trainer} />;
             case 'assessments': return <AssessmentsContent assessments={assessments} />;
