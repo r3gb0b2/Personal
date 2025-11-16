@@ -16,7 +16,7 @@ type FilterPeriod = 'all' | 'this_month' | 'last_month' | 'this_year';
 
 const BarChart: React.FC<{ labels: string[], data: number[], title: string }> = ({ labels, data, title }) => {
     const chartRef = useRef<HTMLCanvasElement>(null);
-    const chartInstance = useRef<ChartJS.default | null>(null);
+    const chartInstance = useRef<any | null>(null);
 
     useEffect(() => {
         if (chartRef.current) {
@@ -25,7 +25,7 @@ const BarChart: React.FC<{ labels: string[], data: number[], title: string }> = 
             }
             const ctx = chartRef.current.getContext('2d');
             if (ctx) {
-                chartInstance.current = new ChartJS.default(ctx, {
+                chartInstance.current = new ChartJS.Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: labels,
