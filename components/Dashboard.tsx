@@ -772,6 +772,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
                     <NavItem view="welcome" label="Dashboard" Icon={ChartBarIcon} />
                     <NavItem view="studentList" label="Alunos" Icon={UserIcon} totalCount={studentCount} alertCount={pendingStudentsCount} />
                     <NavItem view="schedule" label="Agenda" Icon={CalendarIcon} />
+                    <button
+                        onClick={() => {
+                            setGroupModalOpen(true);
+                            setIsSidebarOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-colors text-gray-300 hover:bg-brand-secondary hover:text-white"
+                    >
+                        <UsersIcon className="w-6 h-6"/>
+                        <span className="font-semibold">Grupos</span>
+                    </button>
                     <NavItem view="planManagement" label="Planos" Icon={BriefcaseIcon} />
                     <NavItem view="workoutTemplates" label="Modelos de Treino" Icon={ClipboardListIcon} />
                     <NavItem view="financialReport" label="Financeiro" Icon={DollarSignIcon} />
@@ -816,7 +826,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
 
             {pendingStudents.length > 0 && (
             <div className="mb-8 p-4 bg-yellow-50 border border-yellow-300 rounded-lg shadow-sm">
-                <h3 className="font-bold text-lg text-yellow-900 mb-3">{pendingStudents.length} Nova(s) Solicitação(ões) de Cadastro</h3>
+                <h3 className="font-bold text-lg text-yellow-900">{pendingStudents.length} Nova(s) Solicitação(ões) de Cadastro</h3>
                 <div className="space-y-2">
                     {pendingStudents.map(ps => (
                         <div key={ps.id} className="flex items-center justify-between p-3 bg-white rounded-md border">
@@ -917,8 +927,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             </div>
           </div>
       </header>
-
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1">
         <Sidebar 
             activeView={activeView} 
             setActiveView={setActiveView} 
@@ -926,25 +935,52 @@ const Dashboard: React.FC<DashboardProps> = ({ onLogout, trainer }) => {
             pendingStudentsCount={pendingStudents.length}
             studentCount={students.length}
         />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto bg-brand-light">
-          {renderActiveView()}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-brand-light overflow-y-auto">
+            {renderActiveView()}
         </main>
       </div>
 
-      {isGroupModalOpen && (
-          <GroupManagementModal isOpen={isGroupModalOpen} onClose={() => setGroupModalOpen(false)} groups={studentGroups} trainerId={currentTrainer.id} onUpdate={fetchData} />
-      )}
-      {isBulkEmailModalOpen && (
-          <BulkEmailModal isOpen={isBulkEmailModalOpen} onClose={() => setBulkEmailModalOpen(false)} students={students} trainer={currentTrainer} />
-      )}
-      {isCopyLinkModalOpen && (
-        <Modal title="Link de Cadastro para Alunos" isOpen={isCopyLinkModalOpen} onClose={() => setCopyLinkModalOpen(false)}>
+       <Modal 
+            title="Link de Cadastro para Alunos" 
+            isOpen={isCopyLinkModalOpen} 
+            onClose={() => setCopyLinkModalOpen(false)}
+        >
             <div className="space-y-4">
-                <p>Compartilhe este link com novos alunos para que eles possam se cadastrar. As solicitações aparecerão no seu painel para aprovação.</p>
-                <input type="text" readOnly value={`${window.location.origin}?trainer=${currentTrainer.id}`} className="w-full p-2 border rounded bg-gray-100"/>
-                <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}?trainer=${currentTrainer.id}`); alert('Link copiado!'); }} className="w-full px-4 py-2 text-sm font-medium text-white bg-brand-primary rounded-md hover:bg-brand-accent">Copiar Link</button>
+                <p>Compartilhe este link com seus novos alunos para que eles possam se cadastrar. As solicitações aparecerão no seu painel para aprovação.</p>
+                <input 
+                    type="text" 
+                    readOnly 
+                    value={`${window.location.origin}?trainer=${currentTrainer.id}`}
+                    className="w-full bg-gray-100 border border-gray-300 rounded-md p-2"
+                />
+                <button 
+                    onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}?trainer=${currentTrainer.id}`);
+                        alert('Link copiado!');
+                    }}
+                    className="w-full bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-accent transition-colors"
+                >
+                    Copiar Link
+                </button>
             </div>
         </Modal>
+
+      {isBulkEmailModalOpen && (
+          <BulkEmailModal 
+            isOpen={isBulkEmailModalOpen} 
+            onClose={() => setBulkEmailModalOpen(false)} 
+            students={students}
+            trainer={currentTrainer}
+          />
+      )}
+      {isGroupModalOpen && (
+        <GroupManagementModal 
+            isOpen={isGroupModalOpen} 
+            onClose={() => setGroupModalOpen(false)} 
+            groups={studentGroups}
+            trainerId={currentTrainer.id}
+            onUpdate={fetchData}
+        />
       )}
     </div>
   );
